@@ -46,6 +46,12 @@ class ContactController extends Controller
                 AllowedFilter::exact('phone'),
                 // Filtre par ID utilisateur, utile pour les managers/admins
                 AllowedFilter::exact('user_id'),
+
+                AllowedFilter::callback('search', function (Builder $query, $value) {
+                    $query->where('name', 'LIKE', "%{$value}%")
+                          ->orWhere('email', 'LIKE', "%{$value}%")
+                          ->orWhere('phone', 'LIKE', "%{$value}%");
+                }),
             ])
             // Relations à inclure (ex: ?include=user)
             ->allowedIncludes([

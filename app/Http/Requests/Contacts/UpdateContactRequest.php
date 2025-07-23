@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Contacts;
 
+use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateContactRequest extends FormRequest

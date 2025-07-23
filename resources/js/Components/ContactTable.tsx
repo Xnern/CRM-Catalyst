@@ -9,7 +9,8 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
 } from '@tanstack/react-table';
-import { useGetContactsQuery, useDeleteContactMutation, GetContactsQueryParams, Contact } from '@/services/api';
+import { useGetContactsQuery, useDeleteContactMutation, GetContactsQueryParams } from '@/services/api';
+import { Contact } from '@/types/Contact';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/Components/ui/table';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -36,7 +37,7 @@ const ContactTable: React.FC = () => {
     includes: ['user'],
   };
 
-  const { data, isLoading, isFetching, error } = useGetContactsQuery(queryParams);
+  const { data, isLoading, isFetching, error } = useGetContactsQuery(queryParams as any);
   const [deleteContact, { isLoading: isDeleting }] = useDeleteContactMutation();
 
   const handleEditContact = (contact: Contact) => {
