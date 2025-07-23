@@ -19,9 +19,7 @@ class ContactController extends Controller
      */
     public function indexInertia(Request $request)
     {
-        // La politique "viewAny" sera appliquée au niveau de l'API RESTful via `Gate::authorize`
-        // ou vous pouvez la mettre ici pour un contrôle préventif.
-        // Gate::authorize('viewAny', Contact::class); // Optionnel ici si déjà fait dans la méthode API
+        Gate::authorize('viewAny', Contact::class); // Optionnel ici si déjà fait dans la méthode API
 
         // La page Inertia ne charge pas les données directement depuis cette méthode,
         // elle affichera le composant React qui fera les requêtes API via RTK Query.
