@@ -7,7 +7,8 @@ import * as z from 'zod';
 import { Input } from '@/Components/ui/input';
 import { Button } from '@/Components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
-import { useCreateContactMutation, useUpdateContactMutation, Contact } from '@/services/api';
+import { useAddContactMutation, useUpdateContactMutation } from '@/services/api';
+import { Contact } from '@/types/Contact';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -49,7 +50,7 @@ interface ContactFormProps {
 
 const ContactForm: React.FC<ContactFormProps> = ({ contact, onSuccess, onCancel }) => {
   const isEditMode = !!contact;
-  const [createContact, { isLoading: isCreating }] = useCreateContactMutation();
+  const [createContact, { isLoading: isCreating }] = useAddContactMutation();
   const [updateContact, { isLoading: isUpdating }] = useUpdateContactMutation();
 
   const form = useForm<z.infer<typeof contactFormSchema>>({
