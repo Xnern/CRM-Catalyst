@@ -20,6 +20,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Route pour la page des contacts
     Route::get('/contacts', [ContactController::class, 'indexInertia'])
         ->name('contacts.indexInertia');
+    Route::post('/contacts/import', [ContactController::class, 'importCsv'])->name('contacts.import');
 });
 
 Route::get('/dashboard', function () {

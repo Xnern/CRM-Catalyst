@@ -9,6 +9,22 @@ export interface GetContactsQueryParams {
     includes?: string[]; // Relations à inclure (ex: ['user'])
 }
 
+interface PaginatedApiResponse<T> {
+    current_page: number;
+    data: T[];
+    first_page_url: string;
+    from: number;
+    last_page: number;
+    last_page_url: string;
+    links: Array<{ url: string | null; label: string; active: boolean }>;
+    next_page_url: string | null;
+    path: string;
+    per_page: number;
+    prev_page_url: string | null;
+    to: number;
+    total: number;
+  }
+
 /**
  * Fonction utilitaire pour récupérer un cookie par son nom.
  * Utile pour récupérer le XSRF-TOKEN nécessaire à Laravel Sanctum.
@@ -81,11 +97,21 @@ export const api = createApi({
      * Récupère tous les contacts.
      * @returns Un tableau d'objets Contact.
      */
-    getContacts: builder.query<{ data: Contact[]; total: number; last_page: number; }, GetContactsQueryParams>({
-        query: (queryParams) => ({
-            url: '/contacts', // ou '/api/contacts'
-            params: queryParams,
-        }),
+    getContacts: builder.query<PaginatedApiResponse<Contact>, { page?: number; per_page?: number; search?: string }>({
+        query: ({ page = 1, per_page = 15, search = '' }) => { // Définit des valeurs par défaut
+          const params = new URLSearchParams();
+          params.append('page', page.toString());
+          params.append('per_page', per_page.toString());
+          if (search) {
+            params.append('search', search);
+          }
+          return `contacts?${params.toString()}`;
+        },
+        // Fournit des tags pour le caching. 'LIST' pour la liste entière.
+        providesTags: (result) =>
+          result
+            ? [...result.data.map(({ id }) => ({ type: 'Contact' as const, id })), { type: 'Contact', id: 'LIST' }]
+            : [{ type: 'Contact', id: 'LIST' }],
     }),
 
     /**
