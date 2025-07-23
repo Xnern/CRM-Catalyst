@@ -145,11 +145,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         columnHelper.accessor('name', { header: 'Nom', cell: info => info.getValue() }),
         columnHelper.accessor('email', { header: 'Email', cell: info => info.getValue() }),
         columnHelper.accessor('phone', { header: 'Téléphone', cell: info => info.getValue() }),
-        columnHelper.accessor('user.name', {
-            header: 'Créé par',
-            // Corrected cell function to handle potentially undefined 'user' or 'user.name'
-            cell: ({ row }) => row.original.user?.name || 'N/A',
-        }),
+        columnHelper.accessor('address', { header: 'Adresse', cell: info => info.getValue() || 'N/A' }),
         columnHelper.accessor('created_at', {
             header: 'Créé le',
             cell: info => info.getValue() ? new Date(info.getValue()).toLocaleDateString() : 'N/A'
@@ -218,7 +214,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
 
     const handleCreateNew = () => { setSelectedContact(null); setIsModalOpen(true); };
 
-    const handleEdit = (contact: Contact) => { setSelectedContact(contact); setIsModalOpen(true); };
+    const handleEdit = (contact: Contact) => { console.log(contact); setSelectedContact(contact); setIsModalOpen(true); };
 
     const handleDelete = async (id: number) => {
         try {
