@@ -4,13 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Contact;
 use Illuminate\Http\Request;
-use Inertia\Inertia; // Pour les vues Inertia
+use Illuminate\Support\Facades\Gate;
+use Spatie\QueryBuilder\AllowedSort;
 use Spatie\QueryBuilder\QueryBuilder;
 use Spatie\QueryBuilder\AllowedFilter;
-use Spatie\QueryBuilder\AllowedSort;
 use Spatie\QueryBuilder\AllowedInclude;
-use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia; // Pour les vues Inertia
 use Illuminate\Validation\ValidationException;
+use App\Http\Requests\Contacts\StoreContactRequest;
+use App\Http\Requests\Contacts\UpdateContactRequest;
 
 class ContactController extends Controller
 {
@@ -19,9 +21,7 @@ class ContactController extends Controller
      */
     public function indexInertia(Request $request)
     {
-        // La politique "viewAny" sera appliquée au niveau de l'API RESTful via `Gate::authorize`
-        // ou vous pouvez la mettre ici pour un contrôle préventif.
-        // Gate::authorize('viewAny', Contact::class); // Optionnel ici si déjà fait dans la méthode API
+        Gate::authorize('viewAny', Contact::class); // Optionnel ici si déjà fait dans la méthode API
 
         // La page Inertia ne charge pas les données directement depuis cette méthode,
         // elle affichera le composant React qui fera les requêtes API via RTK Query.
@@ -81,17 +81,12 @@ class ContactController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreContactRequest $request)
     {
         Gate::authorize('create', Contact::class);
 
-        $validatedData = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:contacts'],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'address' => ['nullable', 'string', 'max:255'],
-            // Ajoutez d'autres champs nécessaires
-        ]);
+        $validatedData = $request->validated();
+
 
         // Assurez-vous que l'utilisateur connecté est assigné comme propriétaire du contact
         $contact = $request->user()->contacts()->create($validatedData);
@@ -112,17 +107,11 @@ class ContactController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Contact $contact)
+    public function update(UpdateContactRequest $request, Contact $contact)
     {
         Gate::authorize('update', $contact);
 
-        $validatedData = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:contacts,email,' . $contact->id],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'address' => ['nullable', 'string', 'max:255'],
-
-        ]);
+        $validatedData = $request->validated();
 
         $contact->update($validatedData);
 
