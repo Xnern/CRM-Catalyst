@@ -9,13 +9,36 @@ import { Button } from '@/Components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { useCreateContactMutation, useUpdateContactMutation, Contact } from '@/services/api';
 import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner'; // <-- IMPORT DE LA FONCTION toast DE SONNER
+import { toast } from 'sonner';
 
-// Schéma de validation avec Zod (inchangé)
+// Regex pour le numéro de téléphone: permet chiffres, espaces, tirets, et un '+' en début.
+// Gère aussi les cas où le champ est vide ou seulement des espaces pour la validation côté client.
+const phoneRegex = new RegExp(
+  /^([+]?\d{1,3}[-. ]?)?(\(?\d{3}\)?[-. ]?)?\d{3}[-. ]?\d{4}$/
+);
+
+// Schéma de validation avec Zod
 const contactFormSchema = z.object({
-  name: z.string().min(2, { message: "Le nom doit contenir au moins 2 caractères." }).max(50, { message: "Le nom ne doit pas dépasser 50 caractères." }),
-  email: z.string().email({ message: "Veuillez entrer une adresse email valide." }).max(100, { message: "L'email ne doit pas dépasser 100 caractères." }).optional().or(z.literal('')),
-  phone: z.string().max(20, { message: "Le numéro de téléphone ne doit pas dépasser 20 caractères." }).optional().or(z.literal('')),
+  name: z.string()
+    .min(2, { message: "Le nom doit contenir au moins 2 caractères." })
+    .max(50, { message: "Le nom ne doit pas dépasser 50 caractères." }),
+
+  email: z.string()
+    .email({ message: "Veuillez entrer une adresse email valide." })
+    .max(100, { message: "L'email ne doit pas dépasser 100 caractères." })
+    .optional()
+    .or(z.literal('')),
+
+  phone: z.string()
+    .max(20, { message: "Le numéro de téléphone ne doit pas dépasser 20 caractères." })
+    .optional()
+    .or(z.literal(''))
+    .refine((val) => {
+        if (val && val.trim() !== '') {
+            return phoneRegex.test(val);
+        }
+        return true;
+    }, "Le numéro de téléphone n'est pas valide (chiffres, +, espaces, tirets autorisés)."),
 });
 
 interface ContactFormProps {
@@ -25,8 +48,6 @@ interface ContactFormProps {
 }
 
 const ContactForm: React.FC<ContactFormProps> = ({ contact, onSuccess, onCancel }) => {
-  // Pas besoin de "const { toast } = useToast();" ici, on utilise directement la fonction importée.
-
   const isEditMode = !!contact;
   const [createContact, { isLoading: isCreating }] = useCreateContactMutation();
   const [updateContact, { isLoading: isUpdating }] = useUpdateContactMutation();
@@ -58,27 +79,39 @@ const ContactForm: React.FC<ContactFormProps> = ({ contact, onSuccess, onCancel 
 
 
   const onSubmit = async (values: z.infer<typeof contactFormSchema>) => {
+    const payload = {
+      name: values.name,
+      email: values.email === '' ? null : values.email,
+      phone: values.phone === '' ? null : values.phone,
+    };
+
     try {
       if (isEditMode && contact) {
-        await updateContact({ id: contact.id, ...values }).unwrap();
-        toast.success("Le contact a été modifié avec succès !"); // <-- Utilisation de toast.success
+        await updateContact({ id: contact.id, ...payload }).unwrap();
+        toast.success("Le contact a été modifié avec succès !");
       } else {
-        await createContact(values).unwrap();
-        toast.success("Le contact a été créé avec succès !"); // <-- Utilisation de toast.success
+        await createContact(payload).unwrap();
+        toast.success("Le contact a été créé avec succès !");
       }
       onSuccess();
     } catch (err: any) {
       console.error('Échec de la soumission du contact:', err);
-      if (err.data && err.data.errors) {
+
+      // Si l'erreur provient du backend et contient des erreurs de validation
+      if (err.status === 422 && err.data && err.data.errors) {
+        // Parcours les erreurs renvoyées par Laravel et les assigne aux champs du formulaire
         for (const field in err.data.errors) {
+          // 'field' correspond au nom du champ (ex: 'email', 'name', 'phone')
+          // err.data.errors[field][0] est le premier message d'erreur pour ce champ
           form.setError(field as keyof z.infer<typeof contactFormSchema>, {
-            type: 'server',
+            type: 'server', // Type d'erreur pour indiquer qu'elle vient du serveur
             message: err.data.errors[field][0],
           });
         }
-        toast.error("Veuillez corriger les champs invalides."); // <-- Utilisation de toast.error
+        toast.error("Veuillez corriger les erreurs dans le formulaire.");
       } else {
-        toast.error("Une erreur est survenue lors de la soumission. Veuillez réessayer."); // <-- Utilisation de toast.error
+        // Pour les autres types d'erreurs (419 CSRF, 500 interne, etc.)
+        toast.error("Une erreur inattendue est survenue. Veuillez réessayer.");
       }
     }
   };
@@ -97,7 +130,7 @@ const ContactForm: React.FC<ContactFormProps> = ({ contact, onSuccess, onCancel 
               <FormControl>
                 <Input placeholder="Nom du contact" {...field} />
               </FormControl>
-              <FormMessage />
+              <FormMessage /> {/* Ce composant affichera l'erreur */}
             </FormItem>
           )}
         />
@@ -110,7 +143,7 @@ const ContactForm: React.FC<ContactFormProps> = ({ contact, onSuccess, onCancel 
               <FormControl>
                 <Input placeholder="email@example.com" {...field} type="email" />
               </FormControl>
-              <FormMessage />
+              <FormMessage /> {/* Ce composant affichera l'erreur */}
             </FormItem>
           )}
         />
@@ -123,7 +156,7 @@ const ContactForm: React.FC<ContactFormProps> = ({ contact, onSuccess, onCancel 
               <FormControl>
                 <Input placeholder="0123456789" {...field} type="tel" />
               </FormControl>
-              <FormMessage />
+              <FormMessage /> {/* Ce composant affichera l'erreur */}
             </FormItem>
           )}
         />

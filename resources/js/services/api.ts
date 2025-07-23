@@ -81,6 +81,13 @@ const baseQuery = fetchBaseQuery({
       headers.set('X-XSRF-TOKEN', decodeURIComponent(xsrfToken)); // Décode le token si nécessaire
     }
 
+    if (!headers.has('X-Requested-With')) {
+        headers.set('X-Requested-With', 'XMLHttpRequest');
+    }
+    if (!headers.has('Accept')) {
+        headers.set('Accept', 'application/json');
+    }
+
     return headers;
   },
 });
