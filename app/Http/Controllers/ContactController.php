@@ -89,13 +89,20 @@ class ContactController extends Controller
                 }),
             ])
             ->allowedIncludes([
-                AllowedInclude::relationship('user')
+                AllowedInclude::relationship('user', 'user')
             ])
             ->allowedSorts([
                 'name',
                 'email',
                 'created_at',
             ]);
+
+        if ($request->has('include')) {
+            $includes = explode(',', $request->include);
+            if (in_array('user', $includes)) {
+                $contactsQuery->with('user');
+            }
+        }
 
         $contacts = $contactsQuery->paginate($perPage);
 

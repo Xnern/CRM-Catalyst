@@ -6,7 +6,7 @@ export interface GetContactsQueryParams {
     per_page?: number;   // Nombre d'éléments par page
     search?: string;     // Terme de recherche
     sort?: string;       // Champ pour le tri (ex: 'name', '-created_at')
-    includes?: string[]; // Relations à inclure (ex: ['user'])
+    include?: string; // Relations à inclure (ex: ['user'])
 }
 
 interface PaginatedApiResponse<T> {
@@ -97,13 +97,19 @@ export const api = createApi({
      * Récupère tous les contacts.
      * @returns Un tableau d'objets Contact.
      */
-    getContacts: builder.query<PaginatedApiResponse<Contact>, { page?: number; per_page?: number; search?: string }>({
-        query: ({ page = 1, per_page = 15, search = '' }) => { // Définit des valeurs par défaut
+    getContacts: builder.query<PaginatedApiResponse<Contact>, GetContactsQueryParams>({
+        query: ({ page = 1, per_page = 15, search = '', sort = '', include = '' }) => { // Définit des valeurs par défaut
           const params = new URLSearchParams();
           params.append('page', page.toString());
           params.append('per_page', per_page.toString());
           if (search) {
             params.append('search', search);
+          }
+          if (sort) {
+            params.append('sort', sort);
+          }
+          if (include) {
+            params.append('include', include);
           }
           return `contacts?${params.toString()}`;
         },
