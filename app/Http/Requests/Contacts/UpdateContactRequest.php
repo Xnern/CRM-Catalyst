@@ -4,28 +4,37 @@ namespace App\Http\Requests\Contacts;
 
 use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Http\FormRequest;
+use App\Traits\CleansPhoneNumbers; // Importer le trait
 
 class UpdateContactRequest extends FormRequest
 {
+    use CleansPhoneNumbers; // Utiliser le trait
+
     /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
     {
         $contact = $this->route('contact');
-
         return true;
     }
 
     /**
+     * Prepare the data for validation.
+     * C'est ici que nous nettoyons le numéro de téléphone avant d'appliquer les règles.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'phone' => $this->cleanPhoneNumber($this->input('phone')),
+        ]);
+    }
+
+    /**
      * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
-        // Récupérer l'ID du contact que nous sommes en train de modifier
-        // Laravel fait automatiquement l'injection de modèle si le paramètre de route est "contact"
         $contactId = $this->route('contact')->id;
 
         return [
@@ -35,18 +44,16 @@ class UpdateContactRequest extends FormRequest
                 'string',
                 'email',
                 'max:100',
-                // La règle unique doit ignorer l'ID du contact actuel
                 Rule::unique('contacts', 'email')->ignore($contactId),
             ],
-            'phone' => ['nullable', 'string', 'max:20', 'regex:/^([+]?\d{1,3}[-. ]?)?(\(?\d{3}\)?[-. ]?)?\d{3}[-. ]?\d{4}$/'],
+            // La regex est appliquée au numéro déjà nettoyé
+            'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?\d{10,15}$/'],
             'address' => ['nullable', 'string', 'max:255'],
         ];
     }
 
     /**
      * Get the error messages for the defined validation rules.
-     *
-     * @return array<string, string>
      */
     public function messages(): array
     {
@@ -56,7 +63,7 @@ class UpdateContactRequest extends FormRequest
             'email.email' => 'Veuillez entrer une adresse email valide.',
             'email.max' => "L'email ne doit pas dépasser :max caractères.",
             'email.unique' => 'Cet e-mail est déjà utilisé par un autre contact.',
-            'phone.regex' => 'Le numéro de téléphone n\'est pas valide.',
+            'phone.regex' => 'Le numéro de téléphone n\'est pas valide (ex: +33612345678).',
             'phone.max' => 'Le numéro de téléphone ne doit pas dépasser :max caractères.',
         ];
     }

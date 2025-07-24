@@ -40,7 +40,7 @@ interface PaginatedApiResponse<T> {
     total: number;
 }
 
-// NOUVEAU: Interface pour les erreurs de validation du backend
+// Interface pour les erreurs de validation du backend
 interface BackendValidationErrors {
     [key: string]: string[]; // Ex: { name: ['Le nom est requis.'], email: ['Email invalide.'] }
 }
@@ -64,6 +64,28 @@ const persistState = <T,>(key: string, state: T): void => {
     }
 };
 
+// --- NOUVELLE FONCTION UTILITAIRE POUR LE FORMATAGE CÔTÉ FRONTEND ---
+const formatPhoneNumberForDisplay = (phoneNumber: string | null | undefined): string => {
+    if (!phoneNumber) {
+        return '';
+    }
+
+    // Ensures only digits are left, even if there are spaces, dashes, etc.
+    // Handles an optional leading '+'
+    const cleaned = phoneNumber.replace(/[^\d+]/g, '');
+    const hasPlus = cleaned.startsWith('+');
+    let digitsOnly = hasPlus ? cleaned.substring(1) : cleaned;
+
+    // Check if it's a 10-digit French number (0X XX XX XX XX or +33 X XX XX XX XX)
+    if (digitsOnly.length === 10) {
+        return `${hasPlus ? '+' : ''}${digitsOnly.substring(0, 2)} ${digitsOnly.substring(2, 4)} ${digitsOnly.substring(4, 6)} ${digitsOnly.substring(6, 8)} ${digitsOnly.substring(8, 10)}`;
+    }
+    // For other lengths or international numbers, return it as is (cleaned but unformatted)
+    // For more complex international formatting, consider a library like `libphonenumber-js`.
+    return phoneNumber;
+};
+// --- FIN NOUVELLE FONCTION UTILITAIRE ---
+
 
 export default function Index({ auth, errors, canCreateContact }: PageProps<{ canCreateContact: boolean }>) {
     // --- Pagination and search states managed here and persisted ---
@@ -72,10 +94,8 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
     const [searchQuery, setSearchQuery] = useState<string>(() => getPersistedState('contactsSearchQuery', ''));
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>(searchQuery);
 
-    // NOUVEAU: État pour stocker les erreurs de validation du backend
     const [backendErrors, setBackendErrors] = useState<BackendValidationErrors>({});
 
-    // Persist perPage and searchQuery (the raw input term) every time they change
     useEffect(() => {
         persistState('contactsPerPage', perPage);
     }, [perPage]);
@@ -93,7 +113,6 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         []
     );
 
-    // Handles changes in the search input
     const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         setSearchQuery(value);
@@ -128,8 +147,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         include: 'user', // IMPORTANT: Request the 'user' relationship from the backend
     });
 
-    // Extract data and pagination info
-    const contacts: Contact[] = useMemo(() => apiResponse?.data || [], [apiResponse]);
+    const contacts = useMemo(() => apiResponse?.data || [], [apiResponse]); // Renamed from contactsData for consistency with previous snippets
     const totalContacts = apiResponse?.total || 0;
     const lastPage = apiResponse?.last_page || 1;
 
@@ -143,13 +161,11 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
     const columns: ColumnDef<Contact>[] = useMemo(() => [
         columnHelper.accessor('name', { header: 'Nom', cell: info => info.getValue() }),
         columnHelper.accessor('email', { header: 'Email', cell: info => info.getValue() }),
-        columnHelper.accessor('phone', { header: 'Téléphone', cell: info => info.getValue() }),
-        columnHelper.accessor('address', { header: 'Adresse', cell: info => info.getValue() || 'N/A' }), // Ajout de l'adresse
-        columnHelper.accessor('user.name', {
-            header: 'Créé par',
-            // Corrected cell function to handle potentially undefined 'user' or 'user.name'
-            cell: ({ row }) => row.original.user?.name || 'N/A',
+        columnHelper.accessor('phone', {
+            header: 'Téléphone',
+            cell: ({ row }) => formatPhoneNumberForDisplay(row.original.phone), // <-- Utilise la fonction de formatage ici
         }),
+        columnHelper.accessor('address', { header: 'Adresse', cell: info => info.getValue() || 'N/A' }),
         columnHelper.accessor('created_at', {
             header: 'Créé le',
             cell: info => info.getValue() ? new Date(info.getValue()).toLocaleDateString() : 'N/A'
@@ -184,21 +200,11 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
 
     // --- Callback Management Functions ---
 
-    // Handle page change (called by DataTable)
-    const handlePageChange = (newPage: number) => {
-        setCurrentPage(newPage);
-    };
+    const handlePageChange = (newPage: number) => { setCurrentPage(newPage); };
+    const handlePerPageChange = (newSize: string) => { setPerPage(Number(newSize)); setCurrentPage(1); };
 
-    // Handle per page change (called by DataTable)
-    const handlePerPageChange = (newSize: string) => {
-        const size = Number(newSize);
-        setPerPage(size);
-        setCurrentPage(1); // Very important: go back to the first page when changing perPage
-    };
-
-    // Handle add/edit
     const handleFormSubmit = async (values: Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'user'>) => {
-        setBackendErrors({}); // Réinitialise les erreurs à chaque soumission
+        setBackendErrors({});
 
         try {
             if (selectedContact) {
@@ -210,10 +216,9 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
             }
             setIsModalOpen(false);
             setSelectedContact(null);
-            refetch(); // Refetch data after add/edit
+            refetch();
         } catch (err) {
             console.error('Erreur lors de l\'enregistrement du contact:', err);
-            // Gérer les erreurs de validation spécifiques du backend (status 422)
             if ((err as any).status === 422 && (err as any).data && (err as any).data.errors) {
                 setBackendErrors((err as any).data.errors);
                 toast.error('Veuillez corriger les erreurs dans le formulaire.');
@@ -223,18 +228,8 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         }
     };
 
-    const handleCreateNew = () => {
-        setSelectedContact(null);
-        setBackendErrors({}); // Réinitialise les erreurs quand on ouvre pour créer
-        setIsModalOpen(true);
-    };
-
-    const handleEdit = (contact: Contact) => {
-        setSelectedContact(contact);
-        setBackendErrors({}); // Réinitialise les erreurs quand on ouvre pour modifier
-        setIsModalOpen(true);
-    };
-
+    const handleCreateNew = () => { setSelectedContact(null); setBackendErrors({}); setIsModalOpen(true); };
+    const handleEdit = (contact: Contact) => { setSelectedContact(contact); setBackendErrors({}); setIsModalOpen(true); };
     const handleDelete = async (id: number) => {
         try {
             await deleteContact(id).unwrap();
@@ -246,22 +241,15 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         }
     };
 
-    const handleBulkDelete = async (ids: string[]) => {
-        setSelectedContactIds(ids);
-        setIsBulkDeleteConfirmOpen(true);
-    };
-
+    const handleBulkDelete = async (ids: string[]) => { setSelectedContactIds(ids); setIsBulkDeleteConfirmOpen(true); };
     const confirmBulkDelete = async () => {
         try {
-            for (const id of selectedContactIds) {
-                await deleteContact(Number(id)).unwrap();
-            }
+            for (const id of selectedContactIds) { await deleteContact(Number(id)).unwrap(); }
             toast.success(`${selectedContactIds.length} contact(s) supprimé(s) avec succès.`);
             setIsBulkDeleteConfirmOpen(false);
-            setSelectedContactIds([]); // Reset selected IDs
+            setSelectedContactIds([]);
             refetch();
-        }
-        catch (err) {
+        } catch (err) {
             console.error('Erreur lors de la suppression groupée:', err);
             toast.error('Échec de la suppression groupée. Veuillez réessayer.');
         }
@@ -275,18 +263,17 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                     toast.success('Fichier CSV importé. Le traitement est en cours...');
                     setIsImportModalOpen(false);
                     importReset();
-                    refetch(); // Refetch data after successful import
-                    setCurrentPage(1); // Go back to first page after import
+                    refetch();
+                    setCurrentPage(1);
                 },
                 onError: (errors) => {
                     console.error('Erreur d\'importation:', errors);
                     toast.error('Échec de l\'importation. Vérifiez les erreurs.');
                 },
             });
-        } else {
-            toast.error('Veuillez sélectionner un fichier CSV.');
-        }
+        } else { toast.error('Veuillez sélectionner un fichier CSV.'); }
     };
+
 
     if (isError) {
         return (
