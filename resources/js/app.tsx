@@ -1,4 +1,3 @@
-// resources/js/app.tsx
 import './bootstrap';
 import '../css/app.css';
 

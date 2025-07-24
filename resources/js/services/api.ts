@@ -1,14 +1,16 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { Contact } from '@/types/Contact'; // Assurez-vous que le chemin est correct pour votre interface Contact
+import { Contact } from '@/types/Contact';
 
+// Query parameters for fetching contacts
 export interface GetContactsQueryParams {
-    page?: number;       // Numéro de la page (ex: 1, 2, 3...)
-    per_page?: number;   // Nombre d'éléments par page
-    search?: string;     // Terme de recherche
-    sort?: string;       // Champ pour le tri (ex: 'name', '-created_at')
-    include?: string; // Relations à inclure (ex: ['user'])
+    page?: number;
+    per_page?: number;
+    search?: string;
+    sort?: string;
+    include?: string; // Relationships to include (e.g., 'user')
 }
 
+// Interface for Laravel's paginated API response structure
 interface PaginatedApiResponse<T> {
     current_page: number;
     data: T[];
@@ -23,15 +25,12 @@ interface PaginatedApiResponse<T> {
     prev_page_url: string | null;
     to: number;
     total: number;
-  }
+}
 
-/**
- * Fonction utilitaire pour récupérer un cookie par son nom.
- * Utile pour récupérer le XSRF-TOKEN nécessaire à Laravel Sanctum.
- */
+// Utility function to retrieve a cookie by name
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') {
-    return null; // S'assurer que cela fonctionne côté serveur si vous faites du SSR
+    return null;
   }
   const nameEQ = name + '=';
   const ca = document.cookie.split(';');
@@ -43,42 +42,26 @@ function getCookie(name: string): string | null {
   return null;
 }
 
-/**
- * Création de l'API RTK Query.
- * Définit la base URL, les en-têtes communs et les points de terminaison.
- */
+// RTK Query API creation
 export const api = createApi({
-  // Chemin du reducer dans le store Redux
-  reducerPath: 'api',
+  reducerPath: 'api', // Reducer path in the Redux store
 
-  // Configuration de la fonction de base pour les requêtes HTTP
   baseQuery: fetchBaseQuery({
-    // L'URL de base de votre API Laravel.
-    // Si vos routes de contact sont dans web.php sans préfixe '/api', adaptez cette URL.
-    // Exemple: 'http://127.0.0.1:8000' si vos routes sont /contacts
-    // Exemple: 'http://127.0.0.1:8000/api' si vos routes sont /api/contacts
-    baseUrl: 'http://127.0.0.1:8000/api',
+    baseUrl: 'http://127.0.0.1:8000/api', // Base URL for the Laravel API
+    credentials: 'include', // Important for sending session cookies (Laravel Sanctum)
 
-    // Indique au navigateur d'envoyer les cookies (nécessaire pour Laravel Sanctum avec sessions)
-    credentials: 'include',
-
-    // Prépare les en-têtes de chaque requête sortante
+    // Prepares headers for outgoing requests
     prepareHeaders: (headers) => {
-      // Récupère le XSRF-TOKEN du cookie
       const xsrfToken = getCookie('XSRF-TOKEN');
 
-      // Si le token est présent, l'ajoute à l'en-tête X-XSRF-TOKEN
-      // Laravel Sanctum s'attend à cet en-tête pour la protection CSRF
       if (xsrfToken) {
-        headers.set('X-XSRF-TOKEN', decodeURIComponent(xsrfToken));
+        headers.set('X-XSRF-TOKEN', decodeURIComponent(xsrfToken)); // CSRF token for Laravel
       }
 
-      // S'assure que Laravel reconnaît la requête comme une requête AJAX
+      // Ensure Laravel recognizes the request as AJAX/JSON
       if (!headers.has('X-Requested-With')) {
         headers.set('X-Requested-With', 'XMLHttpRequest');
       }
-
-      // S'assure que Laravel renvoie une réponse JSON
       if (!headers.has('Accept')) {
         headers.set('Accept', 'application/json');
       }
@@ -87,21 +70,16 @@ export const api = createApi({
     },
   }),
 
-  // Définit les types de tags pour l'invalidation et la mise à jour du cache.
-  // Utile pour automatiquement rafraîchir les données après une mutation.
-  tagTypes: ['Contact'],
+  tagTypes: ['Contact'], // Tag types for cache invalidation and updates
 
-  // Définit les différents points de terminaison (endpoints) de l'API
   endpoints: (builder) => ({
-    /**
-     * Récupère tous les contacts.
-     * @returns Un tableau d'objets Contact.
-     */
+    // Fetches a paginated list of contacts
     getContacts: builder.query<PaginatedApiResponse<Contact>, GetContactsQueryParams>({
-        query: ({ page = 1, per_page = 15, search = '', sort = '', include = '' }) => { // Définit des valeurs par défaut
+        query: ({ page = 1, per_page = 15, search = '', sort = '', include = '' }) => {
           const params = new URLSearchParams();
           params.append('page', page.toString());
           params.append('per_page', per_page.toString());
+
           if (search) {
             params.append('search', search);
           }
@@ -113,60 +91,45 @@ export const api = createApi({
           }
           return `contacts?${params.toString()}`;
         },
-        // Fournit des tags pour le caching. 'LIST' pour la liste entière.
+        // Provides 'Contact' tags for caching, including 'LIST' for the overall list
         providesTags: (result) =>
           result
             ? [...result.data.map(({ id }) => ({ type: 'Contact' as const, id })), { type: 'Contact', id: 'LIST' }]
             : [{ type: 'Contact', id: 'LIST' }],
     }),
 
-    /**
-     * Ajoute un nouveau contact.
-     * @param newContact Les données du nouveau contact à créer.
-     * @returns Le contact créé (avec son ID, timestamps, etc.).
-     */
+    // Adds a new contact
     addContact: builder.mutation<Contact, Partial<Contact>>({
       query: (newContact) => ({
-        url: '/contacts', // Assurez-vous que le chemin correspond à votre route
+        url: '/contacts',
         method: 'POST',
         body: newContact,
       }),
-      invalidatesTags: ['Contact'], // Invalide le cache 'Contact' pour rafraîchir la liste
+      invalidatesTags: ['Contact'], // Invalidates 'Contact' cache to refresh lists
     }),
 
-    /**
-     * Met à jour un contact existant.
-     * @param id L'ID du contact à mettre à jour.
-     * @param patch Les champs à modifier du contact.
-     * @returns Le contact mis à jour.
-     */
+    // Updates an existing contact
     updateContact: builder.mutation<Contact, Partial<Contact>>({
       query: ({ id, ...patch }) => ({
-        url: `/contacts/${id}`, // Assurez-vous que le chemin correspond à votre route
+        url: `/contacts/${id}`,
         method: 'PUT',
         body: patch,
       }),
-      invalidatesTags: ['Contact'], // Invalide le cache 'Contact' pour rafraîchir la liste
+      invalidatesTags: ['Contact'], // Invalidates 'Contact' cache to refresh lists
     }),
 
-    /**
-     * Supprime un contact.
-     * @param id L'ID du contact à supprimer.
-     */
+    // Deletes a contact
     deleteContact: builder.mutation<void, number>({
       query: (id) => ({
-        url: `/contacts/${id}`, // Assurez-vous que le chemin correspond à votre route
+        url: `/contacts/${id}`,
         method: 'DELETE',
       }),
-      invalidatesTags: ['Contact'], // Invalide le cache 'Contact' pour rafraîchir la liste
+      invalidatesTags: ['Contact'], // Invalidates 'Contact' cache to refresh lists
     }),
   }),
 });
 
-/**
- * Exporte les hooks générés par RTK Query pour chaque endpoint.
- * Utilisez-les dans vos composants React (e.g., useGetContactsQuery()).
- */
+// Export RTK Query hooks for each endpoint
 export const {
   useGetContactsQuery,
   useAddContactMutation,

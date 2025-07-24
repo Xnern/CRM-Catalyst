@@ -21,12 +21,13 @@ class UpdateContactRequest extends FormRequest
 
     /**
      * Prepare the data for validation.
-     * C'est ici que nous nettoyons le numéro de téléphone avant d'appliquer les règles.
      */
     protected function prepareForValidation(): void
     {
         $this->merge([
             'phone' => $this->cleanPhoneNumber($this->input('phone')),
+            'latitude' => filter_var($this->input('latitude'), FILTER_VALIDATE_FLOAT),
+            'longitude' => filter_var($this->input('longitude'), FILTER_VALIDATE_FLOAT),
         ]);
     }
 
@@ -46,9 +47,10 @@ class UpdateContactRequest extends FormRequest
                 'max:100',
                 Rule::unique('contacts', 'email')->ignore($contactId),
             ],
-            // La regex est appliquée au numéro déjà nettoyé
             'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?\d{10,15}$/'],
             'address' => ['nullable', 'string', 'max:255'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ];
     }
 
@@ -65,6 +67,10 @@ class UpdateContactRequest extends FormRequest
             'email.unique' => 'Cet e-mail est déjà utilisé par un autre contact.',
             'phone.regex' => 'Le numéro de téléphone n\'est pas valide (ex: +33612345678).',
             'phone.max' => 'Le numéro de téléphone ne doit pas dépasser :max caractères.',
+            'latitude.numeric' => 'La latitude doit être un nombre.',
+            'latitude.between' => 'La latitude doit être entre -90 et 90.',
+            'longitude.numeric' => 'La longitude doit être un nombre.',
+            'longitude.between' => 'La longitude doit être entre -180 et 180.',
         ];
     }
 }
