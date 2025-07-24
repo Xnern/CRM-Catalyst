@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react'; // Added useCallback
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import { PageProps } from '@/types';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
@@ -21,10 +21,9 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/Components/ui/dropdown-menu';
-import { debounce } from 'lodash'; // NEW: Import debounce from lodash
+import { debounce } from 'lodash';
 
-// Interface for Laravel paginated response (ideally moved to api.ts or types/api.ts)
-// Keep this here if you haven't moved it yet.
+// Interface pour Laravel paginated response
 interface PaginatedApiResponse<T> {
     current_page: number;
     data: T[];
@@ -39,6 +38,11 @@ interface PaginatedApiResponse<T> {
     prev_page_url: string | null;
     to: number;
     total: number;
+}
+
+// NOUVEAU: Interface pour les erreurs de validation du backend
+interface BackendValidationErrors {
+    [key: string]: string[]; // Ex: { name: ['Le nom est requis.'], email: ['Email invalide.'] }
 }
 
 // --- Utility functions for persistence ---
@@ -65,11 +69,11 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
     // --- Pagination and search states managed here and persisted ---
     const [currentPage, setCurrentPage] = useState<number>(() => getPersistedState('contactsCurrentPage', 1));
     const [perPage, setPerPage] = useState<number>(() => getPersistedState('contactsPerPage', 15));
-    // `searchQuery` is the state of the text in the Input (immediate update)
     const [searchQuery, setSearchQuery] = useState<string>(() => getPersistedState('contactsSearchQuery', ''));
-    // `debouncedSearchQuery` is the state that triggers the RTK Query request (updated after a delay)
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>(searchQuery);
 
+    // NOUVEAU: État pour stocker les erreurs de validation du backend
+    const [backendErrors, setBackendErrors] = useState<BackendValidationErrors>({});
 
     // Persist perPage and searchQuery (the raw input term) every time they change
     useEffect(() => {
@@ -80,24 +84,21 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         persistState('contactsSearchQuery', searchQuery);
     }, [searchQuery]);
 
-
     // --- Debounce logic for search ---
-    // Creates a debounced function that updates debouncedSearchQuery and resets the page
     const debouncedSetSearchAndPage = useCallback(
         debounce((value: string) => {
             setDebouncedSearchQuery(value);
             setCurrentPage(1); // Crucially, go back to the first page for a new search
-        }, 500), // Trigger after 500ms of inactivity
-        [] // Empty dependencies ensure the debounced function is created only once
+        }, 500),
+        []
     );
 
     // Handles changes in the search input
     const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
-        setSearchQuery(value); // Updates the Input immediately for the user
-        debouncedSetSearchAndPage(value); // Triggers the debounced function
+        setSearchQuery(value);
+        debouncedSetSearchAndPage(value);
     };
-
 
     // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -123,21 +124,19 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
     } = useGetContactsQuery({
         page: currentPage,
         per_page: perPage,
-        search: debouncedSearchQuery, // <-- Uses the debounced state here
-        include: 'user', // <-- IMPORTANT: Request the 'user' relationship from the backend
+        search: debouncedSearchQuery,
+        include: 'user', // IMPORTANT: Request the 'user' relationship from the backend
     });
 
     // Extract data and pagination info
     const contacts: Contact[] = useMemo(() => apiResponse?.data || [], [apiResponse]);
     const totalContacts = apiResponse?.total || 0;
-    const lastPage = apiResponse?.last_page || 1; // last_page is the total number of pages
-
+    const lastPage = apiResponse?.last_page || 1;
 
     // RTK Query mutations
     const [addContact, { isLoading: isAdding }] = useAddContactMutation();
     const [updateContact, { isLoading: isUpdating }] = useUpdateContactMutation();
     const [deleteContact, { isLoading: isDeleting }] = useDeleteContactMutation();
-
 
     // DataTable Columns
     const columnHelper = createColumnHelper<Contact>();
@@ -145,7 +144,12 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         columnHelper.accessor('name', { header: 'Nom', cell: info => info.getValue() }),
         columnHelper.accessor('email', { header: 'Email', cell: info => info.getValue() }),
         columnHelper.accessor('phone', { header: 'Téléphone', cell: info => info.getValue() }),
-        columnHelper.accessor('address', { header: 'Adresse', cell: info => info.getValue() || 'N/A' }),
+        columnHelper.accessor('address', { header: 'Adresse', cell: info => info.getValue() || 'N/A' }), // Ajout de l'adresse
+        columnHelper.accessor('user.name', {
+            header: 'Créé par',
+            // Corrected cell function to handle potentially undefined 'user' or 'user.name'
+            cell: ({ row }) => row.original.user?.name || 'N/A',
+        }),
         columnHelper.accessor('created_at', {
             header: 'Créé le',
             cell: info => info.getValue() ? new Date(info.getValue()).toLocaleDateString() : 'N/A'
@@ -176,7 +180,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                 );
             },
         }),
-    ], []); // Dependencies for useMemo (add any state/props that affect column definitions if needed)
+    ], []);
 
     // --- Callback Management Functions ---
 
@@ -194,6 +198,8 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
 
     // Handle add/edit
     const handleFormSubmit = async (values: Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'user'>) => {
+        setBackendErrors({}); // Réinitialise les erreurs à chaque soumission
+
         try {
             if (selectedContact) {
                 await updateContact({ id: selectedContact.id, ...values }).unwrap();
@@ -205,23 +211,35 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
             setIsModalOpen(false);
             setSelectedContact(null);
             refetch(); // Refetch data after add/edit
-            // setCurrentPage(1); // Optionally, reset to first page after add/edit
         } catch (err) {
             console.error('Erreur lors de l\'enregistrement du contact:', err);
-            toast.error('Échec de l\'enregistrement du contact.');
+            // Gérer les erreurs de validation spécifiques du backend (status 422)
+            if ((err as any).status === 422 && (err as any).data && (err as any).data.errors) {
+                setBackendErrors((err as any).data.errors);
+                toast.error('Veuillez corriger les erreurs dans le formulaire.');
+            } else {
+                toast.error('Échec de l\'enregistrement du contact. Une erreur inattendue est survenue.');
+            }
         }
     };
 
-    const handleCreateNew = () => { setSelectedContact(null); setIsModalOpen(true); };
+    const handleCreateNew = () => {
+        setSelectedContact(null);
+        setBackendErrors({}); // Réinitialise les erreurs quand on ouvre pour créer
+        setIsModalOpen(true);
+    };
 
-    const handleEdit = (contact: Contact) => { console.log(contact); setSelectedContact(contact); setIsModalOpen(true); };
+    const handleEdit = (contact: Contact) => {
+        setSelectedContact(contact);
+        setBackendErrors({}); // Réinitialise les erreurs quand on ouvre pour modifier
+        setIsModalOpen(true);
+    };
 
     const handleDelete = async (id: number) => {
         try {
             await deleteContact(id).unwrap();
             toast.success('Contact supprimé avec succès.');
             refetch();
-            // setCurrentPage(1); // Optionally, reset to first page after delete
         } catch (err) {
             console.error('Erreur lors de la suppression du contact:', err);
             toast.error('Échec de la suppression du contact.');
@@ -235,19 +253,15 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
 
     const confirmBulkDelete = async () => {
         try {
-            // Ideally, you would have a specific bulk delete mutation here
-            // For example, useBulkDeleteContactsMutation.
-            // For now, we'll loop through individual deletes, which is less efficient for many items.
             for (const id of selectedContactIds) {
-                await deleteContact(Number(id)).unwrap(); // Convert ID to number
+                await deleteContact(Number(id)).unwrap();
             }
             toast.success(`${selectedContactIds.length} contact(s) supprimé(s) avec succès.`);
             setIsBulkDeleteConfirmOpen(false);
             setSelectedContactIds([]); // Reset selected IDs
             refetch();
-            // Optionally, reset page after bulk delete
-            // setCurrentPage(1);
-        } catch (err) {
+        }
+        catch (err) {
             console.error('Erreur lors de la suppression groupée:', err);
             toast.error('Échec de la suppression groupée. Veuillez réessayer.');
         }
@@ -273,7 +287,6 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
             toast.error('Veuillez sélectionner un fichier CSV.');
         }
     };
-
 
     if (isError) {
         return (
@@ -321,8 +334,8 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                             <Input
                                 type="text"
                                 placeholder="Rechercher par nom, email ou téléphone..."
-                                value={searchQuery} // Binds to the non-debounced state for immediate display
-                                onChange={handleSearchInputChange} // Uses the new function that handles debounce
+                                value={searchQuery}
+                                onChange={handleSearchInputChange}
                                 className="max-w-sm"
                             />
                         </div>
@@ -362,6 +375,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                                     initialData={selectedContact}
                                     onSubmit={handleFormSubmit}
                                     isLoading={isAdding || isUpdating}
+                                    errors={backendErrors}
                                 />
                             </DialogContent>
                         </Dialog>
