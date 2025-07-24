@@ -192,7 +192,7 @@ export default function ContactForm({ initialData, onSubmit, isLoading = false, 
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className={errors?.email ? 'border-red-500' : ''}
+                    className={`!focus:border-1 focus:border-teal-600 ${errors?.email ? 'border-red-500' : ''}`}
                     disabled={isLoading}
                 />
                 {errors?.email && <p className="text-red-500 text-sm mt-1">{errors.email[0]}</p>}

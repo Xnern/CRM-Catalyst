@@ -400,7 +400,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
         {hasSelectedRows ? (
           <div className="flex items-center space-x-2 ml-auto">
             <span className="text-sm text-muted-foreground">
-              {selectedRows.length} row(s) selected
+              {selectedRows.length} ligne(s) sélectionnée(s)
             </span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -409,31 +409,31 @@ export function DataTable<TData extends { id?: any }, TValue>({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Bulk Actions</DropdownMenuLabel>
+                <DropdownMenuLabel>Actions groupées</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleExportCsv} className="cursor-pointer">
-                  <Download className="mr-2 h-4 w-4" /> Export ({selectedRows.length} selected)
+                  <Download className="mr-2 h-4 w-4" /> Exporter ({selectedRows.length} sélectionné(s))
                 </DropdownMenuItem>
 
                 {onBulkDelete && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600 cursor-pointer">
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete ({selectedRows.length} selected)
+                        <Trash2 className="mr-2 h-4 w-4" /> Supprimer ({selectedRows.length} sélectionné(s))
                       </DropdownMenuItem>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+                        <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Are you sure you want to delete the {selectedRows.length} selected contact(s)?
-                          This action cannot be undone.
+                          Êtes-vous sûr de vouloir supprimer les {selectedRows.length} contact(s) sélectionné(s) ?
+                          Cette action est irréversible.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>Annuler</AlertDialogCancel>
                         <AlertDialogAction onClick={handleBulkDelete}>
-                          Delete
+                          Supprimer
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -446,7 +446,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="ml-auto">
-                        Columns <Settings2 className="ml-2 h-4 w-4" />
+                        Colonnes <Settings2 className="ml-2 h-4 w-4" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -528,7 +528,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
               ) : (
                 <TableRow>
                   <TableCell colSpan={finalColumnsForTable.length} className="h-24 text-center">
-                    No results.
+                    Aucun résultat.
                   </TableCell>
                 </TableRow>
               )}
@@ -541,9 +541,9 @@ export function DataTable<TData extends { id?: any }, TValue>({
         {/* Pagination display */}
         <div className="flex-1 text-sm text-muted-foreground">
           {pagination.totalItems > 0 ? (
-            `Showing ${firstItemOnPage} - ${lastItemOnPage} of ${pagination.totalItems} contacts.`
+            `Affichage de ${firstItemOnPage} - ${lastItemOnPage} de ${pagination.totalItems} contacts.`
           ) : (
-            `No contacts.`
+            `Pas de contacts.`
           )}
         </div>
 
@@ -553,7 +553,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
             onValueChange={pagination.onPerPageChange}
         >
             <SelectTrigger className="h-8 w-[100px]">
-                <SelectValue placeholder="Page Size" />
+                <SelectValue placeholder="Taille de la Page" />
             </SelectTrigger>
             <SelectContent>
                 {[10, 15, 20, 30, 40, 50, 100].map((pageSize) => (
@@ -571,7 +571,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
           onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
           disabled={pagination.currentPage <= 1}
         >
-          Previous
+          Précédent
         </Button>
         <Button
           variant="outline"
@@ -579,7 +579,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
           onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
           disabled={pagination.currentPage >= pagination.totalPages}
         >
-          Next
+          Suivant
         </Button>
         <span className="text-sm text-muted-foreground ml-4">
           Page {pagination.currentPage} of {pagination.totalPages}
