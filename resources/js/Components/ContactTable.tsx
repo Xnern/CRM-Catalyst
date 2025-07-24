@@ -1,5 +1,3 @@
-// src/Components/ContactTable.tsx
-
 import React, { useState, useMemo } from 'react';
 import {
   ColumnDef,
@@ -18,11 +16,9 @@ import { Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/Components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/Components/ui/alert-dialog';
 import ContactForm from '@/Components/ContactForm';
-import { toast } from 'sonner'; // <-- IMPORT DE LA FONCTION toast DE SONNER
+import { toast } from 'sonner';
 
 const ContactTable: React.FC = () => {
-  // Pas besoin de "const { toast } = useToast();" ici.
-
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 15 });
   const [sorting, setSorting] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -34,10 +30,10 @@ const ContactTable: React.FC = () => {
     per_page: pagination.pageSize,
     search: search || undefined,
     sort: sorting.length > 0 ? (sorting[0].desc ? `-${sorting[0].id}` : sorting[0].id) : undefined,
-    includes: ['user'],
+    include: 'user', // Requesting user relationship from backend
   };
 
-  const { data, isLoading, isFetching, error } = useGetContactsQuery(queryParams as any);
+  const { data, isLoading, isFetching, error } = useGetContactsQuery(queryParams);
   const [deleteContact, { isLoading: isDeleting }] = useDeleteContactMutation();
 
   const handleEditContact = (contact: Contact) => {
@@ -57,10 +53,10 @@ const ContactTable: React.FC = () => {
   const handleDeleteContact = async (contactId: number) => {
     try {
       await deleteContact(contactId).unwrap();
-      toast.success("Le contact a été supprimé avec succès !"); // <-- Utilisation de toast.success
+      toast.success("Contact deleted successfully!");
     } catch (err) {
-      console.error('Échec de la suppression du contact:', err);
-      toast.error("Échec de la suppression du contact. Vérifiez les permissions ou la connexion."); // <-- Utilisation de toast.error
+      console.error('Failed to delete contact:', err);
+      toast.error("Failed to delete contact. Check permissions or connection.");
     }
   };
 
@@ -73,7 +69,7 @@ const ContactTable: React.FC = () => {
             variant="ghost"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
-            Nom
+            Name
             {column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''}
           </Button>
         ),
@@ -84,11 +80,11 @@ const ContactTable: React.FC = () => {
       },
       {
         accessorKey: 'phone',
-        header: 'Téléphone',
+        header: 'Phone',
       },
       {
         accessorKey: 'address',
-        header: 'Adresse',
+        header: 'Address',
       },
       {
         accessorKey: 'created_at',
@@ -97,7 +93,7 @@ const ContactTable: React.FC = () => {
             variant="ghost"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
-            Date Création
+            Creation Date
             {column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''}
           </Button>
         ),
@@ -109,27 +105,27 @@ const ContactTable: React.FC = () => {
         cell: ({ row }) => (
           <div className="flex space-x-2">
             <Button variant="outline" size="sm" onClick={() => handleEditContact(row.original)}>
-              Modifier
+              Edit
             </Button>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm" disabled={isDeleting}>
                   {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Supprimer
+                  Delete
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Êtes-vous absolument sûr ?</AlertDialogTitle>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Cette action ne peut pas être annulée. Cela supprimera définitivement le contact "{row.original.name}" de nos serveurs.
+                    This action cannot be undone. This will permanently delete the contact "{row.original.name}" from our servers.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={() => handleDeleteContact(row.original.id)}>
-                    Continuer
+                    Continue
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -138,7 +134,7 @@ const ContactTable: React.FC = () => {
         ),
       },
     ],
-    [isDeleting] // `toast` n'est pas une dépendance ici car c'est une fonction globale
+    [isDeleting]
   );
 
   const table = useReactTable({
@@ -162,19 +158,19 @@ const ContactTable: React.FC = () => {
     return (
       <div className="flex justify-center items-center h-40">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-        <span className="ml-2 text-gray-700">Chargement des contacts...</span>
+        <span className="ml-2 text-gray-700">Loading contacts...</span>
       </div>
     );
   }
 
   if (error) {
-    return <div className="text-red-500 text-center py-8">Erreur lors du chargement des contacts. Veuillez réessayer plus tard.</div>;
+    return <div className="text-red-500 text-center py-8">Error loading contacts. Please try again later.</div>;
   }
 
   return (
     <div className="space-y-4 p-4">
       <Input
-        placeholder="Rechercher par nom..."
+        placeholder="Search by name..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="max-w-sm"
@@ -208,7 +204,7 @@ const ContactTable: React.FC = () => {
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  Aucun contact trouvé.
+                  No results.
                 </TableCell>
               </TableRow>
             )}
@@ -222,7 +218,7 @@ const ContactTable: React.FC = () => {
           onClick={() => table.previousPage()}
           disabled={!table.getCanPreviousPage()}
         >
-          Précédent
+          Previous
         </Button>
         <Button
           variant="outline"
@@ -230,20 +226,20 @@ const ContactTable: React.FC = () => {
           onClick={() => table.nextPage()}
           disabled={!table.getCanNextPage()}
         >
-          Suivant
+          Next
         </Button>
         <span className="text-sm text-muted-foreground ml-4">
-          Page {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
+          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
         </span>
       </div>
 
-      {/* Modale d'édition de contact */}
+      {/* Contact Edit Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Modifier le contact</DialogTitle>
+            <DialogTitle>Edit Contact</DialogTitle>
             <DialogDescription>
-              Mettez à jour les informations du contact ci-dessous.
+              Update contact information below.
             </DialogDescription>
           </DialogHeader>
           {selectedContact && (

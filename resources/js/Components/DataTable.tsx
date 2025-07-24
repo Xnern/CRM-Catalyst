@@ -1,12 +1,12 @@
 import * as React from 'react';
 import {
   ColumnDef,
-  // ColumnFiltersState, // <-- Supprimé : plus de filtre client-side générique
+  ColumnFiltersState,
   SortingState,
   VisibilityState,
   flexRender,
   getCoreRowModel,
-  // getFilteredRowModel, // <-- Supprimé : plus de filtre client-side générique
+  getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
   Column,
@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/Components/ui/table';
-// import { Input } from '@/Components/ui/input'; // <-- Supprimé : plus d'input de recherche ici
+import { Input } from '@/Components/ui/input';
 import { Button } from '@/Components/ui/button';
 import {
   DropdownMenu,
@@ -40,7 +40,6 @@ import { ChevronDownIcon, ChevronUpIcon, ChevronsUpDownIcon, Settings2, Trash2, 
 import { toast } from 'sonner';
 import Papa from 'papaparse';
 
-// DND-KIT Imports
 import {
   DndContext,
   closestCenter,
@@ -59,7 +58,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { useMemo } from 'react';
 
 
-// Interface for DataTable props
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
@@ -76,13 +74,13 @@ interface DataTableProps<TData, TValue> {
   };
 }
 
-// Sortable Header Component
 interface SortableHeaderProps<TData> {
   header: Header<TData, any>;
   children: React.ReactNode;
 }
 
 function SortableHeader<TData>({ header, children }: SortableHeaderProps<TData>) {
+  // 'select' and 'actions' columns are not draggable
   if (header.id === 'select' || header.id === 'actions') {
     return (
       <TableHead className={header.column.getCanSort() ? 'cursor-pointer select-none' : ''}>
@@ -134,11 +132,12 @@ function SortableHeader<TData>({ header, children }: SortableHeaderProps<TData>)
       onClick={header.column.getToggleSortingHandler()}
     >
       <div className="flex items-center gap-1">
+        {/* Drag handle for column reordering */}
         <span
           {...attributes}
           {...listeners}
           className="cursor-grab hover:bg-gray-200 p-1 rounded-sm -ml-2 transition-colors duration-200"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()} // Prevents sorting when clicking drag handle
         >
           <GripVertical className="h-4 w-4 text-gray-500" />
         </span>
@@ -156,8 +155,8 @@ function SortableHeader<TData>({ header, children }: SortableHeaderProps<TData>)
 }
 
 
-// --- Utility functions for persistence (NECESSARY for DataTable's internal state) ---
-const getPersistedState = (key: string, defaultValue: any) => {
+// Utility functions for state persistence in localStorage
+const getPersistedState = <T,>(key: string, defaultValue: T): T => {
   try {
     const item = localStorage.getItem(key);
     return item ? JSON.parse(item) : defaultValue;
@@ -167,7 +166,7 @@ const getPersistedState = (key: string, defaultValue: any) => {
   }
 };
 
-const persistState = (key: string, state: any) => {
+const persistState = <T,>(key: string, state: T): void => {
   try {
     localStorage.setItem(key, JSON.stringify(state));
   } catch (error) {
@@ -211,25 +210,29 @@ export function DataTable<TData extends { id?: any }, TValue>({
 
   const actionColumnId = 'actions';
 
+  // Helper to get a column's effective ID (explicit 'id' or 'accessorKey' as string)
   const getColumnEffectiveId = React.useCallback((col: ColumnDef<TData, TValue>): string | undefined => {
       if (col.id) return col.id;
       if (typeof col.accessorKey === 'string') return col.accessorKey;
       return undefined;
   }, []);
 
+  // Processes incoming columns into fixed (select, actions) and draggable columns
   const { fixedStartColumn, fixedEndColumn, draggableColumnsMap, draggableColumnIdsInOriginalOrder } = useMemo(() => {
     let fixedStart: ColumnDef<TData, TValue> | undefined;
     let fixedEnd: ColumnDef<TData, TValue> | undefined;
     const draggableMap = new Map<string, ColumnDef<TData, TValue>>();
     const draggableIds: string[] = [];
 
+    // Always add our internal selectColumn as the fixed start
     fixedStart = selectColumn;
 
+    // Process user-provided columns
     columns.forEach(col => {
       const colId = getColumnEffectiveId(col);
       if (colId === actionColumnId) {
-        fixedEnd = col;
-      } else if (colId && colId !== selectColumn.id) {
+        fixedEnd = col; // This is the user's action column
+      } else if (colId && colId !== selectColumn.id) { // Ensure it's not our internal select
         draggableMap.set(colId, col);
         draggableIds.push(colId);
       }
@@ -244,11 +247,13 @@ export function DataTable<TData extends { id?: any }, TValue>({
   }, [columns, selectColumn, getColumnEffectiveId]);
 
 
-  // --- PERSISTED STATE --- (toujours stocké ici pour les paramètres de TanStack Table gérés client-side)
+  // Persisted state for TanStack Table properties (sorting, column filters, visibility, order)
   const [sorting, setSortingState] = React.useState<SortingState>(
     getPersistedState('dataTableSorting', [])
   );
-  // Supprimé : const [columnFilters, setColumnFiltersState] = React.useState<ColumnFiltersState>(...);
+  const [columnFilters, setColumnFiltersState] = React.useState<ColumnFiltersState>(
+    getPersistedState('dataTableColumnFilters', [])
+  );
   const [columnVisibility, setColumnVisibilityState] = React.useState<VisibilityState>(
     getPersistedState('dataTableColumnVisibility', {})
   );
@@ -264,23 +269,26 @@ export function DataTable<TData extends { id?: any }, TValue>({
   });
 
 
-  // Synchronize with localStorage
+  // Synchronize state with localStorage
   React.useEffect(() => { persistState('dataTableSorting', sorting); }, [sorting]);
-  // Supprimé : React.useEffect(() => { persistState('dataTableColumnFilters', columnFilters); }, [columnFilters]);
+  React.useEffect(() => { persistState('dataTableColumnFilters', columnFilters); }, [columnFilters]);
   React.useEffect(() => { persistState('dataTableColumnVisibility', columnVisibility); }, [columnVisibility]);
   React.useEffect(() => { persistState('dataTableColumnOrder', columnOrder); }, [columnOrder]);
 
+  // DND-KIT sensors configuration
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor),
   );
 
+  // Handles column drag end event
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (active.id !== over?.id) {
       setColumnOrder((items) => {
         const oldIndex = items.indexOf(active.id as string);
         const newIndex = items.indexOf(over?.id as string);
+        // Prevent dragging 'select' or 'actions' columns
         if (!draggableColumnsMap.has(active.id as string) || !draggableColumnsMap.has(over?.id as string)) {
             return items;
         }
@@ -293,6 +301,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
     }
   };
 
+  // The final array of columns passed to useReactTable
   const finalColumnsForTable = useMemo(() => {
     const orderedDraggableColumns = columnOrder
       .map(id => draggableColumnsMap.get(id))
@@ -305,63 +314,66 @@ export function DataTable<TData extends { id?: any }, TValue>({
   }, [columnOrder, fixedStartColumn, fixedEndColumn, draggableColumnsMap]);
 
 
+  // TanStack Table instance setup
   const table = useReactTable({
     data,
     columns: finalColumnsForTable,
     state: {
       sorting,
-      // Supprimé : columnFilters,
+      columnFilters,
       columnVisibility,
       rowSelection,
       columnOrder: finalColumnsForTable.map(col => getColumnEffectiveId(col) || ''),
       pagination: {
-        pageIndex: pagination.currentPage - 1, // TanStack Table est basé sur 0
+        pageIndex: pagination.currentPage - 1, // TanStack Table is 0-based
         pageSize: pagination.perPage,
       },
     },
     onSortingChange: setSortingState,
-    // Supprimé : onColumnFiltersChange: setColumnFiltersState,
+    onColumnFiltersChange: setColumnFiltersState,
     onColumnVisibilityChange: setColumnVisibilityState,
     onRowSelectionChange: setRowSelection,
     onColumnOrderChange: setColumnOrder,
 
-    manualPagination: true, // Ceci est correct pour une pagination côté serveur
+    manualPagination: true, // Indicates server-side pagination
     pageCount: pagination.totalPages,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    // Supprimé : getFilteredRowModel: getFilteredRowModel(), // <-- TRÈS IMPORTANT : supprimer ceci
+    getFilteredRowModel: getFilteredRowModel(),
   });
 
   const selectedRows = table.getFilteredSelectedRowModel().rows;
   const hasSelectedRows = selectedRows.length > 0;
 
+  // Handles bulk delete action
   const handleBulkDelete = async () => {
     if (!onBulkDelete) {
-      toast.error("La fonction de suppression groupée n'est pas configurée.");
+      toast.error("Bulk delete function not configured.");
       return;
     }
     const selectedIds = selectedRows.map(row => String(row.original[idAccessorKey!]));
 
     try {
       await onBulkDelete(selectedIds);
-      toast.success(`${selectedIds.length} contact(s) supprimé(s) avec succès.`);
-      setRowSelection({});
+      toast.success(`${selectedIds.length} contact(s) deleted successfully.`);
+      setRowSelection({}); // Clear row selection after successful deletion
     } catch (err) {
-      console.error("Erreur lors de la suppression groupée:", err);
-      toast.error("Échec de la suppression groupée. Veuillez réessayer.");
+      console.error("Error during bulk deletion:", err);
+      toast.error("Failed to perform bulk deletion. Please try again.");
     }
   };
 
+  // Handles CSV export action
   const handleExportCsv = () => {
     if (data.length === 0) {
-      toast.info("Aucune donnée à exporter.");
+      toast.info("No data to export.");
       return;
     }
 
-    const dataToExport = hasSelectedRows ? selectedRows.map(row => row.original) : data;
+    const dataToExport = hasSelectedRows ? selectedRows.map(row => row.original) : table.getFilteredRowModel().rows.map(row => row.original);
 
     if (dataToExport.length === 0) {
-      toast.info("Aucune ligne sélectionnée ou donnée sur la page actuelle à exporter.");
+      toast.info("No selected or filtered data on the current page to export.");
       return;
     }
 
@@ -374,27 +386,21 @@ export function DataTable<TData extends { id?: any }, TValue>({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Données exportées avec succès au format CSV !");
+    toast.success("Data exported successfully to CSV!");
   };
 
-  // Calcul pour l'affichage des éléments de pagination (ex: 1-15 sur 108)
+  // Calculate pagination display (e.g., 1-15 of 108)
   const firstItemOnPage = pagination.totalItems > 0 ? (pagination.currentPage - 1) * pagination.perPage + 1 : 0;
   const lastItemOnPage = pagination.totalItems > 0 ? Math.min(pagination.currentPage * pagination.perPage, pagination.totalItems) : 0;
 
   return (
     <div className="w-full">
       <div className="flex items-center py-4 gap-2">
-        {/*
-          CE BLOC Input EST SUPPRIMÉ D'ICI.
-          LA RECHERCHE DOIT ÊTRE DANS Index.tsx.
-        */}
-        {/* <Input ... /> */}
-
-        {/* Bloc des actions groupées : Affiché UNIQUEMENT si des lignes sont sélectionnées */}
+        {/* Bulk Actions Block: Shown ONLY if rows are selected */}
         {hasSelectedRows ? (
           <div className="flex items-center space-x-2 ml-auto">
             <span className="text-sm text-muted-foreground">
-              {selectedRows.length} ligne(s) sélectionnée(s)
+              {selectedRows.length} row(s) selected
             </span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -403,31 +409,31 @@ export function DataTable<TData extends { id?: any }, TValue>({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Actions groupées</DropdownMenuLabel>
+                <DropdownMenuLabel>Bulk Actions</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleExportCsv} className="cursor-pointer">
-                  <Download className="mr-2 h-4 w-4" /> Exporter ({selectedRows.length} sélectionné(s))
+                  <Download className="mr-2 h-4 w-4" /> Export ({selectedRows.length} selected)
                 </DropdownMenuItem>
 
                 {onBulkDelete && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600 cursor-pointer">
-                        <Trash2 className="mr-2 h-4 w-4" /> Supprimer ({selectedRows.length} sélectionné(s))
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete ({selectedRows.length} selected)
                       </DropdownMenuItem>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+                        <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Êtes-vous sûr de vouloir supprimer les {selectedRows.length} contact(s) sélectionné(s) ?
-                          Cette action est irréversible.
+                          Are you sure you want to delete the {selectedRows.length} selected contact(s)?
+                          This action cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={handleBulkDelete}>
-                          Supprimer
+                          Delete
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -436,11 +442,11 @@ export function DataTable<TData extends { id?: any }, TValue>({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        ) : ( // Si aucune ligne n'est sélectionnée, affiche le DropdownMenu des colonnes
+        ) : ( // If no rows are selected, display the Column Visibility Dropdown
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="ml-auto">
-                        Colonnes <Settings2 className="ml-2 h-4 w-4" />
+                        Columns <Settings2 className="ml-2 h-4 w-4" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -522,7 +528,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
               ) : (
                 <TableRow>
                   <TableCell colSpan={finalColumnsForTable.length} className="h-24 text-center">
-                    Aucun résultat.
+                    No results.
                   </TableCell>
                 </TableRow>
               )}
@@ -532,22 +538,22 @@ export function DataTable<TData extends { id?: any }, TValue>({
       </div>
 
       <div className="flex items-center justify-end space-x-2 py-4">
-        {/* Affichage de la pagination */}
+        {/* Pagination display */}
         <div className="flex-1 text-sm text-muted-foreground">
           {pagination.totalItems > 0 ? (
-            `Affichage ${firstItemOnPage} - ${lastItemOnPage} sur ${pagination.totalItems} contacts.`
+            `Showing ${firstItemOnPage} - ${lastItemOnPage} of ${pagination.totalItems} contacts.`
           ) : (
-            `Aucun contact.`
+            `No contacts.`
           )}
         </div>
 
-        {/* Select pour choisir le nombre d'éléments par page */}
+        {/* Page size selector */}
         <Select
             value={`${pagination.perPage}`}
             onValueChange={pagination.onPerPageChange}
         >
             <SelectTrigger className="h-8 w-[100px]">
-                <SelectValue placeholder="Taille de page" />
+                <SelectValue placeholder="Page Size" />
             </SelectTrigger>
             <SelectContent>
                 {[10, 15, 20, 30, 40, 50, 100].map((pageSize) => (
@@ -558,14 +564,14 @@ export function DataTable<TData extends { id?: any }, TValue>({
             </SelectContent>
         </Select>
 
-        {/* Boutons de navigation entre les pages */}
+        {/* Pagination navigation buttons */}
         <Button
           variant="outline"
           size="sm"
           onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
           disabled={pagination.currentPage <= 1}
         >
-          Précédent
+          Previous
         </Button>
         <Button
           variant="outline"
@@ -573,10 +579,10 @@ export function DataTable<TData extends { id?: any }, TValue>({
           onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
           disabled={pagination.currentPage >= pagination.totalPages}
         >
-          Suivant
+          Next
         </Button>
         <span className="text-sm text-muted-foreground ml-4">
-            Page {pagination.currentPage} de {pagination.totalPages}
+          Page {pagination.currentPage} of {pagination.totalPages}
         </span>
       </div>
     </div>

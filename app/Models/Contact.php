@@ -17,6 +17,8 @@ class Contact extends Model
         'phone',
         'address',
         'user_id',
+        'latitude',
+        'longitude',
     ];
 
     /**
