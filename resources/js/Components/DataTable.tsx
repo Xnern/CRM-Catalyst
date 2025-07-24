@@ -1,14 +1,12 @@
 import * as React from 'react';
 import {
   ColumnDef,
-  ColumnFiltersState,
+  // ColumnFiltersState, // <-- Supprimé : plus de filtre client-side générique
   SortingState,
   VisibilityState,
-  PaginationState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
+  // getFilteredRowModel, // <-- Supprimé : plus de filtre client-side générique
   getSortedRowModel,
   useReactTable,
   Column,
@@ -23,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/Components/ui/table';
-import { Input } from '@/Components/ui/input';
+// import { Input } from '@/Components/ui/input'; // <-- Supprimé : plus d'input de recherche ici
 import { Button } from '@/Components/ui/button';
 import {
   DropdownMenu,
@@ -38,7 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/Components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/Components/ui/alert-dialog';
 
-import { ChevronDownIcon, ChevronUpIcon, ChevronsUpDownIcon, Settings2, Trash2, Download, GripVertical } from 'lucide-react'; // <-- Ajout de GripVertical
+import { ChevronDownIcon, ChevronUpIcon, ChevronsUpDownIcon, Settings2, Trash2, Download, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import Papa from 'papaparse';
 
@@ -68,16 +66,23 @@ interface DataTableProps<TData, TValue> {
   isLoading?: boolean;
   onBulkDelete?: (selectedIds: string[]) => Promise<void>;
   idAccessorKey?: keyof TData;
+  pagination: {
+    currentPage: number;
+    perPage: number;
+    totalItems: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+    onPerPageChange: (perPage: string) => void;
+  };
 }
 
-// Sortable Header Component (for DND-KIT)
+// Sortable Header Component
 interface SortableHeaderProps<TData> {
   header: Header<TData, any>;
   children: React.ReactNode;
 }
 
 function SortableHeader<TData>({ header, children }: SortableHeaderProps<TData>) {
-  // Les colonnes 'select' et 'actions' ne sont ni déplaçables ni ne nécessitent une poignée
   if (header.id === 'select' || header.id === 'actions') {
     return (
       <TableHead className={header.column.getCanSort() ? 'cursor-pointer select-none' : ''}>
@@ -102,7 +107,6 @@ function SortableHeader<TData>({ header, children }: SortableHeaderProps<TData>)
     );
   }
 
-  // Pour les colonnes déplaçables
   const {
     attributes,
     listeners,
@@ -126,25 +130,19 @@ function SortableHeader<TData>({ header, children }: SortableHeaderProps<TData>)
     <TableHead
       ref={setNodeRef}
       style={style}
-      // Le TableHead lui-même gère le tri au clic normal
       className={header.column.getCanSort() ? 'cursor-pointer select-none' : ''}
-      onClick={header.column.getToggleSortingHandler()} // Le tri se fait au clic sur TOUT l'en-tête
+      onClick={header.column.getToggleSortingHandler()}
     >
       <div className="flex items-center gap-1">
-        {/* Poignée de déplacement (handle) */}
         <span
-          {...attributes} // Attributs de drag sur la poignée
-          {...listeners} // Listeners de drag sur la poignée
-          className="cursor-grab hover:bg-gray-200 p-1 rounded-sm -ml-2 transition-colors duration-200" // Style de la poignée
-          onClick={(e) => e.stopPropagation()} // IMPORTANT : empêche le clic sur la poignée de déclencher le tri
+          {...attributes}
+          {...listeners}
+          className="cursor-grab hover:bg-gray-200 p-1 rounded-sm -ml-2 transition-colors duration-200"
+          onClick={(e) => e.stopPropagation()}
         >
           <GripVertical className="h-4 w-4 text-gray-500" />
         </span>
-
-        {/* Contenu de l'en-tête (texte) */}
         {children}
-
-        {/* Icône de tri */}
         {{
           asc: <ChevronUpIcon className="ml-2 h-4 w-4" />,
           desc: <ChevronDownIcon className="ml-2 h-4 w-4" />,
@@ -158,7 +156,7 @@ function SortableHeader<TData>({ header, children }: SortableHeaderProps<TData>)
 }
 
 
-// --- Utility functions for persistence ---
+// --- Utility functions for persistence (NECESSARY for DataTable's internal state) ---
 const getPersistedState = (key: string, defaultValue: any) => {
   try {
     const item = localStorage.getItem(key);
@@ -184,9 +182,9 @@ export function DataTable<TData extends { id?: any }, TValue>({
   isLoading = false,
   onBulkDelete,
   idAccessorKey = 'id' as keyof TData,
+  pagination,
 }: DataTableProps<TData, TValue>) {
 
-  // Define the 'select' column explicitly inside DataTable
   const selectColumn: ColumnDef<TData, TValue> = {
     id: 'select',
     header: ({ table }) => (
@@ -211,32 +209,27 @@ export function DataTable<TData extends { id?: any }, TValue>({
     enableResizing: false,
   };
 
-  // Define the 'actions' column ID
   const actionColumnId = 'actions';
 
-  // Helper to get a column's effective ID (explicit 'id' or 'accessorKey' as string)
   const getColumnEffectiveId = React.useCallback((col: ColumnDef<TData, TValue>): string | undefined => {
       if (col.id) return col.id;
       if (typeof col.accessorKey === 'string') return col.accessorKey;
       return undefined;
   }, []);
 
-  // Process the incoming columns into fixed (select, actions) and draggable columns
   const { fixedStartColumn, fixedEndColumn, draggableColumnsMap, draggableColumnIdsInOriginalOrder } = useMemo(() => {
     let fixedStart: ColumnDef<TData, TValue> | undefined;
     let fixedEnd: ColumnDef<TData, TValue> | undefined;
     const draggableMap = new Map<string, ColumnDef<TData, TValue>>();
     const draggableIds: string[] = [];
 
-    // First, add our internal selectColumn
     fixedStart = selectColumn;
 
-    // Process user-provided columns
     columns.forEach(col => {
       const colId = getColumnEffectiveId(col);
       if (colId === actionColumnId) {
-        fixedEnd = col; // This is the user's action column
-      } else if (colId && colId !== selectColumn.id) { // Ensure it's not our internal select
+        fixedEnd = col;
+      } else if (colId && colId !== selectColumn.id) {
         draggableMap.set(colId, col);
         draggableIds.push(colId);
       }
@@ -251,54 +244,31 @@ export function DataTable<TData extends { id?: any }, TValue>({
   }, [columns, selectColumn, getColumnEffectiveId]);
 
 
-  // --- PERSISTED STATE ---
+  // --- PERSISTED STATE --- (toujours stocké ici pour les paramètres de TanStack Table gérés client-side)
   const [sorting, setSortingState] = React.useState<SortingState>(
     getPersistedState('dataTableSorting', [])
   );
-  const [columnFilters, setColumnFiltersState] = React.useState<ColumnFiltersState>(
-    getPersistedState('dataTableColumnFilters', [])
-  );
+  // Supprimé : const [columnFilters, setColumnFiltersState] = React.useState<ColumnFiltersState>(...);
   const [columnVisibility, setColumnVisibilityState] = React.useState<VisibilityState>(
     getPersistedState('dataTableColumnVisibility', {})
-  );
-  const [pagination, setPaginationState] = React.useState<PaginationState>(
-    getPersistedState('dataTablePagination', { pageIndex: 0, pageSize: 10 })
   );
   const [rowSelection, setRowSelection] = React.useState({});
 
   const [columnOrder, setColumnOrder] = React.useState<string[]>(() => {
     const persistedOrder = getPersistedState('dataTableColumnOrder', []);
-    // Filter persistedOrder to only include IDs that are actually draggable columns
     const validPersistedOrder = persistedOrder.filter((id: string) =>
         draggableColumnIdsInOriginalOrder.includes(id)
     );
-    // Combine valid persisted order with any new or missing draggable column IDs
     const finalOrder = [...new Set([...validPersistedOrder, ...draggableColumnIdsInOriginalOrder])];
     return finalOrder;
   });
 
 
   // Synchronize with localStorage
-  React.useEffect(() => {
-    persistState('dataTableSorting', sorting);
-  }, [sorting]);
-
-  React.useEffect(() => {
-    persistState('dataTableColumnFilters', columnFilters);
-  }, [columnFilters]);
-
-  React.useEffect(() => {
-    persistState('dataTableColumnVisibility', columnVisibility);
-  }, [columnVisibility]);
-
-  React.useEffect(() => {
-    persistState('dataTablePagination', pagination);
-  }, [pagination]);
-
-  React.useEffect(() => {
-    persistState('dataTableColumnOrder', columnOrder);
-  }, [columnOrder]);
-
+  React.useEffect(() => { persistState('dataTableSorting', sorting); }, [sorting]);
+  // Supprimé : React.useEffect(() => { persistState('dataTableColumnFilters', columnFilters); }, [columnFilters]);
+  React.useEffect(() => { persistState('dataTableColumnVisibility', columnVisibility); }, [columnVisibility]);
+  React.useEffect(() => { persistState('dataTableColumnOrder', columnOrder); }, [columnOrder]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -311,15 +281,10 @@ export function DataTable<TData extends { id?: any }, TValue>({
       setColumnOrder((items) => {
         const oldIndex = items.indexOf(active.id as string);
         const newIndex = items.indexOf(over?.id as string);
-
-        // This check is primarily handled by `draggableColumnsMap` construction now,
-        // but remains as a defensive layer.
         if (!draggableColumnsMap.has(active.id as string) || !draggableColumnsMap.has(over?.id as string)) {
             return items;
         }
-
         if (oldIndex === -1 || newIndex === -1) return items;
-
         const newItems = Array.from(items);
         const [movedItem] = newItems.splice(oldIndex, 1);
         newItems.splice(newIndex, 0, movedItem);
@@ -328,14 +293,10 @@ export function DataTable<TData extends { id?: any }, TValue>({
     }
   };
 
-  // The final array of columns passed to useReactTable
   const finalColumnsForTable = useMemo(() => {
-    // Construct draggable columns from the current `columnOrder`
     const orderedDraggableColumns = columnOrder
       .map(id => draggableColumnsMap.get(id))
       .filter(Boolean) as ColumnDef<TData, TValue>[];
-
-    // Assemble the final order: fixed start, then ordered draggable, then fixed end
     return [
       ...(fixedStartColumn ? [fixedStartColumn] : []),
       ...orderedDraggableColumns,
@@ -349,22 +310,26 @@ export function DataTable<TData extends { id?: any }, TValue>({
     columns: finalColumnsForTable,
     state: {
       sorting,
-      columnFilters,
+      // Supprimé : columnFilters,
       columnVisibility,
-      pagination,
       rowSelection,
-      columnOrder: finalColumnsForTable.map(col => getColumnEffectiveId(col) || ''), // Use effective ID for TanStack Table's columnOrder state
+      columnOrder: finalColumnsForTable.map(col => getColumnEffectiveId(col) || ''),
+      pagination: {
+        pageIndex: pagination.currentPage - 1, // TanStack Table est basé sur 0
+        pageSize: pagination.perPage,
+      },
     },
     onSortingChange: setSortingState,
-    onColumnFiltersChange: setColumnFiltersState,
+    // Supprimé : onColumnFiltersChange: setColumnFiltersState,
     onColumnVisibilityChange: setColumnVisibilityState,
-    onPaginationChange: setPaginationState,
     onRowSelectionChange: setRowSelection,
-    onColumnOrderChange: setColumnOrder, // Let TanStack Table update our state
+    onColumnOrderChange: setColumnOrder,
+
+    manualPagination: true, // Ceci est correct pour une pagination côté serveur
+    pageCount: pagination.totalPages,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    // Supprimé : getFilteredRowModel: getFilteredRowModel(), // <-- TRÈS IMPORTANT : supprimer ceci
   });
 
   const selectedRows = table.getFilteredSelectedRowModel().rows;
@@ -380,7 +345,6 @@ export function DataTable<TData extends { id?: any }, TValue>({
     try {
       await onBulkDelete(selectedIds);
       toast.success(`${selectedIds.length} contact(s) supprimé(s) avec succès.`);
-      table.toggleAllRowsSelected(false);
       setRowSelection({});
     } catch (err) {
       console.error("Erreur lors de la suppression groupée:", err);
@@ -394,10 +358,10 @@ export function DataTable<TData extends { id?: any }, TValue>({
       return;
     }
 
-    const dataToExport = hasSelectedRows ? selectedRows.map(row => row.original) : table.getFilteredRowModel().rows.map(row => row.original);
+    const dataToExport = hasSelectedRows ? selectedRows.map(row => row.original) : data;
 
     if (dataToExport.length === 0) {
-      toast.info("Aucune ligne sélectionnée ou filtrée à exporter.");
+      toast.info("Aucune ligne sélectionnée ou donnée sur la page actuelle à exporter.");
       return;
     }
 
@@ -413,23 +377,21 @@ export function DataTable<TData extends { id?: any }, TValue>({
     toast.success("Données exportées avec succès au format CSV !");
   };
 
+  // Calcul pour l'affichage des éléments de pagination (ex: 1-15 sur 108)
+  const firstItemOnPage = pagination.totalItems > 0 ? (pagination.currentPage - 1) * pagination.perPage + 1 : 0;
+  const lastItemOnPage = pagination.totalItems > 0 ? Math.min(pagination.currentPage * pagination.perPage, pagination.totalItems) : 0;
+
   return (
     <div className="w-full">
       <div className="flex items-center py-4 gap-2">
-        <Input
-          placeholder="Rechercher par nom..."
-          value={(table.getAllColumns().find(col => col.id === 'name')?.getFilterValue() as string) ?? ''}
-          onChange={(event) => {
-            const nameColumn = table.getAllColumns().find(col => col.id === 'name');
-            if (nameColumn) {
-                nameColumn.setFilterValue(event.target.value);
-            }
-          }}
-          className="max-w-sm"
-        />
+        {/*
+          CE BLOC Input EST SUPPRIMÉ D'ICI.
+          LA RECHERCHE DOIT ÊTRE DANS Index.tsx.
+        */}
+        {/* <Input ... /> */}
 
-        {/* Bulk Actions */}
-        {hasSelectedRows && (
+        {/* Bloc des actions groupées : Affiché UNIQUEMENT si des lignes sont sélectionnées */}
+        {hasSelectedRows ? (
           <div className="flex items-center space-x-2 ml-auto">
             <span className="text-sm text-muted-foreground">
               {selectedRows.length} ligne(s) sélectionnée(s)
@@ -474,10 +436,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        )}
-
-        {/* Column Visibility */}
-        {!hasSelectedRows && (
+        ) : ( // Si aucune ligne n'est sélectionnée, affiche le DropdownMenu des colonnes
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="ml-auto">
@@ -489,9 +448,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
                         .getAllColumns()
                         .filter((column) => column.getCanHide())
                         .map((column) => {
-                            // Exclude 'select' and 'actions' columns from visibility controls
                             if (column.id === 'select' || column.id === actionColumnId) return null;
-
                             const headerName = typeof column.columnDef.header === 'string'
                                 ? column.columnDef.header
                                 : column.id;
@@ -514,7 +471,6 @@ export function DataTable<TData extends { id?: any }, TValue>({
       </div>
 
       <div className="rounded-md border">
-        {/* DndContext wraps the entire Table */}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -525,7 +481,6 @@ export function DataTable<TData extends { id?: any }, TValue>({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   <SortableContext
-                    // Provide ALL column IDs here, as dnd-kit needs to know the full order
                     items={finalColumnsForTable.map(col => getColumnEffectiveId(col) || '')}
                     strategy={horizontalListSortingStrategy}
                   >
@@ -545,7 +500,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
                 <TableRow>
                   <TableCell colSpan={finalColumnsForTable.length} className="h-24 text-center">
                     <div className="flex flex-col space-y-3 animate-pulse p-4">
-                      {[...Array(table.getState().pagination.pageSize)].map((_, i) => (
+                      {[...Array(pagination.perPage)].map((_, i) => (
                           <div key={i} className="h-8 bg-gray-200 rounded-md w-full" />
                       ))}
                     </div>
@@ -577,21 +532,25 @@ export function DataTable<TData extends { id?: any }, TValue>({
       </div>
 
       <div className="flex items-center justify-end space-x-2 py-4">
+        {/* Affichage de la pagination */}
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} résultat(s) trouvé(s) sur {data.length} total.
+          {pagination.totalItems > 0 ? (
+            `Affichage ${firstItemOnPage} - ${lastItemOnPage} sur ${pagination.totalItems} contacts.`
+          ) : (
+            `Aucun contact.`
+          )}
         </div>
 
+        {/* Select pour choisir le nombre d'éléments par page */}
         <Select
-            value={`${table.getState().pagination.pageSize}`}
-            onValueChange={(value) => {
-                table.setPageSize(Number(value));
-            }}
+            value={`${pagination.perPage}`}
+            onValueChange={pagination.onPerPageChange}
         >
             <SelectTrigger className="h-8 w-[100px]">
-                <SelectValue placeholder="Page Size" />
+                <SelectValue placeholder="Taille de page" />
             </SelectTrigger>
             <SelectContent>
-                {[10, 20, 30, 40, 50].map((pageSize) => (
+                {[10, 15, 20, 30, 40, 50, 100].map((pageSize) => (
                     <SelectItem key={pageSize} value={`${pageSize}`}>
                         {pageSize}
                     </SelectItem>
@@ -599,24 +558,25 @@ export function DataTable<TData extends { id?: any }, TValue>({
             </SelectContent>
         </Select>
 
+        {/* Boutons de navigation entre les pages */}
         <Button
           variant="outline"
           size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
+          onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
+          disabled={pagination.currentPage <= 1}
         >
           Précédent
         </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
+          onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
+          disabled={pagination.currentPage >= pagination.totalPages}
         >
           Suivant
         </Button>
         <span className="text-sm text-muted-foreground ml-4">
-            Page {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
+            Page {pagination.currentPage} de {pagination.totalPages}
         </span>
       </div>
     </div>

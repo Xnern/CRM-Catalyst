@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use Spatie\QueryBuilder\QueryBuilderRequest;
 
 class AppServiceProvider extends ServiceProvider
 {

@@ -87,9 +87,8 @@ const ContactTable: React.FC = () => {
         header: 'Téléphone',
       },
       {
-        accessorKey: 'user.name',
-        header: 'Créé par',
-        cell: info => info.getValue() || 'N/A'
+        accessorKey: 'address',
+        header: 'Adresse',
       },
       {
         accessorKey: 'created_at',
