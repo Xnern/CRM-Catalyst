@@ -21,7 +21,6 @@ class UpdateContactRequest extends FormRequest
 
     /**
      * Prepare the data for validation.
-     * C'est ici que nous nettoyons le numéro de téléphone avant d'appliquer les règles.
      */
     protected function prepareForValidation(): void
     {
@@ -48,7 +47,6 @@ class UpdateContactRequest extends FormRequest
                 'max:100',
                 Rule::unique('contacts', 'email')->ignore($contactId),
             ],
-            // La regex est appliquée au numéro déjà nettoyé
             'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?\d{10,15}$/'],
             'address' => ['nullable', 'string', 'max:255'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],

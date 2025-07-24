@@ -31,7 +31,7 @@ class ImportFinishedNotification extends Notification implements ShouldQueue
      */
     public function via($notifiable)
     {
-        return ['mail', 'database']; // Peut aussi être 'database' pour des notifications in-app
+        return ['mail', 'database'];
     }
 
     /**
@@ -52,13 +52,13 @@ class ImportFinishedNotification extends Notification implements ShouldQueue
             $mail->subject('Importation CSV terminée avec succès');
             $mail->line('Nombre total de lignes traitées : ' . ($this->importResult['total_rows'] ?? 'N/A'));
             $mail->line('Nombre de contacts importés : ' . ($this->importResult['imported_rows'] ?? 'N/A'));
-            $mail->action('Voir vos contacts', url('/contacts')); // Lien vers la page des contacts
+            $mail->action('Voir vos contacts', url('/contacts'));
         } elseif ($status === 'partial_success') {
             $mail->subject('Importation CSV terminée avec des avertissements');
             $mail->line('Votre fichier CSV a été traité, mais certaines lignes ont été ignorées en raison d\'erreurs.');
             $mail->line('Nombre de contacts importés : ' . ($this->importResult['imported_rows'] ?? 'N/A'));
             $mail->line('Nombre de lignes ignorées : ' . ($this->importResult['skipped_rows'] ?? 'N/A'));
-            $mail->action('Voir les détails', url('/contacts/import-logs')); // Si tu as une page de logs
+            $mail->action('Voir les détails', url('/contacts/import-logs'));
         } else {
             $mail->subject('Échec de l\'importation CSV');
             $mail->line('Une erreur est survenue lors de l\'importation de votre fichier CSV.');

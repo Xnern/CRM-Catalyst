@@ -15,35 +15,34 @@ use Spatie\QueryBuilder\QueryBuilder;
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\AllowedInclude;
 use Illuminate\Support\Facades\Notification;
-use Inertia\Inertia; // Pour les vues Inertia
-use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 use App\Notifications\ImportFinishedNotification;
 use App\Http\Requests\Contacts\StoreContactRequest;
 use App\Http\Requests\Contacts\UpdateContactRequest;
+use Illuminate\Database\Eloquent\Builder; // For AllowedFilter::callback type hinting
+use Throwable; // For Batch callbacks
 
 class ContactController extends Controller
 {
     /**
-     * Display a listing of the contacts for Inertia page.
+     * Display the contacts page via Inertia.
      */
     public function indexInertia(Request $request)
     {
-        Gate::authorize('viewAny', Contact::class); // Optionnel ici si déjà fait dans la méthode API
+        Gate::authorize('viewAny', Contact::class);
 
-        // La page Inertia ne charge pas les données directement depuis cette méthode,
-        // elle affichera le composant React qui fera les requêtes API via RTK Query.
         return Inertia::render('Contacts/Index', [
             'canCreateContact' => $request->user()->can('create', Contact::class),
-            // Vous pouvez passer d'autres props initiales si nécessaire.
         ]);
     }
 
     /**
-     * Display a listing of the resource (API for RTK Query).
+     * Fetch a paginated list of contacts for RTK Query.
      */
     public function index(Request $request)
     {
-        // [DÉBUT] Mapping des paramètres
+        // Maps frontend search/filter parameters to Spatie Query Builder's 'filter' format.
+        // Example: 'search=keyword' becomes 'filter[search]=keyword'.
         $filterParams = [];
         $spatieCompatibleParams = ['search', 'name', 'email', 'phone', 'user_id'];
 
@@ -58,78 +57,75 @@ class ContactController extends Controller
 
         $request->merge([
             'filter' => $mergedFilters,
-            ...array_fill_keys($spatieCompatibleParams, null)
+            // ...array_fill_keys($spatieCompatibleParams, null) // Optionally unset original params
         ]);
-        // [FIN] Mapping
 
         Gate::authorize('viewAny', Contact::class);
 
         $perPage = $request->input('per_page', 15);
-        $perPage = min($perPage, 100);
+        $perPage = min($perPage, 100); // Limit per_page to a reasonable maximum
 
         $baseQuery = Contact::query();
 
+        // Apply RBAC filtering for 'sales' role if applicable
         if ($request->user()->hasRole('sales') && $request->user()->can('view own contacts')) {
             $baseQuery->where('user_id', $request->user()->id);
         }
 
+        // Build query using Spatie Query Builder
         $contactsQuery = QueryBuilder::for($baseQuery)
             ->allowedFilters([
                 AllowedFilter::partial('name'),
                 AllowedFilter::exact('email'),
                 AllowedFilter::exact('phone'),
                 AllowedFilter::exact('user_id'),
-                // Correction spécifique pour QueryBuilder
-                AllowedFilter::callback('search', function ($query, $value) {
-                    $query->where(function ($q) use ($value) {
+
+                // Global search filter: searches across name, email, phone
+                AllowedFilter::callback('search', function (Builder $query, $value) {
+                    $query->where(function ($q) use ($value) { // Group OR clauses
                         $q->where('name', 'LIKE', "%{$value}%")
                         ->orWhere('email', 'LIKE', "%{$value}%")
                         ->orWhere('phone', 'LIKE', "%{$value}%");
                     });
                 }),
             ])
+            // Allow including 'user' relationship
             ->allowedIncludes([
-                AllowedInclude::relationship('user', 'user')
+                AllowedInclude::relationship('user')
             ])
+            // Allow sorting by specified fields
             ->allowedSorts([
                 'name',
                 'email',
                 'created_at',
             ]);
 
-        if ($request->has('include')) {
-            $includes = explode(',', $request->include);
-            if (in_array('user', $includes)) {
-                $contactsQuery->with('user');
-            }
-        }
-
+        // Execute the query with pagination
         $contacts = $contactsQuery->paginate($perPage);
 
         return response()->json($contacts);
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store a newly created contact.
      */
     public function store(StoreContactRequest $request)
     {
-        Gate::authorize('create', Contact::class);
+        Gate::authorize('create', Contact::class); // Authorize action via Gate/Policy
 
         $validatedData = $request->validated();
 
-
-        // Assurez-vous que l'utilisateur connecté est assigné comme propriétaire du contact
         $contact = $request->user()->contacts()->create($validatedData);
+        // Store latitude and longitude if provided by the frontend
         $contact->latitude = $request->input('latitude');
         $contact->longitude = $request->input('longitude');
-        $contact->save();
+        $contact->save(); // Save again if lat/lng are not in validatedData directly
 
-        return response()->json($contact->load('user'), 201); // 201 Created
+        return response()->json($contact->load('user'), 201); // Return created contact with user relationship
     }
 
     /**
-     * Display the specified resource.
+     * Display the specified contact.
      */
     public function show(Contact $contact)
     {
@@ -139,24 +135,25 @@ class ContactController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Update the specified contact.
      */
     public function update(UpdateContactRequest $request, Contact $contact)
     {
-        Gate::authorize('update', $contact);
+        Gate::authorize('update', $contact); // Authorize action via Gate/Policy
 
         $validatedData = $request->validated();
 
         $contact->update($validatedData);
+        // Update latitude and longitude if provided by the frontend
         $contact->latitude = $request->input('latitude');
         $contact->longitude = $request->input('longitude');
-        $contact->save();
+        $contact->save(); // Save again if lat/lng are not in validatedData directly
 
         return response()->json($contact->load('user'));
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Remove the specified contact.
      */
     public function destroy(Contact $contact)
     {
@@ -164,100 +161,89 @@ class ContactController extends Controller
 
         $contact->delete();
 
-        return response()->noContent(); // 204 No Content
+        return response()->noContent(); // 204 No Content for successful deletion
     }
 
     /**
-     * Handle the CSV import.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\RedirectResponse
+     * Handle the CSV import process.
+     * Dispatches jobs to process each CSV row.
      */
     public function importCsv(Request $request)
     {
-        Gate::authorize('create', Contact::class); // Ou une autre permission plus spécifique
+        Gate::authorize('create', Contact::class); // Authorize import action
 
         $request->validate([
-            'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:10240'], // 10MB max
+            'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:10240'], // 10MB max file size
         ]);
 
         $file = $request->file('csv_file');
         $filePath = $file->getRealPath();
 
         try {
-            // Utiliser League\Csv pour une meilleure gestion des fichiers CSV
             $csv = Reader::createFromPath($filePath, 'r');
-            $csv->setHeaderOffset(0); // Assumer que la première ligne est l'en-tête
+            $csv->setHeaderOffset(0); // Assume first row is header
 
             $records = $csv->getRecords();
 
             $jobs = [];
             $totalRows = 0;
-            $currentUser = $request->user(); // L'utilisateur qui lance l'import
+            $currentUser = $request->user();
 
             foreach ($records as $offset => $row) {
                 $totalRows++;
-                // Convertir les clés en minuscules pour la robustesse (si l'en-tête est sensible à la casse)
-                $sanitizedRow = array_change_key_case($row, CASE_LOWER);
-
-                // Dispatchez chaque ligne vers le job de file d'attente
-                $jobs[] = new ProcessContactImport($sanitizedRow, $currentUser->id, $currentUser);
+                $sanitizedRow = array_change_key_case($row, CASE_LOWER); // Convert keys to lowercase for robustness
+                $jobs[] = new \App\Jobs\ProcessContactImport($sanitizedRow, $currentUser->id, $currentUser);
             }
 
             if (empty($jobs)) {
-                return back()->with('error', 'Le fichier CSV est vide ou ne contient pas de données valides.');
+                return back()->with('error', 'CSV file is empty or contains no valid data.');
             }
 
-            // Utiliser des Batches de Jobs pour suivre la progression globale
-            // Nécessite une table 'job_batches'. Lancez `php artisan queue:batches-table` puis `php artisan migrate`
+            // Dispatch jobs in a batch for progress tracking and unified notifications
             Bus::batch($jobs)
                 ->then(function (Batch $batch) use ($currentUser, $totalRows) {
-                    // Tous les jobs du batch ont été terminés avec succès
+                    $importedCount = $totalRows - $batch->failedJobs;
                     Notification::send($currentUser, new ImportFinishedNotification([
                         'status' => 'success',
-                        'message' => 'Votre importation CSV est terminée avec succès.',
+                        'message' => 'Your CSV import completed successfully.',
                         'total_rows' => $totalRows,
-                        'imported_rows' => $totalRows - $batch->failedJobs // Simple estimation
+                        'imported_rows' => $importedCount,
                     ]));
                 })
                 ->catch(function (Batch $batch, Throwable $e) use ($currentUser) {
-                    // Un ou plusieurs jobs du batch ont échoué
                     Notification::send($currentUser, new ImportFinishedNotification([
                         'status' => 'failed',
-                        'message' => 'Votre importation CSV a échoué. Veuillez vérifier les logs.',
+                        'message' => 'Your CSV import failed. Please check logs for details.',
                         'error_message' => $e->getMessage()
                     ]));
                 })
-                ->finally(function (Batch $batch) use ($currentUser) {
-                    // Exécuté que le batch réussisse ou échoue
-                    // Si tu veux un état plus granulaire (partiellement réussi), tu peux compter les jobs réussis/échoués ici
-                    // et ajuster la notification finale. Pour cela, il faudrait que les jobs eux-mêmes
-                    // mettent à jour un compteur ou une table de logs pour le batch.
+                ->finally(function (Batch $batch) use ($currentUser, $totalRows) {
                     if ($batch->cancelled()) {
                         Notification::send($currentUser, new ImportFinishedNotification([
                             'status' => 'cancelled',
-                            'message' => 'L\'importation CSV a été annulée.'
+                            'message' => 'Your CSV import was cancelled.'
                         ]));
                     } else if ($batch->failedJobs > 0) {
-                         Notification::send($currentUser, new ImportFinishedNotification([
-                            'status' => 'partial_success', // Ou 'failed' si tous échouent
-                            'message' => 'Votre importation CSV est terminée, mais certaines lignes ont échoué.',
+                        $importedCount = $totalRows - $batch->failedJobs;
+                        Notification::send($currentUser, new ImportFinishedNotification([
+                            'status' => 'partial_success',
+                            'message' => 'Your CSV import finished, but some rows failed.',
                             'total_rows' => $batch->totalJobs,
-                            'imported_rows' => $batch->totalJobs - $batch->failedJobs,
+                            'imported_rows' => $importedCount,
                             'skipped_rows' => $batch->failedJobs,
                         ]));
                     }
                 })
                 ->dispatch();
 
-            return back()->with('success', 'Votre fichier CSV est en cours d\'importation. Vous serez notifié une fois l\'opération terminée.');
+            return back()->with('success', 'Your CSV file is being imported. You will be notified when complete.');
 
         } catch (\League\Csv\Exception $e) {
             Log::error('CSV parsing error: ' . $e->getMessage());
-            return back()->with('error', 'Erreur lors de la lecture du fichier CSV : ' . $e->getMessage());
+            return back()->with('error', 'Error reading CSV file: ' . $e->getMessage());
         } catch (\Exception $e) {
             Log::error('CSV import error: ' . $e->getMessage());
-            return back()->with('error', 'Une erreur inattendue est survenue lors de l\'importation : ' . $e->getMessage());
+            return back()->with('error', 'An unexpected error occurred during import: ' . $e->getMessage());
         }
     }
 }

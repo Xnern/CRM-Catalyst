@@ -5,32 +5,27 @@ import { Label } from '@/Components/ui/label';
 import { Contact } from '@/types/Contact';
 import { Loader2 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css'; // Styles Leaflet
-import L from 'leaflet'; // Import Leaflet
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import { debounce } from 'lodash';
 
-// --- FIX ROBUSTE POUR LES IMAGES DES ICÔNES LEAFLET ---
-// Importe directement les chemins des images des marqueurs Leaflet.
-// Vite va alors les traiter comme des assets et les servir correctement.
+// Fixes Leaflet's default marker icon image paths for bundlers like Vite.
 import markerIconPng from "leaflet/dist/images/marker-icon.png";
 import markerIconRetinaPng from "leaflet/dist/images/marker-icon-2x.png";
 import markerShadowPng from "leaflet/dist/images/marker-shadow.png";
 
-// Crée une instance d'icône personnalisée avec les chemins importés
 const customMarkerIcon = new L.Icon({
     iconUrl: markerIconPng,
     iconRetinaUrl: markerIconRetinaPng,
     shadowUrl: markerShadowPng,
-    iconSize: [25, 41],   // Taille de l'icône (largeur, hauteur)
-    iconAnchor: [12, 41], // Point de l'icône qui correspond aux coordonnées du marqueur
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
     popupAnchor: [1, -34],
     tooltipAnchor: [16, -28],
     shadowSize: [41, 41]
 });
-// --- FIN FIX ROBUSTE ---
 
-
-// Interface pour les erreurs de validation du backend
+// Interface for backend validation errors
 interface FormErrors {
     [key: string]: string[];
 }
@@ -42,7 +37,7 @@ interface ContactFormProps {
     errors?: FormErrors;
 }
 
-// Fonction utilitaire pour le formatage du numéro de téléphone (inchangée)
+// Utility function to format phone numbers for display
 const formatPhoneNumberForDisplay = (phoneNumber: string | null | undefined): string => {
     if (!phoneNumber) { return ''; }
     const cleaned = phoneNumber.replace(/[^\d+]/g, '');
@@ -54,8 +49,7 @@ const formatPhoneNumberForDisplay = (phoneNumber: string | null | undefined): st
     return phoneNumber;
 };
 
-
-// --- Composant interne pour gérer les événements de la carte ---
+// Internal component to handle map events
 interface MapEventHandlerProps {
     onMapClick: (lat: number, lng: number) => void;
     currentMarker: [number, number] | null;
@@ -68,7 +62,7 @@ function MapEventHandler({ onMapClick, currentMarker }: MapEventHandlerProps) {
         },
     });
 
-    // Centre la carte sur le marqueur si le marqueur change
+    // Centers the map on the marker if the marker position changes
     useEffect(() => {
         if (currentMarker) {
             map.setView(currentMarker, map.getZoom() > 10 ? map.getZoom() : 13);
@@ -77,7 +71,6 @@ function MapEventHandler({ onMapClick, currentMarker }: MapEventHandlerProps) {
 
     return null;
 }
-// --- Fin Composant interne ---
 
 
 export default function ContactForm({ initialData, onSubmit, isLoading = false, errors }: ContactFormProps) {
@@ -91,15 +84,18 @@ export default function ContactForm({ initialData, onSubmit, isLoading = false, 
 
     const addressInputRef = useRef<HTMLInputElement>(null);
 
-    const mapCenter: [number, number] = markerPosition || [48.8566, 2.3522]; // Paris par défaut
+    // Default map center (Paris) if no marker position is set
+    const mapCenter: [number, number] = markerPosition || [48.8566, 2.3522];
 
-    // --- Géocodage (adresse vers Lat/Lng) ---
+    // Geocoding (address to Lat/Lng) with debounce
     const geocodeAddress = useCallback(debounce(async (addr: string) => {
         if (!addr) {
             setMarkerPosition(null);
             return;
         }
         try {
+            // Uses Nominatim (OpenStreetMap) geocoding service.
+            // Be mindful of Nominatim's Usage Policy. For production, consider paid services.
             const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1`);
             const data = await response.json();
             if (data && data.length > 0) {
@@ -110,12 +106,12 @@ export default function ContactForm({ initialData, onSubmit, isLoading = false, 
                 setMarkerPosition(null);
             }
         } catch (error) {
-            console.error("Erreur de géocodage:", error);
+            console.error("Geocoding error:", error);
             setMarkerPosition(null);
         }
     }, 800), []);
 
-    // --- Géocodage inversé (Lat/Lng vers adresse) ---
+    // Reverse geocoding (Lat/Lng to address) with debounce
     const reverseGeocode = useCallback(debounce(async (lat: number, lng: number) => {
         try {
             const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
@@ -129,36 +125,38 @@ export default function ContactForm({ initialData, onSubmit, isLoading = false, 
                 setAddress('');
             }
         } catch (error) {
-            console.error("Erreur de géocodage inversé:", error);
+            console.error("Reverse geocoding error:", error);
             setAddress('');
         }
     }, 500), []);
 
-    // Réinitialise les champs quand initialData change
+    // Resets form fields and marker position when initialData changes
     useEffect(() => {
         setName(initialData?.name || '');
         setEmail(initialData?.email || '');
         setPhone(formatPhoneNumberForDisplay(initialData?.phone));
         setAddress(initialData?.address || '');
         setMarkerPosition((initialData?.latitude && initialData?.longitude) ? [initialData.latitude, initialData.longitude] : null);
+        // Geocode initial address if coordinates are missing
         if (initialData?.address && !(initialData?.latitude && initialData?.longitude)) {
             geocodeAddress(initialData.address);
         }
     }, [initialData, geocodeAddress]);
 
-    // Gère le changement de l'Input d'adresse
+    // Handles changes in the address Input and triggers geocoding
     const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newAddress = e.target.value;
         setAddress(newAddress);
         geocodeAddress(newAddress);
     };
 
-    // Gère le clic sur la carte pour le géocodage inversé
+    // Handles click on the map for reverse geocoding and marker update
     const handleMapClick = (lat: number, lng: number) => {
         setMarkerPosition([lat, lng]);
         reverseGeocode(lat, lng);
     };
 
+    // Handles form submission, passing values including coordinates to parent
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSubmit({
@@ -173,8 +171,8 @@ export default function ContactForm({ initialData, onSubmit, isLoading = false, 
 
     return (
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-            {/* Champ Nom */}
-            <div className="flex flex-col space-y-1"> {/* Changé pour empiler label et input */}
+            {/* Name Field */}
+            <div className="flex flex-col space-y-1">
                 <Label htmlFor="name">Nom</Label>
                 <Input
                     id="name"
@@ -186,8 +184,8 @@ export default function ContactForm({ initialData, onSubmit, isLoading = false, 
                 />
                 {errors?.name && <p className="text-red-500 text-sm mt-1">{errors.name[0]}</p>}
             </div>
-            {/* Champ Email */}
-            <div className="flex flex-col space-y-1"> {/* Changé pour empiler label et input */}
+            {/* Email Field */}
+            <div className="flex flex-col space-y-1">
                 <Label htmlFor="email">Email</Label>
                 <Input
                     id="email"
@@ -199,8 +197,8 @@ export default function ContactForm({ initialData, onSubmit, isLoading = false, 
                 />
                 {errors?.email && <p className="text-red-500 text-sm mt-1">{errors.email[0]}</p>}
             </div>
-            {/* Champ Téléphone */}
-            <div className="flex flex-col space-y-1"> {/* Changé pour empiler label et input */}
+            {/* Phone Field */}
+            <div className="flex flex-col space-y-1">
                 <Label htmlFor="phone">Téléphone</Label>
                 <Input
                     id="phone"
@@ -212,8 +210,8 @@ export default function ContactForm({ initialData, onSubmit, isLoading = false, 
                 {errors?.phone && <p className="text-red-500 text-sm mt-1">{errors.phone[0]}</p>}
             </div>
 
-            {/* Champ Adresse avec carte */}
-            <div className="flex flex-col space-y-1"> {/* Changé pour empiler label et input */}
+            {/* Address Field with Map Integration */}
+            <div className="flex flex-col space-y-1">
                 <Label htmlFor="address">Adresse</Label>
                 <Input
                     id="address"
@@ -226,8 +224,8 @@ export default function ContactForm({ initialData, onSubmit, isLoading = false, 
                 {errors?.address && <p className="text-red-500 text-sm mt-1">{errors.address[0]}</p>}
             </div>
 
-            {/* Conteneur de la carte */}
-            <div className="col-span-full mt-2 h-64 w-full rounded-md overflow-hidden border"> {/* Utilise col-span-full pour prendre toute la largeur de la grille parent */}
+            {/* Map Container */}
+            <div className="col-span-full mt-2 h-64 w-full rounded-md overflow-hidden border">
                 <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={true} className="h-full w-full">
                     <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

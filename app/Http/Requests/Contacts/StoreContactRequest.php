@@ -38,7 +38,6 @@ class StoreContactRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:50'],
             'email' => ['nullable', 'string', 'email', 'max:100', 'unique:contacts,email'],
-            // La regex est appliquée au numéro déjà nettoyé
             'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?\d{10,15}$/'],
             'address' => ['nullable', 'string', 'max:255'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],

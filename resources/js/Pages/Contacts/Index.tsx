@@ -23,13 +23,13 @@ import {
 } from '@/Components/ui/dropdown-menu';
 import { debounce } from 'lodash';
 
-// Interface pour Laravel paginated response
+// Interface for Laravel paginated API response
 interface PaginatedApiResponse<T> {
     current_page: number;
     data: T[];
     first_page_url: string;
     from: number;
-    last_page: string;
+    last_page: number;
     links: Array<{ url: string | null; label: string; active: boolean }>;
     next_page_url: string | null;
     path: string;
@@ -37,15 +37,14 @@ interface PaginatedApiResponse<T> {
     prev_page_url: string | null;
     to: number;
     total: number;
-    last_page: number; // Duplication corrigée
 }
 
-// Interface pour les erreurs de validation du backend
+// Interface for backend validation errors structure
 interface BackendValidationErrors {
     [key: string]: string[];
 }
 
-// --- Utility functions for persistence ---
+// Utility function to retrieve persisted state from localStorage
 const getPersistedState = <T,>(key: string, defaultValue: T): T => {
     try {
         const item = localStorage.getItem(key);
@@ -56,6 +55,7 @@ const getPersistedState = <T,>(key: string, defaultValue: T): T => {
     }
 };
 
+// Utility function to persist state to localStorage
 const persistState = <T,>(key: string, state: T): void => {
     try {
         localStorage.setItem(key, JSON.stringify(state));
@@ -64,7 +64,7 @@ const persistState = <T,>(key: string, state: T): void => {
     }
 };
 
-// --- Fonction de formatage du numéro de téléphone (idem que dans ContactForm) ---
+// Utility function to format phone numbers for display
 const formatPhoneNumberForDisplay = (phoneNumber: string | null | undefined): string => {
     if (!phoneNumber) { return ''; }
     const cleaned = phoneNumber.replace(/[^\d+]/g, '');
@@ -75,42 +75,39 @@ const formatPhoneNumberForDisplay = (phoneNumber: string | null | undefined): st
     }
     return phoneNumber;
 };
-// --- FIN Fonction de formatage ---
 
 
 export default function Index({ auth, errors, canCreateContact }: PageProps<{ canCreateContact: boolean }>) {
-    // --- Pagination and search states managed here and persisted ---
+    // Pagination and search states, persisted across sessions
     const [currentPage, setCurrentPage] = useState<number>(() => getPersistedState('contactsCurrentPage', 1));
     const [perPage, setPerPage] = useState<number>(() => getPersistedState('contactsPerPage', 15));
     const [searchQuery, setSearchQuery] = useState<string>(() => getPersistedState('contactsSearchQuery', ''));
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>(searchQuery);
 
+    // State for backend validation errors
     const [backendErrors, setBackendErrors] = useState<BackendValidationErrors>({});
 
-    useEffect(() => {
-        persistState('contactsPerPage', perPage);
-    }, [perPage]);
+    // Persist pagination and search states to localStorage
+    useEffect(() => { persistState('contactsPerPage', perPage); }, [perPage]);
+    useEffect(() => { persistState('contactsSearchQuery', searchQuery); }, [searchQuery]);
 
-    useEffect(() => {
-        persistState('contactsSearchQuery', searchQuery);
-    }, [searchQuery]);
-
-    // --- Debounce logic for search ---
+    // Debounce logic for search input to limit API calls
     const debouncedSetSearchAndPage = useCallback(
         debounce((value: string) => {
             setDebouncedSearchQuery(value);
-            setCurrentPage(1); // Crucially, go back to the first page for a new search
+            setCurrentPage(1); // Reset to first page for new searches
         }, 500),
         []
     );
 
+    // Handles search input changes and triggers debounced search
     const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         setSearchQuery(value);
         debouncedSetSearchAndPage(value);
     };
 
-    // Modal states
+    // Modal visibility states
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -119,12 +116,12 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
     const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
     const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
 
-    // CSV import form: Initialized with 'csv_file' key
+    // CSV import form management
     const { data: importFormData, setData: setImportFormData, post: importPost, processing: importProcessing, errors: importErrors, reset: importReset } = useForm({
-        csv_file: null as File | null, // Corrected key to match backend expectation
+        csv_file: null as File | null,
     });
 
-    // RTK Query to fetch contacts
+    // RTK Query hook to fetch contacts with pagination and search parameters
     const {
         data: apiResponse,
         isLoading,
@@ -135,28 +132,48 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         page: currentPage,
         per_page: perPage,
         search: debouncedSearchQuery,
-        include: 'user', // IMPORTANT: Request the 'user' relationship from the backend
+        include: 'user', // Request 'user' relationship from backend (Spatie Query Builder)
     });
 
-    const contacts = useMemo(() => apiResponse?.data || [], [apiResponse]); // Renamed from contactsData for consistency with previous snippets
+    // Extract contacts data and pagination metadata from API response
+    const contacts = useMemo(() => apiResponse?.data || [], [apiResponse]);
     const totalContacts = apiResponse?.total || 0;
     const lastPage = apiResponse?.last_page || 1;
 
-    // RTK Query mutations
+    // RTK Query mutation hooks for CRUD operations
     const [addContact, { isLoading: isAdding }] = useAddContactMutation();
     const [updateContact, { isLoading: isUpdating }] = useUpdateContactMutation();
     const [deleteContact, { isLoading: isDeleting }] = useDeleteContactMutation();
 
-    // DataTable Columns
+
+    // DataTable column definitions
     const columnHelper = createColumnHelper<Contact>();
     const columns: ColumnDef<Contact>[] = useMemo(() => [
         columnHelper.accessor('name', { header: 'Nom', cell: info => info.getValue() }),
         columnHelper.accessor('email', { header: 'Email', cell: info => info.getValue() }),
         columnHelper.accessor('phone', {
             header: 'Téléphone',
-            cell: ({ row }) => formatPhoneNumberForDisplay(row.original.phone), // <-- Utilise la fonction de formatage ici
+            cell: ({ row }) => formatPhoneNumberForDisplay(row.original.phone),
         }),
-        columnHelper.accessor('address', { header: 'Adresse', cell: info => info.getValue() || 'N/A' }),
+        columnHelper.accessor('address', {
+            header: 'Adresse',
+            cell: ({ row }) => {
+                // Create a Google Maps link if address has coordinates
+                if (row.original.address && row.original.latitude && row.original.longitude) {
+                    return (
+                        <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${row.original.latitude},${row.original.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline"
+                        >
+                            {row.original.address}
+                        </a>
+                    );
+                }
+                return row.original.address || 'N/A';
+            },
+        }),
         columnHelper.accessor('user.name', {
             header: 'Créé par',
             cell: ({ row }) => row.original.user?.name || 'N/A',
@@ -174,7 +191,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Ouvrir le menu</span>
+                                <span className="sr-only">Open menu</span>
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
@@ -193,13 +210,13 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         }),
     ], []);
 
-    // --- Callback Management Functions ---
-
+    // --- Pagination callbacks for DataTable ---
     const handlePageChange = (newPage: number) => { setCurrentPage(newPage); };
     const handlePerPageChange = (newSize: string) => { setPerPage(Number(newSize)); setCurrentPage(1); };
 
+    // --- Form submission handler for Add/Edit Contact Modal ---
     const handleFormSubmit = async (values: Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'user'>) => {
-        setBackendErrors({});
+        setBackendErrors({}); // Clear previous backend errors
 
         try {
             if (selectedContact) {
@@ -211,9 +228,10 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
             }
             setIsModalOpen(false);
             setSelectedContact(null);
-            refetch();
+            refetch(); // Refetch contacts data after successful operation
         } catch (err) {
-            console.error('Erreur lors de l\'enregistrement du contact:', err);
+            console.error('Error saving contact:', err);
+            // Handle specific 422 validation errors from backend
             if ((err as any).status === 422 && (err as any).data && (err as any).data.errors) {
                 setBackendErrors((err as any).data.errors);
                 toast.error('Veuillez corriger les erreurs dans le formulaire.');
@@ -223,6 +241,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         }
     };
 
+    // --- CRUD action handlers ---
     const handleCreateNew = () => { setSelectedContact(null); setBackendErrors({}); setIsModalOpen(true); };
     const handleEdit = (contact: Contact) => { setSelectedContact(contact); setBackendErrors({}); setIsModalOpen(true); };
     const handleDelete = async (id: number) => {
@@ -231,11 +250,12 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
             toast.success('Contact supprimé avec succès.');
             refetch();
         } catch (err) {
-            console.error('Erreur lors de la suppression du contact:', err);
+            console.error('Error deleting contact:', err);
             toast.error('Échec de la suppression du contact.');
         }
     };
 
+    // --- Bulk delete handlers ---
     const handleBulkDelete = async (ids: string[]) => { setSelectedContactIds(ids); setIsBulkDeleteConfirmOpen(true); };
     const confirmBulkDelete = async () => {
         try {
@@ -245,40 +265,41 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
             setSelectedContactIds([]);
             refetch();
         } catch (err) {
-            console.error('Erreur lors de la suppression groupée:', err);
+            console.error('Error with bulk deletion:', err);
             toast.error('Échec de la suppression groupée. Veuillez réessayer.');
         }
     };
 
+    // --- CSV Import handler ---
     const handleImportSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        // Correctly submit with the 'csv_file' key
-        if (importFormData.csv_file) { // Changed to csv_file
-            importPost(route('contacts.import'), {
+        if (importFormData.csv_file) {
+            importPost(route('contacts.import.csv'), {
                 onSuccess: () => {
                     toast.success('Fichier CSV importé. Le traitement est en cours...');
                     setIsImportModalOpen(false);
                     importReset();
-                    refetch();
-                    setCurrentPage(1);
+                    refetch(); // Refetch data after successful import
+                    setCurrentPage(1); // Go back to first page after import
                 },
                 onError: (errors) => {
-                    // Specific toast for "csv_file is required"
+                    // Specific toast for "csv_file is required" or other import errors
                     if (errors.csv_file && errors.csv_file.includes('validation.required')) {
                         toast.error('Veuillez sélectionner un fichier CSV à importer.');
                     } else if (errors.csv_file) {
                         toast.error(`Erreur d'importation du fichier: ${errors.csv_file}`);
                     } else {
-                        // Fallback for other errors or if the message is different
+                        // Fallback for other errors
                         toast.error('Échec de l\'importation CSV. Vérifiez les erreurs.');
                     }
-                    console.error('Erreur d\'importation:', errors);
+                    console.error('Import error:', errors);
                 },
             });
         } else { toast.error('Veuillez sélectionner un fichier CSV.'); }
     };
 
 
+    // Display error message if RTK Query fetch fails
     if (isError) {
         return (
             <AuthenticatedLayout user={auth.user} header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">Contacts</h2>}>
@@ -331,6 +352,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                             />
                         </div>
 
+                        {/* DataTable Component */}
                         {contacts && (contacts.length > 0 || isLoading) ? (
                             <DataTable
                                 columns={columns}
@@ -384,11 +406,9 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                                     <Input
                                         type="file"
                                         accept=".csv"
-                                        // Corrected: bind to importFormData.csv_file
                                         onChange={(e) => setImportFormData('csv_file', e.target.files ? e.target.files[0] : null)}
                                         className="p-0 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary-foreground file:text-primary hover:file:bg-primary-foreground/90"
                                     />
-                                    {/* Display errors for csv_file */}
                                     {importErrors.csv_file && <p className="text-red-500 text-xs mt-1">{importErrors.csv_file}</p>}
                                     <DialogFooter>
                                         <DialogClose asChild>
