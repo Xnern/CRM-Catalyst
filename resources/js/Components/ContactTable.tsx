@@ -1,3 +1,5 @@
+// src/Components/ContactTable.tsx
+
 import React, { useState, useMemo } from 'react';
 import {
   ColumnDef,
@@ -7,26 +9,60 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
 } from '@tanstack/react-table';
-import { useGetContactsQuery, GetContactsQueryParams, Contact } from '../services/api';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'; // Shadcn UI
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Loader2 } from 'lucide-react'; // Exemple d'icône pour le chargement
+import { useGetContactsQuery, useDeleteContactMutation, GetContactsQueryParams } from '@/services/api';
+import { Contact } from '@/types/Contact';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/Components/ui/table';
+import { Button } from '@/Components/ui/button';
+import { Input } from '@/Components/ui/input';
+import { Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/Components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/Components/ui/alert-dialog';
+import ContactForm from '@/Components/ContactForm';
+import { toast } from 'sonner'; // <-- IMPORT DE LA FONCTION toast DE SONNER
 
 const ContactTable: React.FC = () => {
+  // Pas besoin de "const { toast } = useToast();" ici.
+
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 15 });
   const [sorting, setSorting] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
   const queryParams: GetContactsQueryParams = {
-    page: pagination.pageIndex + 1, // TanStack Table est basé sur 0, Laravel sur 1
+    page: pagination.pageIndex + 1,
     per_page: pagination.pageSize,
     search: search || undefined,
     sort: sorting.length > 0 ? (sorting[0].desc ? `-${sorting[0].id}` : sorting[0].id) : undefined,
-    includes: ['user'], // Exemple d'inclusion de relation
+    includes: ['user'],
   };
 
-  const { data, isLoading, isFetching, error } = useGetContactsQuery(queryParams);
+  const { data, isLoading, isFetching, error } = useGetContactsQuery(queryParams as any);
+  const [deleteContact, { isLoading: isDeleting }] = useDeleteContactMutation();
+
+  const handleEditContact = (contact: Contact) => {
+    setSelectedContact(contact);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setSelectedContact(null);
+  };
+
+  const handleContactUpdated = () => {
+    handleCloseEditModal();
+  };
+
+  const handleDeleteContact = async (contactId: number) => {
+    try {
+      await deleteContact(contactId).unwrap();
+      toast.success("Le contact a été supprimé avec succès !"); // <-- Utilisation de toast.success
+    } catch (err) {
+      console.error('Échec de la suppression du contact:', err);
+      toast.error("Échec de la suppression du contact. Vérifiez les permissions ou la connexion."); // <-- Utilisation de toast.error
+    }
+  };
 
   const columns = useMemo<ColumnDef<Contact>[]>(
     () => [
@@ -51,9 +87,8 @@ const ContactTable: React.FC = () => {
         header: 'Téléphone',
       },
       {
-        accessorKey: 'user.name', // Pour afficher le nom de l'utilisateur associé
-        header: 'Créé par',
-        cell: info => info.getValue() || 'N/A'
+        accessorKey: 'address',
+        header: 'Adresse',
       },
       {
         accessorKey: 'created_at',
@@ -68,9 +103,42 @@ const ContactTable: React.FC = () => {
         ),
         cell: info => new Date(info.getValue() as string).toLocaleDateString(),
       },
-      // ... autres colonnes
+      {
+        id: 'actions',
+        header: 'Actions',
+        cell: ({ row }) => (
+          <div className="flex space-x-2">
+            <Button variant="outline" size="sm" onClick={() => handleEditContact(row.original)}>
+              Modifier
+            </Button>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={isDeleting}>
+                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Supprimer
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Êtes-vous absolument sûr ?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Cette action ne peut pas être annulée. Cela supprimera définitivement le contact "{row.original.name}" de nos serveurs.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => handleDeleteContact(row.original.id)}>
+                    Continuer
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        ),
+      },
     ],
-    []
+    [isDeleting] // `toast` n'est pas une dépendance ici car c'est une fonction globale
   );
 
   const table = useReactTable({
@@ -83,23 +151,24 @@ const ContactTable: React.FC = () => {
       pagination,
       sorting,
     },
-    manualPagination: true, // Pagination gérée par le serveur
-    manualSorting: true,     // Tri géré par le serveur
-    rowCount: data?.total || 0, // Nombre total d'éléments pour la pagination
+    manualPagination: true,
+    manualSorting: true,
+    rowCount: data?.total || 0,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
   });
 
-  if (isLoading && !isFetching) { // isLoading est true au premier chargement, isFetching lors des re-fetches
+  if (isLoading && !isFetching) {
     return (
       <div className="flex justify-center items-center h-40">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+        <span className="ml-2 text-gray-700">Chargement des contacts...</span>
       </div>
     );
   }
 
   if (error) {
-    return <div className="text-red-500">Erreur de chargement des contacts.</div>;
+    return <div className="text-red-500 text-center py-8">Erreur lors du chargement des contacts. Veuillez réessayer plus tard.</div>;
   }
 
   return (
@@ -139,7 +208,7 @@ const ContactTable: React.FC = () => {
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  Aucun résultat.
+                  Aucun contact trouvé.
                 </TableCell>
               </TableRow>
             )}
@@ -163,10 +232,29 @@ const ContactTable: React.FC = () => {
         >
           Suivant
         </Button>
-        <span className="text-sm text-muted-foreground">
+        <span className="text-sm text-muted-foreground ml-4">
           Page {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
         </span>
       </div>
+
+      {/* Modale d'édition de contact */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Modifier le contact</DialogTitle>
+            <DialogDescription>
+              Mettez à jour les informations du contact ci-dessous.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedContact && (
+            <ContactForm
+              contact={selectedContact}
+              onSuccess={handleContactUpdated}
+              onCancel={handleCloseEditModal}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -7,8 +7,10 @@ import { createRoot } from 'react-dom/client';
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 
-import { Provider } from 'react-redux'; // <-- Importez le Provider de react-redux
-import { store } from './app/store';     // <-- Importez votre store que vous venez de créer
+import { Provider } from 'react-redux';
+import { store } from './app/store';
+
+import { Toaster } from 'sonner';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -20,6 +22,7 @@ createInertiaApp({
         root.render(
             <Provider store={store}>
                 <App {...props} />
+                <Toaster position="top-center" richColors />
             </Provider>
         );
     },

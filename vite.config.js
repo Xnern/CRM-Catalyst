@@ -10,4 +10,8 @@ export default defineConfig({
         }),
         react(),
     ],
+    server: {
+        // Ajoute cette ligne pour forcer l'utilisation de l'IPv4 localhost
+        host: '127.0.0.1',
+    },
 });

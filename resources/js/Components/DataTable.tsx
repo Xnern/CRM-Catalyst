@@ -1,0 +1,584 @@
+import * as React from 'react';
+import {
+  ColumnDef,
+  // ColumnFiltersState, // <-- Supprimé : plus de filtre client-side générique
+  SortingState,
+  VisibilityState,
+  flexRender,
+  getCoreRowModel,
+  // getFilteredRowModel, // <-- Supprimé : plus de filtre client-side générique
+  getSortedRowModel,
+  useReactTable,
+  Column,
+  Header,
+} from '@tanstack/react-table';
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/Components/ui/table';
+// import { Input } from '@/Components/ui/input'; // <-- Supprimé : plus d'input de recherche ici
+import { Button } from '@/Components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/Components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
+import { Checkbox } from '@/Components/ui/checkbox';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/Components/ui/alert-dialog';
+
+import { ChevronDownIcon, ChevronUpIcon, ChevronsUpDownIcon, Settings2, Trash2, Download, GripVertical } from 'lucide-react';
+import { toast } from 'sonner';
+import Papa from 'papaparse';
+
+// DND-KIT Imports
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  horizontalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useMemo } from 'react';
+
+
+// Interface for DataTable props
+interface DataTableProps<TData, TValue> {
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
+  isLoading?: boolean;
+  onBulkDelete?: (selectedIds: string[]) => Promise<void>;
+  idAccessorKey?: keyof TData;
+  pagination: {
+    currentPage: number;
+    perPage: number;
+    totalItems: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+    onPerPageChange: (perPage: string) => void;
+  };
+}
+
+// Sortable Header Component
+interface SortableHeaderProps<TData> {
+  header: Header<TData, any>;
+  children: React.ReactNode;
+}
+
+function SortableHeader<TData>({ header, children }: SortableHeaderProps<TData>) {
+  if (header.id === 'select' || header.id === 'actions') {
+    return (
+      <TableHead className={header.column.getCanSort() ? 'cursor-pointer select-none' : ''}>
+        <div
+          {...{
+            className: header.column.getCanSort()
+              ? 'flex items-center gap-1'
+              : '',
+            onClick: header.column.getToggleSortingHandler(),
+          }}
+        >
+          {children}
+          {{
+            asc: <ChevronUpIcon className="ml-2 h-4 w-4" />,
+            desc: <ChevronDownIcon className="ml-2 h-4 w-4" />,
+          }[header.column.getIsSorted() as string] ??
+            (header.column.getCanSort() ? (
+              <ChevronsUpDownIcon className="ml-2 h-4 w-4 opacity-50" />
+            ) : null)}
+        </div>
+      </TableHead>
+    );
+  }
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: header.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.8 : 1,
+    zIndex: isDragging ? 100 : 0,
+    position: 'relative',
+  };
+
+  return (
+    <TableHead
+      ref={setNodeRef}
+      style={style}
+      className={header.column.getCanSort() ? 'cursor-pointer select-none' : ''}
+      onClick={header.column.getToggleSortingHandler()}
+    >
+      <div className="flex items-center gap-1">
+        <span
+          {...attributes}
+          {...listeners}
+          className="cursor-grab hover:bg-gray-200 p-1 rounded-sm -ml-2 transition-colors duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-4 w-4 text-gray-500" />
+        </span>
+        {children}
+        {{
+          asc: <ChevronUpIcon className="ml-2 h-4 w-4" />,
+          desc: <ChevronDownIcon className="ml-2 h-4 w-4" />,
+        }[header.column.getIsSorted() as string] ??
+          (header.column.getCanSort() ? (
+            <ChevronsUpDownIcon className="ml-2 h-4 w-4 opacity-50" />
+          ) : null)}
+      </div>
+    </TableHead>
+  );
+}
+
+
+// --- Utility functions for persistence (NECESSARY for DataTable's internal state) ---
+const getPersistedState = (key: string, defaultValue: any) => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch (error) {
+    console.warn(`Failed to read from localStorage key "${key}":`, error);
+    return defaultValue;
+  }
+};
+
+const persistState = (key: string, state: any) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(state));
+  } catch (error) {
+    console.warn(`Failed to write to localStorage key "${key}":`, error);
+  }
+};
+
+
+export function DataTable<TData extends { id?: any }, TValue>({
+  columns,
+  data,
+  isLoading = false,
+  onBulkDelete,
+  idAccessorKey = 'id' as keyof TData,
+  pagination,
+}: DataTableProps<TData, TValue>) {
+
+  const selectColumn: ColumnDef<TData, TValue> = {
+    id: 'select',
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && 'indeterminate')
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+    enableResizing: false,
+  };
+
+  const actionColumnId = 'actions';
+
+  const getColumnEffectiveId = React.useCallback((col: ColumnDef<TData, TValue>): string | undefined => {
+      if (col.id) return col.id;
+      if (typeof col.accessorKey === 'string') return col.accessorKey;
+      return undefined;
+  }, []);
+
+  const { fixedStartColumn, fixedEndColumn, draggableColumnsMap, draggableColumnIdsInOriginalOrder } = useMemo(() => {
+    let fixedStart: ColumnDef<TData, TValue> | undefined;
+    let fixedEnd: ColumnDef<TData, TValue> | undefined;
+    const draggableMap = new Map<string, ColumnDef<TData, TValue>>();
+    const draggableIds: string[] = [];
+
+    fixedStart = selectColumn;
+
+    columns.forEach(col => {
+      const colId = getColumnEffectiveId(col);
+      if (colId === actionColumnId) {
+        fixedEnd = col;
+      } else if (colId && colId !== selectColumn.id) {
+        draggableMap.set(colId, col);
+        draggableIds.push(colId);
+      }
+    });
+
+    return {
+      fixedStartColumn: fixedStart,
+      fixedEndColumn: fixedEnd,
+      draggableColumnsMap: draggableMap,
+      draggableColumnIdsInOriginalOrder: draggableIds,
+    };
+  }, [columns, selectColumn, getColumnEffectiveId]);
+
+
+  // --- PERSISTED STATE --- (toujours stocké ici pour les paramètres de TanStack Table gérés client-side)
+  const [sorting, setSortingState] = React.useState<SortingState>(
+    getPersistedState('dataTableSorting', [])
+  );
+  // Supprimé : const [columnFilters, setColumnFiltersState] = React.useState<ColumnFiltersState>(...);
+  const [columnVisibility, setColumnVisibilityState] = React.useState<VisibilityState>(
+    getPersistedState('dataTableColumnVisibility', {})
+  );
+  const [rowSelection, setRowSelection] = React.useState({});
+
+  const [columnOrder, setColumnOrder] = React.useState<string[]>(() => {
+    const persistedOrder = getPersistedState('dataTableColumnOrder', []);
+    const validPersistedOrder = persistedOrder.filter((id: string) =>
+        draggableColumnIdsInOriginalOrder.includes(id)
+    );
+    const finalOrder = [...new Set([...validPersistedOrder, ...draggableColumnIdsInOriginalOrder])];
+    return finalOrder;
+  });
+
+
+  // Synchronize with localStorage
+  React.useEffect(() => { persistState('dataTableSorting', sorting); }, [sorting]);
+  // Supprimé : React.useEffect(() => { persistState('dataTableColumnFilters', columnFilters); }, [columnFilters]);
+  React.useEffect(() => { persistState('dataTableColumnVisibility', columnVisibility); }, [columnVisibility]);
+  React.useEffect(() => { persistState('dataTableColumnOrder', columnOrder); }, [columnOrder]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      setColumnOrder((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over?.id as string);
+        if (!draggableColumnsMap.has(active.id as string) || !draggableColumnsMap.has(over?.id as string)) {
+            return items;
+        }
+        if (oldIndex === -1 || newIndex === -1) return items;
+        const newItems = Array.from(items);
+        const [movedItem] = newItems.splice(oldIndex, 1);
+        newItems.splice(newIndex, 0, movedItem);
+        return newItems;
+      });
+    }
+  };
+
+  const finalColumnsForTable = useMemo(() => {
+    const orderedDraggableColumns = columnOrder
+      .map(id => draggableColumnsMap.get(id))
+      .filter(Boolean) as ColumnDef<TData, TValue>[];
+    return [
+      ...(fixedStartColumn ? [fixedStartColumn] : []),
+      ...orderedDraggableColumns,
+      ...(fixedEndColumn ? [fixedEndColumn] : []),
+    ];
+  }, [columnOrder, fixedStartColumn, fixedEndColumn, draggableColumnsMap]);
+
+
+  const table = useReactTable({
+    data,
+    columns: finalColumnsForTable,
+    state: {
+      sorting,
+      // Supprimé : columnFilters,
+      columnVisibility,
+      rowSelection,
+      columnOrder: finalColumnsForTable.map(col => getColumnEffectiveId(col) || ''),
+      pagination: {
+        pageIndex: pagination.currentPage - 1, // TanStack Table est basé sur 0
+        pageSize: pagination.perPage,
+      },
+    },
+    onSortingChange: setSortingState,
+    // Supprimé : onColumnFiltersChange: setColumnFiltersState,
+    onColumnVisibilityChange: setColumnVisibilityState,
+    onRowSelectionChange: setRowSelection,
+    onColumnOrderChange: setColumnOrder,
+
+    manualPagination: true, // Ceci est correct pour une pagination côté serveur
+    pageCount: pagination.totalPages,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    // Supprimé : getFilteredRowModel: getFilteredRowModel(), // <-- TRÈS IMPORTANT : supprimer ceci
+  });
+
+  const selectedRows = table.getFilteredSelectedRowModel().rows;
+  const hasSelectedRows = selectedRows.length > 0;
+
+  const handleBulkDelete = async () => {
+    if (!onBulkDelete) {
+      toast.error("La fonction de suppression groupée n'est pas configurée.");
+      return;
+    }
+    const selectedIds = selectedRows.map(row => String(row.original[idAccessorKey!]));
+
+    try {
+      await onBulkDelete(selectedIds);
+      toast.success(`${selectedIds.length} contact(s) supprimé(s) avec succès.`);
+      setRowSelection({});
+    } catch (err) {
+      console.error("Erreur lors de la suppression groupée:", err);
+      toast.error("Échec de la suppression groupée. Veuillez réessayer.");
+    }
+  };
+
+  const handleExportCsv = () => {
+    if (data.length === 0) {
+      toast.info("Aucune donnée à exporter.");
+      return;
+    }
+
+    const dataToExport = hasSelectedRows ? selectedRows.map(row => row.original) : data;
+
+    if (dataToExport.length === 0) {
+      toast.info("Aucune ligne sélectionnée ou donnée sur la page actuelle à exporter.");
+      return;
+    }
+
+    const csv = Papa.unparse(dataToExport);
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'contacts_export.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Données exportées avec succès au format CSV !");
+  };
+
+  // Calcul pour l'affichage des éléments de pagination (ex: 1-15 sur 108)
+  const firstItemOnPage = pagination.totalItems > 0 ? (pagination.currentPage - 1) * pagination.perPage + 1 : 0;
+  const lastItemOnPage = pagination.totalItems > 0 ? Math.min(pagination.currentPage * pagination.perPage, pagination.totalItems) : 0;
+
+  return (
+    <div className="w-full">
+      <div className="flex items-center py-4 gap-2">
+        {/*
+          CE BLOC Input EST SUPPRIMÉ D'ICI.
+          LA RECHERCHE DOIT ÊTRE DANS Index.tsx.
+        */}
+        {/* <Input ... /> */}
+
+        {/* Bloc des actions groupées : Affiché UNIQUEMENT si des lignes sont sélectionnées */}
+        {hasSelectedRows ? (
+          <div className="flex items-center space-x-2 ml-auto">
+            <span className="text-sm text-muted-foreground">
+              {selectedRows.length} ligne(s) sélectionnée(s)
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  Actions <ChevronDownIcon className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Actions groupées</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleExportCsv} className="cursor-pointer">
+                  <Download className="mr-2 h-4 w-4" /> Exporter ({selectedRows.length} sélectionné(s))
+                </DropdownMenuItem>
+
+                {onBulkDelete && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600 cursor-pointer">
+                        <Trash2 className="mr-2 h-4 w-4" /> Supprimer ({selectedRows.length} sélectionné(s))
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Êtes-vous sûr de vouloir supprimer les {selectedRows.length} contact(s) sélectionné(s) ?
+                          Cette action est irréversible.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleBulkDelete}>
+                          Supprimer
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : ( // Si aucune ligne n'est sélectionnée, affiche le DropdownMenu des colonnes
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="ml-auto">
+                        Colonnes <Settings2 className="ml-2 h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    {table
+                        .getAllColumns()
+                        .filter((column) => column.getCanHide())
+                        .map((column) => {
+                            if (column.id === 'select' || column.id === actionColumnId) return null;
+                            const headerName = typeof column.columnDef.header === 'string'
+                                ? column.columnDef.header
+                                : column.id;
+                            return (
+                                <DropdownMenuCheckboxItem
+                                    key={column.id}
+                                    className="capitalize"
+                                    checked={column.getIsVisible()}
+                                    onCheckedChange={(value) =>
+                                        column.toggleVisibility(!!value)
+                                    }
+                                >
+                                    {headerName}
+                                </DropdownMenuCheckboxItem>
+                            );
+                        })}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        )}
+      </div>
+
+      <div className="rounded-md border">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  <SortableContext
+                    items={finalColumnsForTable.map(col => getColumnEffectiveId(col) || '')}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    {headerGroup.headers.map((header) => (
+                      <SortableHeader key={header.id} header={header}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </SortableHeader>
+                    ))}
+                  </SortableContext>
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={finalColumnsForTable.length} className="h-24 text-center">
+                    <div className="flex flex-col space-y-3 animate-pulse p-4">
+                      {[...Array(pagination.perPage)].map((_, i) => (
+                          <div key={i} className="h-8 bg-gray-200 rounded-md w-full" />
+                      ))}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && 'selected'}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={finalColumnsForTable.length} className="h-24 text-center">
+                    Aucun résultat.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </DndContext>
+      </div>
+
+      <div className="flex items-center justify-end space-x-2 py-4">
+        {/* Affichage de la pagination */}
+        <div className="flex-1 text-sm text-muted-foreground">
+          {pagination.totalItems > 0 ? (
+            `Affichage ${firstItemOnPage} - ${lastItemOnPage} sur ${pagination.totalItems} contacts.`
+          ) : (
+            `Aucun contact.`
+          )}
+        </div>
+
+        {/* Select pour choisir le nombre d'éléments par page */}
+        <Select
+            value={`${pagination.perPage}`}
+            onValueChange={pagination.onPerPageChange}
+        >
+            <SelectTrigger className="h-8 w-[100px]">
+                <SelectValue placeholder="Taille de page" />
+            </SelectTrigger>
+            <SelectContent>
+                {[10, 15, 20, 30, 40, 50, 100].map((pageSize) => (
+                    <SelectItem key={pageSize} value={`${pageSize}`}>
+                        {pageSize}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+
+        {/* Boutons de navigation entre les pages */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
+          disabled={pagination.currentPage <= 1}
+        >
+          Précédent
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
+          disabled={pagination.currentPage >= pagination.totalPages}
+        >
+          Suivant
+        </Button>
+        <span className="text-sm text-muted-foreground ml-4">
+            Page {pagination.currentPage} de {pagination.totalPages}
+        </span>
+      </div>
+    </div>
+  );
+}
