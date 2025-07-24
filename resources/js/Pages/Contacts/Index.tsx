@@ -79,6 +79,7 @@ const formatPhoneNumberForDisplay = (phoneNumber: string | null | undefined): st
 
 
 export default function Index({ auth, errors, canCreateContact }: PageProps<{ canCreateContact: boolean }>) {
+    // --- Pagination and search states managed here and persisted ---
     const [currentPage, setCurrentPage] = useState<number>(() => getPersistedState('contactsCurrentPage', 1));
     const [perPage, setPerPage] = useState<number>(() => getPersistedState('contactsPerPage', 15));
     const [searchQuery, setSearchQuery] = useState<string>(() => getPersistedState('contactsSearchQuery', ''));
@@ -86,13 +87,19 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
 
     const [backendErrors, setBackendErrors] = useState<BackendValidationErrors>({});
 
-    useEffect(() => { persistState('contactsPerPage', perPage); }, [perPage]);
-    useEffect(() => { persistState('contactsSearchQuery', searchQuery); }, [searchQuery]);
+    useEffect(() => {
+        persistState('contactsPerPage', perPage);
+    }, [perPage]);
 
+    useEffect(() => {
+        persistState('contactsSearchQuery', searchQuery);
+    }, [searchQuery]);
+
+    // --- Debounce logic for search ---
     const debouncedSetSearchAndPage = useCallback(
         debounce((value: string) => {
             setDebouncedSearchQuery(value);
-            setCurrentPage(1);
+            setCurrentPage(1); // Crucially, go back to the first page for a new search
         }, 500),
         []
     );
@@ -103,17 +110,21 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         debouncedSetSearchAndPage(value);
     };
 
+    // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
+    // Bulk delete states
     const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
     const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
 
+    // CSV import form: Initialized with 'csv_file' key
     const { data: importFormData, setData: setImportFormData, post: importPost, processing: importProcessing, errors: importErrors, reset: importReset } = useForm({
-        file: null as File | null,
+        csv_file: null as File | null, // Corrected key to match backend expectation
     });
 
+    // RTK Query to fetch contacts
     const {
         data: apiResponse,
         isLoading,
@@ -124,17 +135,19 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         page: currentPage,
         per_page: perPage,
         search: debouncedSearchQuery,
-        include: 'user',
+        include: 'user', // IMPORTANT: Request the 'user' relationship from the backend
     });
 
-    const contacts = useMemo(() => apiResponse?.data || [], [apiResponse]);
+    const contacts = useMemo(() => apiResponse?.data || [], [apiResponse]); // Renamed from contactsData for consistency with previous snippets
     const totalContacts = apiResponse?.total || 0;
     const lastPage = apiResponse?.last_page || 1;
 
+    // RTK Query mutations
     const [addContact, { isLoading: isAdding }] = useAddContactMutation();
     const [updateContact, { isLoading: isUpdating }] = useUpdateContactMutation();
     const [deleteContact, { isLoading: isDeleting }] = useDeleteContactMutation();
 
+    // DataTable Columns
     const columnHelper = createColumnHelper<Contact>();
     const columns: ColumnDef<Contact>[] = useMemo(() => [
         columnHelper.accessor('name', { header: 'Nom', cell: info => info.getValue() }),
@@ -143,24 +156,10 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
             header: 'Téléphone',
             cell: ({ row }) => formatPhoneNumberForDisplay(row.original.phone), // <-- Utilise la fonction de formatage ici
         }),
-        columnHelper.accessor('address', {
-            header: 'Adresse',
-            cell: ({ row }) => {
-                // Si l'adresse a des coordonnées, on peut en faire un lien vers Google Maps ou une carte intégrée
-                if (row.original.address && row.original.latitude && row.original.longitude) {
-                    return (
-                        <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${row.original.latitude},${row.original.longitude}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline"
-                        >
-                            {row.original.address}
-                        </a>
-                    );
-                }
-                return row.original.address || 'N/A';
-            },
+        columnHelper.accessor('address', { header: 'Adresse', cell: info => info.getValue() || 'N/A' }),
+        columnHelper.accessor('user.name', {
+            header: 'Créé par',
+            cell: ({ row }) => row.original.user?.name || 'N/A',
         }),
         columnHelper.accessor('created_at', {
             header: 'Créé le',
@@ -193,6 +192,8 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
             },
         }),
     ], []);
+
+    // --- Callback Management Functions ---
 
     const handlePageChange = (newPage: number) => { setCurrentPage(newPage); };
     const handlePerPageChange = (newSize: string) => { setPerPage(Number(newSize)); setCurrentPage(1); };
@@ -251,8 +252,9 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
 
     const handleImportSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (importFormData.file) {
-            importPost(route('contacts.import.csv'), {
+        // Correctly submit with the 'csv_file' key
+        if (importFormData.csv_file) { // Changed to csv_file
+            importPost(route('contacts.import'), {
                 onSuccess: () => {
                     toast.success('Fichier CSV importé. Le traitement est en cours...');
                     setIsImportModalOpen(false);
@@ -261,8 +263,16 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                     setCurrentPage(1);
                 },
                 onError: (errors) => {
+                    // Specific toast for "csv_file is required"
+                    if (errors.csv_file && errors.csv_file.includes('validation.required')) {
+                        toast.error('Veuillez sélectionner un fichier CSV à importer.');
+                    } else if (errors.csv_file) {
+                        toast.error(`Erreur d'importation du fichier: ${errors.csv_file}`);
+                    } else {
+                        // Fallback for other errors or if the message is different
+                        toast.error('Échec de l\'importation CSV. Vérifiez les erreurs.');
+                    }
                     console.error('Erreur d\'importation:', errors);
-                    toast.error('Échec de l\'importation. Vérifiez les erreurs.');
                 },
             });
         } else { toast.error('Veuillez sélectionner un fichier CSV.'); }
@@ -374,15 +384,17 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                                     <Input
                                         type="file"
                                         accept=".csv"
-                                        onChange={(e) => setImportFormData('file', e.target.files ? e.target.files[0] : null)}
-                                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary-foreground file:text-primary hover:file:bg-primary-foreground/90"
+                                        // Corrected: bind to importFormData.csv_file
+                                        onChange={(e) => setImportFormData('csv_file', e.target.files ? e.target.files[0] : null)}
+                                        className="p-0 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary-foreground file:text-primary hover:file:bg-primary-foreground/90"
                                     />
-                                    {importErrors.file && <p className="text-red-500 text-xs mt-1">{importErrors.file}</p>}
+                                    {/* Display errors for csv_file */}
+                                    {importErrors.csv_file && <p className="text-red-500 text-xs mt-1">{importErrors.csv_file}</p>}
                                     <DialogFooter>
                                         <DialogClose asChild>
                                             <Button type="button" variant="outline">Annuler</Button>
-                                    </DialogClose>
-                                        <Button type="submit" disabled={importProcessing || !importFormData.file}>
+                                        </DialogClose>
+                                        <Button type="submit" disabled={importProcessing || !importFormData.csv_file}>
                                             {importProcessing ? 'Importation en cours...' : 'Importer'}
                                         </Button>
                                     </DialogFooter>
