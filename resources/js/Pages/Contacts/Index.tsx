@@ -174,10 +174,6 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                 return row.original.address || 'N/A';
             },
         }),
-        columnHelper.accessor('user.name', {
-            header: 'Créé par',
-            cell: ({ row }) => row.original.user?.name || 'N/A',
-        }),
         columnHelper.accessor('created_at', {
             header: 'Créé le',
             cell: info => info.getValue() ? new Date(info.getValue()).toLocaleDateString() : 'N/A'
