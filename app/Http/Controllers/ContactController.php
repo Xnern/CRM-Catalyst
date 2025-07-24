@@ -121,6 +121,9 @@ class ContactController extends Controller
 
         // Assurez-vous que l'utilisateur connecté est assigné comme propriétaire du contact
         $contact = $request->user()->contacts()->create($validatedData);
+        $contact->latitude = $request->input('latitude');
+        $contact->longitude = $request->input('longitude');
+        $contact->save();
 
         return response()->json($contact->load('user'), 201); // 201 Created
     }
@@ -145,6 +148,9 @@ class ContactController extends Controller
         $validatedData = $request->validated();
 
         $contact->update($validatedData);
+        $contact->latitude = $request->input('latitude');
+        $contact->longitude = $request->input('longitude');
+        $contact->save();
 
         return response()->json($contact->load('user'));
     }

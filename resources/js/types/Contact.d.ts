@@ -5,6 +5,8 @@ export interface Contact {
     email: string | null; // Assurez-vous que `null` est autorisé si votre DB l'autorise
     phone: string | null; // Idem
     address: string | null; // Idem
+    latitude?: number | null;
+    longitude?: number | null;
     created_at: string;
     updated_at: string;
     // Si la relation 'user' est incluse par Laravel, elle doit être ici !

@@ -29,8 +29,7 @@ interface PaginatedApiResponse<T> {
     data: T[];
     first_page_url: string;
     from: number;
-    last_page: number;
-    last_page_url: string;
+    last_page: string;
     links: Array<{ url: string | null; label: string; active: boolean }>;
     next_page_url: string | null;
     path: string;
@@ -38,11 +37,12 @@ interface PaginatedApiResponse<T> {
     prev_page_url: string | null;
     to: number;
     total: number;
+    last_page: number; // Duplication corrigée
 }
 
 // Interface pour les erreurs de validation du backend
 interface BackendValidationErrors {
-    [key: string]: string[]; // Ex: { name: ['Le nom est requis.'], email: ['Email invalide.'] }
+    [key: string]: string[];
 }
 
 // --- Utility functions for persistence ---
@@ -64,31 +64,21 @@ const persistState = <T,>(key: string, state: T): void => {
     }
 };
 
-// --- NOUVELLE FONCTION UTILITAIRE POUR LE FORMATAGE CÔTÉ FRONTEND ---
+// --- Fonction de formatage du numéro de téléphone (idem que dans ContactForm) ---
 const formatPhoneNumberForDisplay = (phoneNumber: string | null | undefined): string => {
-    if (!phoneNumber) {
-        return '';
-    }
-
-    // Ensures only digits are left, even if there are spaces, dashes, etc.
-    // Handles an optional leading '+'
+    if (!phoneNumber) { return ''; }
     const cleaned = phoneNumber.replace(/[^\d+]/g, '');
     const hasPlus = cleaned.startsWith('+');
     let digitsOnly = hasPlus ? cleaned.substring(1) : cleaned;
-
-    // Check if it's a 10-digit French number (0X XX XX XX XX or +33 X XX XX XX XX)
     if (digitsOnly.length === 10) {
         return `${hasPlus ? '+' : ''}${digitsOnly.substring(0, 2)} ${digitsOnly.substring(2, 4)} ${digitsOnly.substring(4, 6)} ${digitsOnly.substring(6, 8)} ${digitsOnly.substring(8, 10)}`;
     }
-    // For other lengths or international numbers, return it as is (cleaned but unformatted)
-    // For more complex international formatting, consider a library like `libphonenumber-js`.
     return phoneNumber;
 };
-// --- FIN NOUVELLE FONCTION UTILITAIRE ---
+// --- FIN Fonction de formatage ---
 
 
 export default function Index({ auth, errors, canCreateContact }: PageProps<{ canCreateContact: boolean }>) {
-    // --- Pagination and search states managed here and persisted ---
     const [currentPage, setCurrentPage] = useState<number>(() => getPersistedState('contactsCurrentPage', 1));
     const [perPage, setPerPage] = useState<number>(() => getPersistedState('contactsPerPage', 15));
     const [searchQuery, setSearchQuery] = useState<string>(() => getPersistedState('contactsSearchQuery', ''));
@@ -96,19 +86,13 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
 
     const [backendErrors, setBackendErrors] = useState<BackendValidationErrors>({});
 
-    useEffect(() => {
-        persistState('contactsPerPage', perPage);
-    }, [perPage]);
+    useEffect(() => { persistState('contactsPerPage', perPage); }, [perPage]);
+    useEffect(() => { persistState('contactsSearchQuery', searchQuery); }, [searchQuery]);
 
-    useEffect(() => {
-        persistState('contactsSearchQuery', searchQuery);
-    }, [searchQuery]);
-
-    // --- Debounce logic for search ---
     const debouncedSetSearchAndPage = useCallback(
         debounce((value: string) => {
             setDebouncedSearchQuery(value);
-            setCurrentPage(1); // Crucially, go back to the first page for a new search
+            setCurrentPage(1);
         }, 500),
         []
     );
@@ -119,21 +103,17 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         debouncedSetSearchAndPage(value);
     };
 
-    // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
-    // Bulk delete states
     const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
     const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
 
-    // CSV import form
     const { data: importFormData, setData: setImportFormData, post: importPost, processing: importProcessing, errors: importErrors, reset: importReset } = useForm({
         file: null as File | null,
     });
 
-    // RTK Query to fetch contacts
     const {
         data: apiResponse,
         isLoading,
@@ -144,19 +124,17 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         page: currentPage,
         per_page: perPage,
         search: debouncedSearchQuery,
-        include: 'user', // IMPORTANT: Request the 'user' relationship from the backend
+        include: 'user',
     });
 
-    const contacts = useMemo(() => apiResponse?.data || [], [apiResponse]); // Renamed from contactsData for consistency with previous snippets
+    const contacts = useMemo(() => apiResponse?.data || [], [apiResponse]);
     const totalContacts = apiResponse?.total || 0;
     const lastPage = apiResponse?.last_page || 1;
 
-    // RTK Query mutations
     const [addContact, { isLoading: isAdding }] = useAddContactMutation();
     const [updateContact, { isLoading: isUpdating }] = useUpdateContactMutation();
     const [deleteContact, { isLoading: isDeleting }] = useDeleteContactMutation();
 
-    // DataTable Columns
     const columnHelper = createColumnHelper<Contact>();
     const columns: ColumnDef<Contact>[] = useMemo(() => [
         columnHelper.accessor('name', { header: 'Nom', cell: info => info.getValue() }),
@@ -165,7 +143,25 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
             header: 'Téléphone',
             cell: ({ row }) => formatPhoneNumberForDisplay(row.original.phone), // <-- Utilise la fonction de formatage ici
         }),
-        columnHelper.accessor('address', { header: 'Adresse', cell: info => info.getValue() || 'N/A' }),
+        columnHelper.accessor('address', {
+            header: 'Adresse',
+            cell: ({ row }) => {
+                // Si l'adresse a des coordonnées, on peut en faire un lien vers Google Maps ou une carte intégrée
+                if (row.original.address && row.original.latitude && row.original.longitude) {
+                    return (
+                        <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${row.original.latitude},${row.original.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline"
+                        >
+                            {row.original.address}
+                        </a>
+                    );
+                }
+                return row.original.address || 'N/A';
+            },
+        }),
         columnHelper.accessor('created_at', {
             header: 'Créé le',
             cell: info => info.getValue() ? new Date(info.getValue()).toLocaleDateString() : 'N/A'
@@ -197,8 +193,6 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
             },
         }),
     ], []);
-
-    // --- Callback Management Functions ---
 
     const handlePageChange = (newPage: number) => { setCurrentPage(newPage); };
     const handlePerPageChange = (newSize: string) => { setPerPage(Number(newSize)); setCurrentPage(1); };
@@ -387,7 +381,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                                     <DialogFooter>
                                         <DialogClose asChild>
                                             <Button type="button" variant="outline">Annuler</Button>
-                                        </DialogClose>
+                                    </DialogClose>
                                         <Button type="submit" disabled={importProcessing || !importFormData.file}>
                                             {importProcessing ? 'Importation en cours...' : 'Importer'}
                                         </Button>
