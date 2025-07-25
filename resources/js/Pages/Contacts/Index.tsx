@@ -318,9 +318,9 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         >
             <Head title="Contacts" />
 
-            <div className="py-12">
+            <div>
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
+                    <div className="bg-white overflow-hidden sm:rounded-lg p-6">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-2xl font-bold">Liste des Contacts</h3>
                             <div className="flex gap-2">
