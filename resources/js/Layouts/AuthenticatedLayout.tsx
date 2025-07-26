@@ -40,7 +40,7 @@ const NavLink: React.FC<NavLinkProps> = ({ href, active, children, className = '
     </Link>
 );
 
-// Mock Dropdown component
+// MODIFICATIONS PRINCIPALES ICI - Dropdown et ses composants
 interface DropdownProps {
     children: React.ReactElement[]; // Expecting Trigger and Content
 }
@@ -50,6 +50,10 @@ interface DropdownSubComponentProps {
     className?: string;
 }
 
+interface DropdownTriggerProps extends DropdownSubComponentProps {
+    isOpen?: boolean;
+}
+
 interface DropdownLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
     href: string;
     method?: 'get' | 'post' | 'put' | 'delete';
@@ -57,7 +61,7 @@ interface DropdownLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement
 }
 
 const Dropdown: React.FC<DropdownProps> & {
-    Trigger: React.FC<DropdownSubComponentProps>;
+    Trigger: React.FC<DropdownTriggerProps>;
     Content: React.FC<DropdownSubComponentProps>;
     Link: React.FC<DropdownLinkProps>;
 } = ({ children }) => {
@@ -85,32 +89,41 @@ const Dropdown: React.FC<DropdownProps> & {
 
     return (
         <div className="relative">
-            <div onClick={toggleOpen}>{children[0]}</div> {/* Dropdown.Trigger */}
+            <div onClick={toggleOpen}>
+                {React.cloneElement(children[0], { isOpen: open })}
+            </div>
             {open && (
                 <div
-                    // Default dropdown content classes, can be overridden by className prop
-                    className="absolute z-50 rounded-md shadow-lg w-48 bg-white ring-1 ring-black ring-opacity-5"
+                    className="absolute z-50 rounded-md w-full bottom-full mb-2 bg-white ring-1 ring-black ring-opacity-5"
                     onClick={handleContentClick}
                 >
-                    {children[1]} {/* Dropdown.Content */}
+                    {children[1]}
                 </div>
             )}
         </div>
     );
 };
 
-Dropdown.Trigger = ({ children }) => <>{children}</>;
+// Modification du Trigger pour accepter isOpen et gérer les fonctions enfants
+Dropdown.Trigger = ({ children, isOpen }: DropdownTriggerProps) => {
+    if (typeof children === 'function') {
+        return <>{children({ isOpen })}</>;
+    }
+    return <>{children}</>;
+};
+
 Dropdown.Content = ({ children, className = '' }) => (
     <div className={`rounded-md bg-white ring-1 ring-black ring-opacity-5 ${className}`}>
         {children}
     </div>
 );
+
 Dropdown.Link = ({ href, children, method = 'get', as = 'a', className = '', ...props }) => {
     if (as === 'button') {
         return (
             <button
                 type="button"
-                onClick={() => window.location.href = href} // Simplified for demo
+                onClick={() => window.location.href = href}
                 className={`block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 transition duration-150 ease-in-out ${className}`}
                 {...props}
             >
@@ -267,44 +280,47 @@ export default function Authenticated({
                     {/* User Profile Dropdown */}
                     <Dropdown>
                         <Dropdown.Trigger>
-                            <button
-                                className={`w-full flex items-center p-3 rounded-lg hover:bg-muted transition-colors duration-200 text-foreground ${
-                                    sidebarCollapsed ? 'justify-center' : 'justify-between'
-                                }`}
-                            >
-                                <div className="flex items-center">
-                                    <div className="bg-primary rounded-sm p-1 w-8 h-8 flex items-center justify-center"> {/* Added flex/items/justify for centering initial */}
-                                        <span className="text-primary-foreground text-sm font-bold">
-                                            {user.name.charAt(0).toUpperCase()}
+                            {({ isOpen }) => (
+                                <button
+                                    className={`w-full flex items-center p-3 rounded-lg hover:bg-muted transition-colors duration-200 text-foreground ${
+                                        sidebarCollapsed ? 'justify-center' : 'justify-between'
+                                    }`}
+                                >
+                                    <div className="flex items-center">
+                                        <div className="bg-primary rounded-sm p-1 w-8 h-8 flex items-center justify-center">
+                                            <span className="text-primary-foreground text-sm font-bold">
+                                                {user.name.charAt(0).toUpperCase()}
+                                            </span>
+                                        </div>
+                                        <span className={`truncate whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out origin-left ${
+                                            sidebarCollapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-3'
+                                        }`}>
+                                            {user.name}
                                         </span>
                                     </div>
-                                    {/* Animate user name text */}
-                                    <span className={`truncate whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out origin-left ${
-                                        sidebarCollapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-3'
-                                    }`}>
-                                        {user.name}
-                                    </span>
-                                </div>
-                                {!sidebarCollapsed && (
-                                    <svg
-                                        className="-me-0.5 ms-2 h-4 w-4"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        viewBox="0 0 20 20"
-                                        fill="currentColor"
-                                    >
-                                        <path
-                                            fillRule="evenodd"
-                                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                            clipRule="evenodd"
-                                        />
-                                    </svg>
-                                )}
-                            </button>
+                                    {!sidebarCollapsed && (
+                                        <svg
+                                            className={`-me-0.5 ms-2 h-4 w-4 transition-transform duration-200 ${
+                                                isOpen ? 'rotate-180' : ''
+                                            }`}
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            viewBox="0 0 20 20"
+                                            fill="currentColor"
+                                        >
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                clipRule="evenodd"
+                                            />
+                                        </svg>
+                                    )}
+                                </button>
+                            )}
                         </Dropdown.Trigger>
 
                         {/* Dropdown Content - styled to open UPWARDS */}
-                        <Dropdown.Content className="absolute mb-2 right-0 w-48 origin-bottom-right">
-                            <Dropdown.Link href={route('profile.edit')}>
+                        <Dropdown.Content>
+                            <Dropdown.Link href={route('profile.edit')} className='w-full top-0'>
                                 Profile
                             </Dropdown.Link>
                             <Dropdown.Link
@@ -320,17 +336,9 @@ export default function Authenticated({
                     {/* Sidebar Collapse/Expand Button */}
                     <button
                         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                        className={`mt-4 flex items-center justify-center w-full p-3 rounded-lg hover:bg-muted transition-colors duration-200 text-foreground ${
-                            sidebarCollapsed ? 'justify-center' : 'justify-between'
-                        }`}
+                        className={`mt-4 flex items-center justify-center w-8 h-8 p-2 text-teal-600 hover:text-white rounded-lg bg-muted hover:bg-teal-600 transition-colors duration-200 text-foreground absolute bottom-32 -right-4 shadow-lg`}
                     >
-                        {/* Animate 'Réduire' text */}
-                        <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out origin-left ${
-                            sidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'
-                        }`}>
-                            Réduire
-                        </span>
-                        {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+                        <ChevronLeft size={24} className={`${sidebarCollapsed ? 'rotate-180' : ''}`} />
                     </button>
                 </div>
             </div>
@@ -392,18 +400,20 @@ export default function Authenticated({
                     <div className="p-4 border-t border-border">
                         <Dropdown>
                             <Dropdown.Trigger>
-                                <button
-                                    className={`w-full flex items-center p-3 rounded-lg hover:bg-muted transition-colors duration-200 text-foreground`}
-                                >
-                                    <div className="flex items-center">
-                                        <div className="bg-primary rounded-full p-1">
-                                            <span className="text-primary-foreground text-sm font-bold">
-                                                {user.name.charAt(0).toUpperCase()}
-                                            </span>
+                                {({ isOpen }) => (
+                                    <button
+                                        className={`w-full flex items-center p-3 rounded-lg hover:bg-muted transition-colors duration-200 text-foreground`}
+                                    >
+                                        <div className="flex items-center">
+                                            <div className="bg-primary rounded-full p-1">
+                                                <span className="text-primary-foreground text-sm font-bold">
+                                                    {user.name.charAt(0).toUpperCase()}
+                                                </span>
+                                            </div>
+                                            <span className="ml-3 truncate">{user.name}</span> {/* No animation needed here */}
                                         </div>
-                                        <span className="ml-3 truncate">{user.name}</span> {/* No animation needed here */}
-                                    </div>
-                                </button>
+                                    </button>
+                                )}
                             </Dropdown.Trigger>
 
                             {/* Dropdown Content for Mobile - styled to open UPWARDS */}
@@ -449,27 +459,30 @@ export default function Authenticated({
                             <div className="flex items-center">
                                 <Dropdown>
                                     <Dropdown.Trigger>
-                                        <span className="inline-flex rounded-md">
-                                            <button
-                                                type="button"
-                                                className="inline-flex items-center rounded-md border border-transparent bg-transparent px-3 py-2 text-sm font-medium leading-4 text-foreground transition duration-150 ease-in-out hover:bg-muted focus:outline-none"
-                                            >
-                                                {user.name}
-
-                                                <svg
-                                                    className="-me-0.5 ms-2 h-4 w-4"
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 20 20"
-                                                    fill="currentColor"
+                                        {({ isOpen }) => (
+                                            <span className="inline-flex rounded-md">
+                                                <button
+                                                    type="button"
+                                                    className="inline-flex items-center rounded-md border border-transparent bg-transparent px-3 py-2 text-sm font-medium leading-4 text-foreground transition duration-150 ease-in-out hover:bg-muted focus:outline-none"
                                                 >
-                                                    <path
-                                                        fillRule="evenodd"
-                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                        clipRule="evenodd"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </span>
+                                                    {user.name}
+                                                    <svg
+                                                        className={`-me-0.5 ms-2 h-4 w-4 transition-transform duration-200 ${
+                                                            isOpen ? 'rotate-180' : ''
+                                                        }`}
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 20 20"
+                                                        fill="currentColor"
+                                                    >
+                                                        <path
+                                                            fillRule="evenodd"
+                                                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                            clipRule="evenodd"
+                                                        />
+                                                    </svg>
+                                                </button>
+                                            </span>
+                                        )}
                                     </Dropdown.Trigger>
 
                                     {/* This dropdown opens downwards (standard behavior for top bar) */}
