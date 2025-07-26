@@ -30,7 +30,7 @@ const ContactTable: React.FC = () => {
     per_page: pagination.pageSize,
     search: search || undefined,
     sort: sorting.length > 0 ? (sorting[0].desc ? `-${sorting[0].id}` : sorting[0].id) : undefined,
-    include: 'user', // Requesting user relationship from backend
+    include: 'user',
   };
 
   const { data, isLoading, isFetching, error } = useGetContactsQuery(queryParams);
@@ -73,18 +73,24 @@ const ContactTable: React.FC = () => {
             {column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''}
           </Button>
         ),
+        cell: info => <div className="min-w-[150px]">{info.getValue() as string}</div>,
       },
       {
         accessorKey: 'email',
         header: 'Email',
+        cell: info => <div className="min-w-[200px]">{info.getValue() as string}</div>,
       },
       {
         accessorKey: 'phone',
         header: 'Phone',
+        meta: { responsive: 'md' },
+        cell: info => <div className="min-w-[120px]">{info.getValue() as string}</div>,
       },
       {
         accessorKey: 'address',
         header: 'Address',
+        meta: { responsive: 'md' },
+        cell: info => <div className="min-w-[250px]">{info.getValue() as string}</div>,
       },
       {
         accessorKey: 'created_at',
@@ -97,13 +103,14 @@ const ContactTable: React.FC = () => {
             {column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''}
           </Button>
         ),
-        cell: info => new Date(info.getValue() as string).toLocaleDateString(),
+        cell: info => <div className="min-w-[150px]">{new Date(info.getValue() as string).toLocaleDateString()}</div>,
+        meta: { responsive: 'md' },
       },
       {
         id: 'actions',
         header: 'Actions',
         cell: ({ row }) => (
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 min-w-[140px]">
             <Button variant="outline" size="sm" onClick={() => handleEditContact(row.original)}>
               Edit
             </Button>
@@ -168,20 +175,30 @@ const ContactTable: React.FC = () => {
   }
 
   return (
-    <div className="space-y-4 p-4">
+    // The main container for the table view should respect the sidebar layout.
+    // Instead of p-4, consider how this component is rendered within your overall layout.
+    // If it's directly within a main content area that already has padding/margin
+    // for the sidebar, then additional p-4 here might be redundant or additive.
+    // For demonstration, I'll assume this is the main content area.
+    <div className="space-y-4 px-4 sm:px-6 lg:px-8 xl:px-10"> {/* Adjusted padding */}
       <Input
         placeholder="Search by name..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="max-w-sm"
       />
+
+      {/* The container for the table now avoids using `max-w-full`
+          and instead uses fixed breakpoints or adapts to the parent's available width.
+          `w-full` will make it fill the available space, and `overflow-auto` within Table component
+          will handle horizontal scrolling. */}
       <div className="rounded-md border">
-        <Table>
+        <Table> {/* The Table component itself handles overflow-x-auto */}
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead key={header.id} className={header.column.columnDef.meta?.responsive === 'md' ? 'hidden md:table-cell' : ''}>
                     {header.isPlaceholder
                       ? null
                       : flexRender(header.column.columnDef.header, header.getContext())}
@@ -195,7 +212,7 @@ const ContactTable: React.FC = () => {
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className={cell.column.columnDef.meta?.responsive === 'md' ? 'hidden md:table-cell' : ''}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -211,6 +228,8 @@ const ContactTable: React.FC = () => {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination Controls */}
       <div className="flex items-center justify-end space-x-2 py-4">
         <Button
           variant="outline"

@@ -72,6 +72,13 @@ interface DataTableProps<TData, TValue> {
     onPageChange: (page: number) => void;
     onPerPageChange: (perPage: string) => void;
   };
+  // NEW PROP: Add search input props here
+  searchInput?: {
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    placeholder?: string;
+    className?: string;
+  };
 }
 
 interface SortableHeaderProps<TData> {
@@ -182,6 +189,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
   onBulkDelete,
   idAccessorKey = 'id' as keyof TData,
   pagination,
+  searchInput, // Destructure the new prop here
 }: DataTableProps<TData, TValue>) {
 
   const selectColumn: ColumnDef<TData, TValue> = {
@@ -396,16 +404,23 @@ export function DataTable<TData extends { id?: any }, TValue>({
   return (
     <div className="w-full">
       <div className="flex items-center py-4 gap-2">
-        {/* Bulk Actions Block: Shown ONLY if rows are selected */}
-        {hasSelectedRows ? (
-          <div className="flex items-center space-x-2 ml-auto">
-            <span className="text-sm text-muted-foreground">
-              {selectedRows.length} ligne(s) sélectionnée(s)
-            </span>
+        {/* Search Input (NEW placement) */}
+        {searchInput && (
+          <Input
+            placeholder={searchInput.placeholder}
+            value={searchInput.value}
+            onChange={searchInput.onChange}
+            className={`flex-grow max-w-sm ${searchInput.className || ''}`}
+          />
+        )}
+
+        {/* Right side controls: Bulk Actions OR Column Visibility */}
+        <div className="flex items-center gap-2 ml-auto"> {/* Added ml-auto to push to right */}
+          {hasSelectedRows ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm">
-                  Actions <ChevronDownIcon className="ml-2 h-4 w-4" />
+                  Actions ({selectedRows.length}) <ChevronDownIcon className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -441,39 +456,39 @@ export function DataTable<TData extends { id?: any }, TValue>({
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-        ) : ( // If no rows are selected, display the Column Visibility Dropdown
+          ) : (
             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="ml-auto">
-                        Colonnes <Settings2 className="ml-2 h-4 w-4" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    {table
-                        .getAllColumns()
-                        .filter((column) => column.getCanHide())
-                        .map((column) => {
-                            if (column.id === 'select' || column.id === actionColumnId) return null;
-                            const headerName = typeof column.columnDef.header === 'string'
-                                ? column.columnDef.header
-                                : column.id;
-                            return (
-                                <DropdownMenuCheckboxItem
-                                    key={column.id}
-                                    className="capitalize"
-                                    checked={column.getIsVisible()}
-                                    onCheckedChange={(value) =>
-                                        column.toggleVisibility(!!value)
-                                    }
-                                >
-                                    {headerName}
-                                </DropdownMenuCheckboxItem>
-                            );
-                        })}
-                </DropdownMenuContent>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  Colonnes <Settings2 className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {table
+                  .getAllColumns()
+                  .filter((column) => column.getCanHide())
+                  .map((column) => {
+                    if (column.id === 'select' || column.id === actionColumnId) return null;
+                    const headerName = typeof column.columnDef.header === 'string'
+                      ? column.columnDef.header
+                      : column.id;
+                    return (
+                      <DropdownMenuCheckboxItem
+                        key={column.id}
+                        className="capitalize"
+                        checked={column.getIsVisible()}
+                        onCheckedChange={(value) =>
+                          column.toggleVisibility(!!value)
+                        }
+                      >
+                        {headerName}
+                      </DropdownMenuCheckboxItem>
+                    );
+                  })}
+              </DropdownMenuContent>
             </DropdownMenu>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="rounded-md border">
@@ -588,3 +603,15 @@ export function DataTable<TData extends { id?: any }, TValue>({
     </div>
   );
 }
+
+// Ensure formatPhoneNumberForDisplay is defined or imported if used in DataTable for CSV export
+const formatPhoneNumberForDisplay = (phoneNumber: string | null | undefined): string => {
+  if (!phoneNumber) { return ''; }
+  const cleaned = phoneNumber.replace(/[^\d+]/g, '');
+  const hasPlus = cleaned.startsWith('+');
+  let digitsOnly = hasPlus ? cleaned.substring(1) : cleaned;
+  if (digitsOnly.length === 10) {
+      return `${hasPlus ? '+' : ''}${digitsOnly.substring(0, 2)} ${digitsOnly.substring(2, 4)} ${digitsOnly.substring(4, 6)} ${digitsOnly.substring(6, 8)} ${digitsOnly.substring(8, 10)}`;
+  }
+  return phoneNumber;
+};
