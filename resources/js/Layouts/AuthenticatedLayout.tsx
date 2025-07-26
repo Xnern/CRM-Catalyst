@@ -199,7 +199,7 @@ export default function Authenticated({
 
     const navLinks: NavLinkItem[] = [
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, route: 'dashboard' },
-        { id: 'contacts', label: 'Contacts', icon: <Contact size={20} />, route: 'contacts.index' },
+        { id: 'contacts', label: 'Contacts', icon: <Contact size={20} />, route: 'contacts.indexInertia' },
         { id: 'companies', label: 'Entreprises', icon: <Building2 size={20} />, route: 'contacts.index' },
         { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'contacts.index' },
         { id: 'documents', label: 'Documents', icon: <FileText size={20} />, route: 'contacts.index' },
@@ -303,7 +303,7 @@ export default function Authenticated({
                         </Dropdown.Trigger>
 
                         {/* Dropdown Content - styled to open UPWARDS */}
-                        <Dropdown.Content className="bottom-full mb-2 origin-bottom-right right-0 w-48">
+                        <Dropdown.Content className="absolute mb-2 right-0 w-48 origin-bottom-right">
                             <Dropdown.Link href={route('profile.edit')}>
                                 Profile
                             </Dropdown.Link>
