@@ -337,17 +337,6 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                             </div>
                         </div>
 
-                        {/* Search Bar */}
-                        <div className="mb-4">
-                            <Input
-                                type="text"
-                                placeholder="Rechercher par nom, email ou téléphone..."
-                                value={searchQuery}
-                                onChange={handleSearchInputChange}
-                                className="max-w-sm"
-                            />
-                        </div>
-
                         {/* DataTable Component */}
                         {contacts && (contacts.length > 0 || isLoading) ? (
                             <DataTable
@@ -363,6 +352,12 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                                     totalPages: lastPage,
                                     onPageChange: handlePageChange,
                                     onPerPageChange: handlePerPageChange,
+                                }}
+                                searchInput={{
+                                    value: searchQuery,
+                                    onChange: handleSearchInputChange,
+                                    placeholder: "Rechercher par nom, email ou téléphone...",
+                                    className: "flex-grow", // Utilisez flex-grow pour qu'il prenne de l'espace, ou max-w-sm pour limiter sa largeur
                                 }}
                             />
                         ) : (
