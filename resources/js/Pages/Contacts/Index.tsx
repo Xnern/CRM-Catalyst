@@ -318,9 +318,9 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         >
             <Head title="Contacts" />
 
-            <div className="py-12">
+            <div>
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
+                    <div className="bg-white overflow-hidden sm:rounded-lg p-6">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-2xl font-bold">Liste des Contacts</h3>
                             <div className="flex gap-2">
@@ -335,17 +335,6 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                                     </Button>
                                 )}
                             </div>
-                        </div>
-
-                        {/* Search Bar */}
-                        <div className="mb-4">
-                            <Input
-                                type="text"
-                                placeholder="Rechercher par nom, email ou téléphone..."
-                                value={searchQuery}
-                                onChange={handleSearchInputChange}
-                                className="max-w-sm"
-                            />
                         </div>
 
                         {/* DataTable Component */}
@@ -363,6 +352,12 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                                     totalPages: lastPage,
                                     onPageChange: handlePageChange,
                                     onPerPageChange: handlePerPageChange,
+                                }}
+                                searchInput={{
+                                    value: searchQuery,
+                                    onChange: handleSearchInputChange,
+                                    placeholder: "Rechercher par nom, email ou téléphone...",
+                                    className: "flex-grow", // Utilisez flex-grow pour qu'il prenne de l'espace, ou max-w-sm pour limiter sa largeur
                                 }}
                             />
                         ) : (
