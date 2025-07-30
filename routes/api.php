@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\GoogleAuthController;
 use Illuminate\Validation\ValidationException;
 
 // Route pour obtenir le CSRF cookie (important pour les SPAs)
@@ -66,4 +67,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     Route::apiResource('contacts', ContactController::class);
+    Route::put('/contacts/{contact}/status', [ContactController::class, 'updateStatus']);
+
+    Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirectToGoogle'])->name('google.redirect');
+    Route::get('/google-calendar/events', [GoogleAuthController::class, 'getGoogleCalendarEvents']);
+    Route::post('/google-calendar/events', [GoogleAuthController::class, 'createGoogleCalendarEvent']);
+
 });

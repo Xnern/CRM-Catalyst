@@ -1,7 +1,39 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { Contact } from '@/types/Contact';
+// resources/js/services/api.ts
 
-// Query parameters for fetching contacts
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { Contact } from '@/types/Contact'; // Keep this if Contact is defined elsewhere
+
+// Define Google Calendar interfaces directly in this file
+// Ensure these are exported so other files can import them
+export interface GoogleCalendarEvent {
+    id: string;
+    summary?: string; // summary can sometimes be optional or null
+    description?: string;
+    location?: string;
+    start: { dateTime?: string; timeZone?: string; date?: string; }; // dateTime or date, and timezone
+    end: { dateTime?: string; timeZone?: string; date?: string; };
+    hangoutLink?: string; // Google Meet link
+    htmlLink?: string; // Link to the event in Google Calendar
+    attendees?: Array<{ email: string }>; // List of attendees
+    // Add other fields you might receive from Google Calendar API
+}
+
+export interface CreateCalendarEventPayload {
+    summary: string;
+    description?: string;
+    start_datetime: string; // Expected format for API: 'YYYY-MM-DDTHH:MM'
+    end_datetime: string;   // Expected format for API: 'YYYY-MM-DDTHH:MM'
+    attendees?: Array<{ email: string }>;
+    location?: string;
+    // You might add a timezone field here if your backend supports it
+}
+
+// Interface for the specific response from the Google Auth URL endpoint
+export interface GoogleAuthUrlResponse {
+    auth_url: string;
+}
+
+// Query parameters for fetching contacts (assuming this is used elsewhere)
 export interface GetContactsQueryParams {
     page?: number;
     per_page?: number;
@@ -17,7 +49,6 @@ interface PaginatedApiResponse<T> {
     first_page_url: string;
     from: number;
     last_page: number;
-    last_page_url: string;
     links: Array<{ url: string | null; label: string; active: boolean }>;
     next_page_url: string | null;
     path: string;
@@ -70,7 +101,7 @@ export const api = createApi({
     },
   }),
 
-  tagTypes: ['Contact'], // Tag types for cache invalidation and updates
+  tagTypes: ['Contact', 'GoogleCalendarEvent'], // Add the tag for Google Calendar events
 
   endpoints: (builder) => ({
     // Fetches a paginated list of contacts
@@ -108,14 +139,14 @@ export const api = createApi({
       invalidatesTags: ['Contact'], // Invalidates 'Contact' cache to refresh lists
     }),
 
-    // Updates an existing contact
+    // Updates an existing contact (can include status update)
     updateContact: builder.mutation<Contact, Partial<Contact>>({
       query: ({ id, ...patch }) => ({
         url: `/contacts/${id}`,
         method: 'PUT',
         body: patch,
       }),
-      invalidatesTags: ['Contact'], // Invalidates 'Contact' cache to refresh lists
+      invalidatesTags: (result, error, { id }) => [{ type: 'Contact', id }, { type: 'Contact', id: 'LIST' }],
     }),
 
     // Deletes a contact
@@ -126,6 +157,36 @@ export const api = createApi({
       }),
       invalidatesTags: ['Contact'], // Invalidates 'Contact' cache to refresh lists
     }),
+
+    // NEW: Mutation specifically for updating contact status for Kanban
+    updateContactStatus: builder.mutation<Contact, { id: number; status: Contact['status'] }>({
+        query: ({ id, status }) => ({
+            url: `/contacts/${id}/status`, // The dedicated endpoint we created
+            method: 'PUT',
+            body: { status },
+        }),
+        // Invalidates the specific item and the list to ensure groupings are updated
+        invalidatesTags: (result, error, { id }) => [{ type: 'Contact', id }, { type: 'Contact', id: 'LIST' }],
+    }),
+
+    // Google Calendar Endpoints
+    // Use the specific GoogleAuthUrlResponse interface
+    getGoogleAuthUrl: builder.query<GoogleAuthUrlResponse, void>({
+        query: () => '/auth/google/redirect',
+    }),
+    getGoogleCalendarEvents: builder.query<GoogleCalendarEvent[], void>({
+        query: () => '/google-calendar/events',
+        providesTags: ['GoogleCalendarEvent'], // Tag for calendar events
+    }),
+    createGoogleCalendarEvent: builder.mutation<GoogleCalendarEvent, CreateCalendarEventPayload>({
+        query: (newEvent) => ({
+            url: '/google-calendar/events',
+            method: 'POST',
+            body: newEvent,
+        }),
+        invalidatesTags: ['GoogleCalendarEvent'], // Invalidate cache after creation
+    }),
+    // You can add mutations for updateGoogleCalendarEvent, deleteGoogleCalendarEvent, etc.
   }),
 });
 
@@ -135,4 +196,9 @@ export const {
   useAddContactMutation,
   useUpdateContactMutation,
   useDeleteContactMutation,
+  useUpdateContactStatusMutation, // Export the hook for Kanban
+
+  useGetGoogleAuthUrlQuery,
+  useGetGoogleCalendarEventsQuery,
+  useCreateGoogleCalendarEventMutation,
 } = api;

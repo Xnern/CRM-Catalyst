@@ -23,10 +23,18 @@ class StoreContactRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        $cleanedPhone = $this->cleanPhoneNumber($this->input('phone'));
+
+        $latitude = $this->input('latitude');
+        $longitude = $this->input('longitude');
+
+        $parsedLatitude = is_numeric($latitude) ? (float) $latitude : null;
+        $parsedLongitude = is_numeric($longitude) ? (float) $longitude : null;
+
         $this->merge([
-            'phone' => $this->cleanPhoneNumber($this->input('phone')),
-            'latitude' => filter_var($this->input('latitude'), FILTER_VALIDATE_FLOAT),
-            'longitude' => filter_var($this->input('longitude'), FILTER_VALIDATE_FLOAT),
+            'phone' => $cleanedPhone,
+            'latitude' => $parsedLatitude,
+            'longitude' => $parsedLongitude,
         ]);
     }
 

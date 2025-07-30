@@ -24,6 +24,11 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'google_id',
+        'google_email',
+        'google_access_token',
+        'google_refresh_token',
+        'google_expires_at',
     ];
 
     /**
@@ -34,6 +39,8 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'google_access_token',
+        'google_refresh_token',
     ];
 
     /**
@@ -46,6 +53,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'google_expires_at' => 'datetime',
         ];
     }
 
