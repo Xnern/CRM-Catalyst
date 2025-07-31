@@ -8,8 +8,8 @@ import {
     useGetGoogleAuthUrlQuery,
     useGetGoogleCalendarEventsQuery,
     useCreateGoogleCalendarEventMutation,
-    // Assurez-vous d'avoir une mutation pour l'update si vous voulez sauvegarder le drag-and-drop
-    // useUpdateGoogleCalendarEventMutation, // <--- NOUVEAU
+    useUpdateGoogleCalendarEventMutation,
+    useDeleteGoogleCalendarEventMutation,
     GoogleCalendarEvent,
     CreateCalendarEventPayload,
     GoogleAuthUrlResponse
@@ -20,31 +20,31 @@ import { Input } from '@/Components/ui/input';
 import { Label } from '@/Components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/ui/card';
 import { Separator } from '@/Components/ui/separator';
-import { ScrollArea } from '@/Components/ui/scroll-area';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
-import { format, isValid } from 'date-fns';
-import { Calendar as CalendarIcon, Clock, Link, BookOpen, Edit, Trash } from 'lucide-react'; // Nouvelles icônes
+import { format, isValid, parseISO } from 'date-fns';
+import { Calendar as CalendarIcon, Clock, Link, BookOpen, Edit, Trash, PlusCircle, MoreVertical } from 'lucide-react';
 
 // FullCalendar Imports
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin, { Draggable } from '@fullcalendar/interaction'; // For drag & drop
-import listPlugin from '@fullcalendar/list'; // For list view
-import momentPlugin from '@fullcalendar/moment'; // To use moment for parsing dates
-import momentTimezonePlugin from '@fullcalendar/moment-timezone'; // For timezone support
+import interactionPlugin from '@fullcalendar/interaction';
+import listPlugin from '@fullcalendar/list';
+import momentPlugin from '@fullcalendar/moment';
+import momentTimezonePlugin from '@fullcalendar/moment-timezone';
 
 // Shadcn UI components for dialog/dropdown
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/Components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/Components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/Components/ui/dropdown-menu';
 
 
 // Helper to format datetimes for HTML datetime-local input
 const formatDatetimeLocal = (date: Date): string => {
     if (!isValid(date)) {
-        return '';
+        const now = new Date();
+        return format(now, "yyyy-MM-dd'T'HH:mm");
     }
     return format(date, "yyyy-MM-dd'T'HH:mm");
 };
@@ -60,7 +60,7 @@ export interface FullCalendarEvent {
         description?: string;
         htmlLink?: string;
         hangoutLink?: string;
-        // ... any other Google event properties you want to keep
+        originalGoogleEvent: GoogleCalendarEvent;
     };
 }
 
@@ -72,35 +72,22 @@ const mapGoogleEventsToFullCalendar = (googleEvents: GoogleCalendarEvent[]): Ful
         let end: string | Date;
         let allDay = false;
 
-        // Ensure start.date and end.date are present for all-day events
-        // and adjust 'end' for FullCalendar's all-day representation
         if (event.start?.dateTime) {
             start = event.start.dateTime;
             end = event.end?.dateTime || event.start.dateTime;
             allDay = false;
         } else if (event.start?.date) {
             start = event.start.date;
-            // FullCalendar's all-day events: 'end' is exclusive.
-            // If Google says '2025-07-16' to '2025-07-17' (meaning it ends *on* the 16th),
-            // FullCalendar needs '2025-07-17' as the end date for a single-day all-day event.
             const googleEndDate = event.end?.date;
             if (googleEndDate) {
-                const tempEndDate = new Date(googleEndDate);
-                // If it's truly an all-day event for one day (start=2025-07-16, end=2025-07-17 in Google),
-                // FullCalendar expects end to be the day *after* the last day.
-                // Google's all-day `end` is already exclusive, so we can often use it directly.
-                // However, for single day events, Google gives end as (start date + 1 day).
-                // So if start is 2025-07-16 and end is 2025-07-17, it's a one-day event on the 16th.
-                end = googleEndDate; // FullCalendar will handle this correctly for allDay=true
+                end = googleEndDate;
             } else {
-                // Fallback if end.date is missing for an all-day event
                 const tempEndDate = new Date(event.start.date);
                 tempEndDate.setDate(tempEndDate.getDate() + 1);
                 end = tempEndDate.toISOString().split('T')[0];
             }
             allDay = true;
         } else {
-            // Fallback for malformed event dates
             start = new Date().toISOString();
             end = new Date().toISOString();
             allDay = false;
@@ -116,8 +103,7 @@ const mapGoogleEventsToFullCalendar = (googleEvents: GoogleCalendarEvent[]): Ful
                 description: event.description,
                 htmlLink: event.htmlLink,
                 hangoutLink: event.hangoutLink,
-                status: event.status, // Keep status for potential styling
-                originalGoogleEvent: event, // Keep original Google event for full details
+                originalGoogleEvent: event,
             },
         };
     });
@@ -133,9 +119,10 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
     } = useGetGoogleCalendarEventsQuery();
 
     const [createEvent, { isLoading: isCreatingEvent }] = useCreateGoogleCalendarEventMutation();
-    // const [updateEvent, { isLoading: isUpdatingEvent }] = useUpdateGoogleCalendarEventMutation(); // <--- NOUVEAU
+    const [updateEvent, { isLoading: isUpdatingEvent }] = useUpdateGoogleCalendarEventMutation();
+    const [deleteEvent, { isLoading: isDeletingEvent }] = useDeleteGoogleCalendarEventMutation();
 
-    const [newEvent, setNewEvent] = useState<CreateCalendarEventPayload>(() => {
+    const [createForm, setCreateForm] = useState<CreateCalendarEventPayload>(() => {
         const now = new Date();
         const oneHourLater = new Date(now.getTime() + 3600 * 1000);
         return {
@@ -144,48 +131,54 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
             start_datetime: formatDatetimeLocal(now),
             end_datetime: formatDatetimeLocal(oneHourLater),
             attendees: [],
+            location: '',
         };
     });
 
-    const [isEventModalOpen, setIsEventModalOpen] = useState(false);
-    const [selectedEvent, setSelectedEvent] = useState<GoogleCalendarEvent | null>(null); // Store GoogleCalendarEvent directly for full details
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-    // --- CORRECTION: FullCalendar Ref et Resize Observer ---
-    // Crée une référence pour accéder à l'instance FullCalendar.
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [selectedEvent, setSelectedEvent] = useState<GoogleCalendarEvent | null>(null);
+    const [isEditingEvent, setIsEditingEvent] = useState(false);
+
+    const [editForm, setEditForm] = useState<CreateCalendarEventPayload & { eventId: string | null }>(() => {
+        const now = new Date();
+        const oneHourLater = new Date(now.getTime() + 3600 * 1000);
+        return {
+            eventId: null,
+            summary: '',
+            description: '',
+            start_datetime: formatDatetimeLocal(now),
+            end_datetime: formatDatetimeLocal(oneHourLater),
+            attendees: [],
+            location: '',
+        };
+    });
+
     const calendarRef = useRef<FullCalendar>(null);
 
-    // Fonction de rappel qui sera appelée lors du redimensionnement du conteneur.
-    // Elle appelle la méthode updateSize() de l'API FullCalendar.
     const handleCalendarResize = useCallback(() => {
         if (calendarRef.current) {
-            // C'est ici que calendar.updateSize() est appelé, via l'API du composant React FullCalendar.
             calendarRef.current.getApi().updateSize();
         }
     }, []);
 
     useEffect(() => {
-        // Sélectionne le conteneur du calendrier pour l'observer.
-        // Assurez-vous que cette classe CSS (.full-calendar-container) est appliquée au div parent de FullCalendar.
         const calendarContainer = document.querySelector('.full-calendar-container');
 
         if (calendarContainer) {
-            // Initialise un ResizeObserver pour détecter les changements de taille du conteneur.
             const resizeObserver = new ResizeObserver(() => {
-                handleCalendarResize(); // Appelle la fonction de redimensionnement du calendrier
+                handleCalendarResize();
             });
 
-            // Commence à observer le conteneur.
             resizeObserver.observe(calendarContainer);
 
-            // Fonction de nettoyage pour arrêter d'observer quand le composant est démonté.
             return () => {
                 resizeObserver.unobserve(calendarContainer);
             };
         }
-    }, [handleCalendarResize]); // Le useEffect dépend de handleCalendarResize pour garantir qu'il est mis à jour si la dépendance change.
-    // --- FIN DE LA CORRECTION ---
+    }, [handleCalendarResize]);
 
-    // Handle Google auth callback redirection
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const googleAuthStatus = urlParams.get('google_auth');
@@ -211,29 +204,32 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
         }
     }, [authUrlResponse, authUrlError]);
 
+
     const handleCreateEvent = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newEvent.summary.trim()) {
+        if (!createForm.summary.trim()) {
             toast.error("Le titre de l'événement est obligatoire.");
             return;
         }
-        if (new Date(newEvent.start_datetime).getTime() >= new Date(newEvent.end_datetime).getTime()) {
+        if (new Date(createForm.start_datetime).getTime() >= new Date(createForm.end_datetime).getTime()) {
             toast.error("La date de fin doit être postérieure à la date de début.");
             return;
         }
 
         try {
-            await createEvent(newEvent).unwrap();
+            await createEvent(createForm).unwrap();
             toast.success('Événement créé avec succès sur Google Calendar !');
             const now = new Date();
             const oneHourLater = new Date(now.getTime() + 3600 * 1000);
-            setNewEvent({
+            setCreateForm({
                 summary: '',
                 description: '',
                 start_datetime: formatDatetimeLocal(now),
                 end_datetime: formatDatetimeLocal(oneHourLater),
                 attendees: [],
+                location: '',
             });
+            setIsCreateModalOpen(false);
             refetch();
         } catch (error) {
             console.error('Erreur lors de la création de l\'événement Google Calendar :', error);
@@ -243,59 +239,69 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
     };
 
     const handleEventClick = (clickInfo: any) => {
-        // clickInfo.event est l'objet FullCalendarEvent
-        // Nous stockons l'événement Google original, qui est dans extendedProps.originalGoogleEvent
-        setSelectedEvent(clickInfo.event.extendedProps.originalGoogleEvent as GoogleCalendarEvent);
-        setIsEventModalOpen(true);
+        const googleEvent = clickInfo.event.extendedProps.originalGoogleEvent as GoogleCalendarEvent;
+        setSelectedEvent(googleEvent);
+        setIsEditingEvent(false);
+        setEditForm({
+            eventId: googleEvent.id || null,
+            summary: googleEvent.summary || '',
+            description: googleEvent.description || '',
+            location: googleEvent.location || '',
+            start_datetime: googleEvent.start?.dateTime ? formatDatetimeLocal(parseISO(googleEvent.start.dateTime)) : (googleEvent.start?.date ? formatDatetimeLocal(parseISO(googleEvent.start.date)) : ''),
+            end_datetime: googleEvent.end?.dateTime ? formatDatetimeLocal(parseISO(googleEvent.end.dateTime)) : (googleEvent.end?.date ? formatDatetimeLocal(parseISO(googleEvent.end.date)) : ''),
+            attendees: googleEvent.attendees?.map(att => att.email!) || [],
+        });
+
+        setIsDetailModalOpen(true);
     };
 
-    // Gérer le déplacement d'un événement (drag-and-drop)
     const handleEventDrop = async (dropInfo: any) => {
-        // dropInfo.event est l'événement FullCalendar après le déplacement
         const eventId = dropInfo.event.id;
-        const newStart = dropInfo.event.startStr; // Nouvelle date de début
-        const newEnd = dropInfo.event.endStr;     // Nouvelle date de fin
+        const newStart = dropInfo.event.startStr;
+        const newEnd = dropInfo.event.endStr;
 
-        console.log(`Event ${eventId} dropped to new start: ${newStart}, new end: ${newEnd}`);
+        const originalEvent = dropInfo.event.extendedProps.originalGoogleEvent as GoogleCalendarEvent;
 
-        // TODO: Appeler votre mutation d'update ici pour sauvegarder les changements
-        // Exemple (nécessite une nouvelle mutation dans api.ts et un endpoint Laravel) :
-        /*
+        const updatePayload = {
+            eventId: eventId,
+            summary: originalEvent.summary || '',
+            description: originalEvent.description || '',
+            location: originalEvent.location || '',
+            start_datetime: newStart,
+            end_datetime: newEnd,
+            attendees: originalEvent.attendees?.map(att => att.email!) || [],
+        };
+
         try {
-            await updateEvent({
-                id: eventId,
-                start_datetime: newStart.slice(0, 19), // Remove timezone info if needed by backend
-                end_datetime: newEnd.slice(0, 19)
-            }).unwrap();
+            await updateEvent(updatePayload).unwrap();
             toast.success('Événement déplacé avec succès !');
-            refetch(); // Recharger pour synchroniser
+            refetch();
         } catch (error) {
             console.error('Erreur lors du déplacement de l\'événement :', error);
             toast.error('Échec du déplacement de l\'événement.');
-            dropInfo.revert(); // Revenir à la position précédente si échec
+            dropInfo.revert();
         }
-        */
-       toast.info("Déplacement d'événement non sauvegardé (fonctionnalité en attente)");
-       // Pour l'instant, on n'a pas de backend pour sauvegarder le drag-and-drop,
-       // donc l'événement reviendra à sa position initiale au rechargement.
     };
 
     const handleEventResize = async (resizeInfo: any) => {
-        // resizeInfo.event est l'événement FullCalendar après le redimensionnement
         const eventId = resizeInfo.event.id;
         const newStart = resizeInfo.event.startStr;
         const newEnd = resizeInfo.event.endStr;
 
-        console.log(`Event ${eventId} resized to new start: ${newStart}, new end: ${newEnd}`);
+        const originalEvent = resizeInfo.event.extendedProps.originalGoogleEvent as GoogleCalendarEvent;
 
-        // TODO: Appeler votre mutation d'update ici
-        /*
+        const updatePayload = {
+            eventId: eventId,
+            summary: originalEvent.summary || '',
+            description: originalEvent.description || '',
+            location: originalEvent.location || '',
+            start_datetime: newStart,
+            end_datetime: newEnd,
+            attendees: originalEvent.attendees?.map(att => att.email!) || [],
+        };
+
         try {
-            await updateEvent({
-                id: eventId,
-                start_datetime: newStart.slice(0, 19),
-                end_datetime: newEnd.slice(0, 19)
-            }).unwrap();
+            await updateEvent(updatePayload).unwrap();
             toast.success('Événement redimensionné avec succès !');
             refetch();
         } catch (error) {
@@ -303,21 +309,77 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
             toast.error('Échec du redimensionnement de l\'événement.');
             resizeInfo.revert();
         }
-        */
-       toast.info("Redimensionnement d'événement non sauvegardé (fonctionnalité en attente)");
     };
 
-    // TODO: Implémenter la logique de modification/suppression ici
-    const handleEditEvent = () => {
-        toast.info("Fonctionnalité d'édition à implémenter.");
-        // Ici vous ouvririez un formulaire pré-rempli avec selectedEvent
-        setIsEventModalOpen(false); // Close modal after action
+    // Fonctions pour la modale de détails/édition
+    const handleEditButtonClick = () => {
+        setIsEditingEvent(true);
     };
 
-    const handleDeleteEvent = () => {
-        toast.info("Fonctionnalité de suppression à implémenter.");
-        // Ici vous enverriez une requête de suppression au backend
-        setIsEventModalOpen(false); // Close modal after action
+    const handleUpdateEvent = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editForm.eventId) {
+            toast.error("Impossible de modifier un événement sans ID.");
+            return;
+        }
+        if (!editForm.summary.trim()) {
+            toast.error("Le titre de l'événement est obligatoire.");
+            return;
+        }
+        if (new Date(editForm.start_datetime).getTime() >= new Date(editForm.end_datetime).getTime()) {
+            toast.error("La date de fin doit être postérieure à la date de début.");
+            return;
+        }
+
+        try {
+            await updateEvent(editForm).unwrap();
+            toast.success('Événement mis à jour avec succès !');
+            setIsDetailModalOpen(false);
+            setIsEditingEvent(false);
+            refetch();
+        } catch (error) {
+            console.error('Erreur lors de la mise à jour de l\'événement :', error);
+            const errorMessage = (error as any)?.data?.message || (error as any)?.message || 'Une erreur inconnue est survenue.';
+            toast.error(`Échec de la mise à jour de l\'événement: ${errorMessage}`);
+        }
+    };
+
+    const handleDeleteEvent = async () => {
+        if (!selectedEvent?.id) {
+            toast.error("Impossible de supprimer un événement sans ID.");
+            return;
+        }
+
+        if (!window.confirm("Êtes-vous sûr de vouloir supprimer cet événement ? Cette action est irréversible.")) {
+            return;
+        }
+
+        try {
+            await deleteEvent(selectedEvent.id).unwrap();
+            toast.success('Événement supprimé avec succès !');
+            setIsDetailModalOpen(false);
+            setSelectedEvent(null);
+            setIsEditingEvent(false);
+            refetch();
+        } catch (error) {
+            console.error('Erreur lors de la suppression de l\'événement :', error);
+            const errorMessage = (error as any)?.data?.message || (error as any)?.message || 'Une erreur inconnue est survenue.';
+            toast.error(`Échec de la suppression de l\'événement: ${errorMessage}`);
+        }
+    };
+
+    const handleOpenCreateModal = () => {
+        const now = new Date();
+        const oneHourLater = new Date(now.getTime() + 3600 * 1000);
+        setCreateForm({
+            summary: '',
+            description: '',
+            start_datetime: formatDatetimeLocal(now),
+            end_datetime: formatDatetimeLocal(oneHourLater),
+            attendees: [],
+            location: '',
+        });
+        setIsCreateModalOpen(true);
     };
 
     return (
@@ -331,11 +393,25 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                 <div className="flex-grow h-full">
                     <div className="bg-white overflow-hidden sm:rounded-lg px-6 h-full flex flex-col space-y-6">
                         <Card className="flex-shrink-0 shadow-none border-0">
-                            <CardHeader>
-                                <CardTitle>Intégration Google Calendar</CardTitle>
-                                <CardDescription>Gérez vos rendez-vous directement depuis votre CRM.</CardDescription>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
+                                {/* Condition pour afficher le titre d'intégration si non connecté */}
+                                {!events && (
+                                    <div>
+                                        <CardTitle className="text-2xl font-bold">Intégration Google Calendar</CardTitle>
+                                        <CardDescription>Gérez vos rendez-vous directement depuis votre CRM.</CardDescription>
+                                    </div>
+                                )}
+                                {events && (
+                                    <div className="flex w-full items-center justify-between space-x-2">
+                                        <h2 className="text-3xl font-semibold mb-4 text-gray-800">Vos Événements Google Calendar</h2>
+                                        <Button onClick={handleOpenCreateModal} className="bg-teal-600 hover:bg-teal-700 text-white">
+                                            <PlusCircle className="mr-2 h-4 w-4" /> Créer un événement
+                                        </Button>
+                                    </div>
+                                )}
                             </CardHeader>
                             <CardContent>
+                                {/* Le reste de votre contenu de carte (connexion ou calendrier) */}
                                 {!events ? (
                                     <div className="flex flex-col items-start space-y-4">
                                         <p className="text-gray-600">
@@ -356,7 +432,7 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                                     </div>
                                 ) : (
                                     <div>
-                                        <h2 className="text-xl font-semibold mb-4 text-gray-800">Vos Événements Google Calendar</h2>
+
                                         {eventsLoading ? (
                                             <div className="flex items-center text-gray-600">
                                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -365,28 +441,25 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                                         ) : eventsError ? (
                                             <p className="text-red-500">Erreur lors du chargement des événements : {(eventsError as any)?.data?.message || (eventsError as any)?.message || 'Une erreur inconnue est survenue.'}</p>
                                         ) : (
-                                            // FullCalendar Integration
                                             <div className="full-calendar-container" style={{ height: '100%', width: '100%' }}>
+                                                <hr className="my-12"/>
+
                                                 <FullCalendar
                                                     ref={calendarRef}
                                                     plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin, momentPlugin, momentTimezonePlugin]}
-                                                    initialView="dayGridMonth" // Vue par défaut: mois
+                                                    initialView="dayGridMonth"
                                                     headerToolbar={{
                                                         left: 'prev,next today',
                                                         center: 'title',
-                                                        right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' // Options de vue
+                                                        right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
                                                     }}
-                                                    events={mapGoogleEventsToFullCalendar(events)} // Vos événements mappés
-                                                    eventClick={handleEventClick} // Gérer le clic sur l'événement
-                                                    editable={true} // Permettre le glisser-déposer et le redimensionnement
-                                                    selectable={true} // Permettre la sélection de plages de dates
-                                                    eventDrop={handleEventDrop} // Gérer l'événement déplacé
-                                                    eventResize={handleEventResize} // Gérer le redimensionnement
-                                                    locale="fr" // Langue française
-                                                    // Timezone pour les événements si nécessaire (e.g., 'Europe/Paris')
-                                                    // timeZone="Europe/Paris"
-                                                    // eventDataTransform: (eventData: any) => { /* ... */ }, // Pour une transformation plus avancée
-                                                    // dateClick={(info) => alert('clicked ' + info.dateStr)} // Gérer le clic sur une date vide
+                                                    events={mapGoogleEventsToFullCalendar(events)}
+                                                    eventClick={handleEventClick}
+                                                    editable={true}
+                                                    selectable={true}
+                                                    eventDrop={handleEventDrop}
+                                                    eventResize={handleEventResize}
+                                                    locale="fr"
                                                 />
                                             </div>
                                         )}
@@ -394,120 +467,226 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                                 )}
                             </CardContent>
                         </Card>
-
-                        <Separator />
-
-                        {/* Create New Event Section (remains mostly the same) */}
-                        <Card className="flex-shrink-0">
-                            <CardHeader>
-                                <CardTitle>Créer un Nouvel Événement Google Calendar</CardTitle>
-                                <CardDescription>Planifiez rapidement des événements qui apparaîtront dans votre Google Agenda.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <form onSubmit={handleCreateEvent} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="summary">Titre de l'événement <span className="text-red-500">*</span></Label>
-                                        <Input
-                                            id="summary"
-                                            value={newEvent.summary}
-                                            onChange={(e) => setNewEvent({ ...newEvent, summary: e.target.value })}
-                                            placeholder="Ex: Réunion avec client X"
-                                            required
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="description">Description</Label>
-                                        <Input
-                                            id="description"
-                                            value={newEvent.description || ''}
-                                            onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
-                                            placeholder="Détails de l'événement..."
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="start_datetime">Début <span className="text-red-500">*</span></Label>
-                                        <Input
-                                            id="start_datetime"
-                                            type="datetime-local"
-                                            value={newEvent.start_datetime}
-                                            onChange={(e) => setNewEvent({ ...newEvent, start_datetime: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="end_datetime">Fin <span className="text-red-500">*</span></Label>
-                                        <Input
-                                            id="end_datetime"
-                                            type="datetime-local"
-                                            value={newEvent.end_datetime}
-                                            onChange={(e) => setNewEvent({ ...newEvent, end_datetime: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="col-span-full">
-                                        <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={isCreatingEvent}>
-                                            {isCreatingEvent ? (
-                                                <>
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                    Création en cours...
-                                                </>
-                                            ) : (
-                                                'Créer l\'événement'
-                                            )}
-                                        </Button>
-                                    </div>
-                                </form>
-                            </CardContent>
-                        </Card>
                     </div>
                 </div>
             </div>
 
-            {/* Event Details/Modification Modal (Shadcn Dialog) */}
-            <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
+            {/* Modale de Création d'Événement */}
+            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{selectedEvent?.summary || 'Détails de l\'événement'}</DialogTitle>
+                        <DialogTitle>Créer un Nouvel Événement Google Calendar</DialogTitle>
                         <DialogDescription>
-                            Informations et options pour cet événement.
+                            Entrez les détails pour planifier un événement dans votre Google Agenda.
                         </DialogDescription>
                     </DialogHeader>
+                    <form onSubmit={handleCreateEvent} className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                        <div className="space-y-2 col-span-full">
+                            <Label htmlFor="create-summary">Titre de l'événement <span className="text-red-500">*</span></Label>
+                            <Input
+                                id="create-summary"
+                                value={createForm.summary}
+                                onChange={(e) => setCreateForm({ ...createForm, summary: e.target.value })}
+                                placeholder="Ex: Réunion avec client X"
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2 col-span-full">
+                            <Label htmlFor="create-description">Description</Label>
+                            <Input
+                                id="create-description"
+                                value={createForm.description || ''}
+                                onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                                placeholder="Détails de l'événement..."
+                            />
+                        </div>
+                         <div className="space-y-2 col-span-full">
+                            <Label htmlFor="create-location">Lieu</Label>
+                            <Input
+                                id="create-location"
+                                value={createForm.location || ''}
+                                onChange={(e) => setCreateForm({ ...createForm, location: e.target.value })}
+                                placeholder="Ex: Bureau, Visio, Adresse..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="create-start_datetime">Début <span className="text-red-500">*</span></Label>
+                            <Input
+                                id="create-start_datetime"
+                                type="datetime-local"
+                                value={createForm.start_datetime}
+                                onChange={(e) => setCreateForm({ ...createForm, start_datetime: e.target.value })}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="create-end_datetime">Fin <span className="text-red-500">*</span></Label>
+                            <Input
+                                id="create-end_datetime"
+                                type="datetime-local"
+                                value={createForm.end_datetime}
+                                onChange={(e) => setCreateForm({ ...createForm, end_datetime: e.target.value })}
+                                required
+                            />
+                        </div>
+                        <DialogFooter className="col-span-full flex justify-end gap-2 mt-4">
+                            <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} type="button">Annuler</Button>
+                            <Button type="submit" disabled={isCreatingEvent}>
+                                {isCreatingEvent ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Création en cours...
+                                    </>
+                                ) : (
+                                    'Créer l\'événement'
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modale de Détails/Modification d'Événement */}
+            <Dialog open={isDetailModalOpen} onOpenChange={(open) => {
+                setIsDetailModalOpen(open);
+                if (!open) {
+                    setIsEditingEvent(false);
+                    setSelectedEvent(null);
+                }
+            }}>
+                {/* Ajoutez la classe `data-[state=open]:!bg-background/80` et `data-[state=open]:!backdrop-blur-sm` pour assurer que le fond reste visible */}
+                <DialogContent className="sm:max-w-[425px] [&>button]:!hidden"> {/* Cache le bouton de fermeture "X" */}
+                    <DialogHeader className="flex flex-row justify-between items-center">
+                        <div>
+                            <DialogTitle>{selectedEvent?.summary || 'Détails de l\'événement'}</DialogTitle>
+                            {/* Description sous le titre en gris clair */}
+                            {selectedEvent?.description && (
+                                <DialogDescription className="text-gray-500 mt-3">
+                                    {selectedEvent.description}
+                                </DialogDescription>
+                            )}
+                        </div>
+                        {selectedEvent && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <span className="sr-only">Ouvrir le menu</span>
+                                        <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={handleEditButtonClick}>
+                                        <Edit className="mr-2 h-4 w-4" /> Modifier
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={handleDeleteEvent} className="text-red-600 focus:text-red-600">
+                                        <Trash className="mr-2 h-4 w-4" /> Supprimer
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+                    </DialogHeader>
+
                     {selectedEvent && (
-                        <div className="space-y-4 py-4">
-                            <p className="text-gray-700">
-                                <span className="font-semibold">Début :</span> {selectedEvent.start?.dateTime ? format(new Date(selectedEvent.start.dateTime), 'dd/MM/yyyy HH:mm') : selectedEvent.start?.date ? format(new Date(selectedEvent.start.date), 'dd/MM/yyyy') : 'N/A'}
-                            </p>
-                            <p className="text-gray-700">
-                                <span className="font-semibold">Fin :</span> {selectedEvent.end?.dateTime ? format(new Date(selectedEvent.end.dateTime), 'dd/MM/yyyy HH:mm') : selectedEvent.end?.date ? format(new Date(selectedEvent.end.date), 'dd/MM/yyyy') : 'N/A'}
-                            </p>
-                            {selectedEvent.description && (
-                                <p className="text-gray-600">
-                                    <span className="font-semibold">Description :</span> {selectedEvent.description}
+                        isEditingEvent ? (
+                            <form onSubmit={handleUpdateEvent} className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="edit-summary">Titre de l'événement <span className="text-red-500">*</span></Label>
+                                    <Input
+                                        id="edit-summary"
+                                        value={editForm.summary}
+                                        onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })}
+                                        placeholder="Ex: Réunion avec client X"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="edit-description">Description</Label>
+                                    <Input
+                                        id="edit-description"
+                                        value={editForm.description || ''}
+                                        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                                        placeholder="Détails de l'événement..."
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="edit-location">Lieu</Label>
+                                    <Input
+                                        id="edit-location"
+                                        value={editForm.location || ''}
+                                        onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                                        placeholder="Ex: Bureau, Visio, Adresse..."
+                                    />
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="edit-start_datetime">Début <span className="text-red-500">*</span></Label>
+                                        <Input
+                                            id="edit-start_datetime"
+                                            type="datetime-local"
+                                            value={editForm.start_datetime}
+                                            onChange={(e) => setEditForm({ ...editForm, start_datetime: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="edit-end_datetime">Fin <span className="text-red-500">*</span></Label>
+                                        <Input
+                                            id="edit-end_datetime"
+                                            type="datetime-local"
+                                            value={editForm.end_datetime}
+                                            onChange={(e) => setEditForm({ ...editForm, end_datetime: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <DialogFooter className="flex justify-end gap-2 mt-6">
+                                    <Button variant="outline" onClick={() => setIsEditingEvent(false)} type="button">Annuler</Button>
+                                    <Button type="submit" disabled={isUpdatingEvent}>
+                                        {isUpdatingEvent ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Mise à jour...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Edit className="mr-2 h-4 w-4" /> Enregistrer les modifs
+                                            </>
+                                        )}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        ) : (
+                            <div className="space-y-4 py-4">
+                                <p className="text-gray-700">
+                                    <span className="font-semibold">Début :</span> {selectedEvent.start?.dateTime ? format(new Date(selectedEvent.start.dateTime), 'dd/MM/yyyy HH:mm') : selectedEvent.start?.date ? format(new Date(selectedEvent.start.date), 'dd/MM/yyyy') : 'N/A'}
                                 </p>
-                            )}
-                            {selectedEvent.htmlLink && (
-                                <a href={selectedEvent.htmlLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center">
-                                    <Link className="mr-2 h-4 w-4" /> Voir sur Google Calendar
-                                </a>
-                            )}
-                            {selectedEvent.hangoutLink && (
-                                <a href={selectedEvent.hangoutLink} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline flex items-center">
-                                    <Link className="mr-2 h-4 w-4" /> Rejoindre la réunion (Meet)
-                                </a>
-                            )}
-                        </div>
+                                <p className="text-gray-700">
+                                    <span className="font-semibold">Fin :</span> {selectedEvent.end?.dateTime ? format(new Date(selectedEvent.end.dateTime), 'dd/MM/yyyy HH:mm') : selectedEvent.end?.date ? format(new Date(selectedEvent.end.date), 'dd/MM/yyyy') : 'N/A'}
+                                </p>
+                                {selectedEvent.location && (
+                                    <p className="text-gray-600">
+                                        <span className="font-semibold">Lieu :</span> {selectedEvent.location}
+                                    </p>
+                                )}
+                                {selectedEvent.hangoutLink && (
+                                    <a href={selectedEvent.hangoutLink} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline flex items-center text-sm">
+                                        <Link className="mr-2 h-4 w-4" /> Rejoindre la réunion (Meet)
+                                    </a>
+                                )}
+
+                                <DialogFooter className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-end mt-6 gap-2">
+                                    {selectedEvent.htmlLink && (
+                                        <a href={selectedEvent.htmlLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center text-sm order-2 sm:order-1">
+                                            <Link className="mr-2 h-4 w-4" /> Voir sur Google Calendar
+                                        </a>
+                                    )}
+                                    <Button variant="outline" onClick={() => setIsDetailModalOpen(false)} className="order-1 sm:order-2">Fermer</Button>
+                                </DialogFooter>
+                            </div>
+                        )
                     )}
-                    <DialogFooter className="flex justify-between">
-                        <Button variant="outline" onClick={() => setIsEventModalOpen(false)}>Fermer</Button>
-                        <div className="space-x-2">
-                            <Button onClick={handleEditEvent} variant="secondary">
-                                <Edit className="mr-2 h-4 w-4" /> Modifier
-                            </Button>
-                            <Button onClick={handleDeleteEvent} variant="destructive">
-                                <Trash className="mr-2 h-4 w-4" /> Supprimer
-                            </Button>
-                        </div>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </AuthenticatedLayout>

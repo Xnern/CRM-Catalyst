@@ -1,48 +1,31 @@
 // resources/js/services/api.ts
 
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { Contact } from '@/types/Contact'; // Keep this if Contact is defined elsewhere
+import { Contact } from '@/types/Contact';
+import { GoogleCalendarEvent,CreateCalendarEventPayload } from '@/types/GoogleCalendarEvent';
 
-// Define Google Calendar interfaces directly in this file
-// Ensure these are exported so other files can import them
-export interface GoogleCalendarEvent {
-    id: string;
-    summary?: string; // summary can sometimes be optional or null
-    description?: string;
-    location?: string;
-    start: { dateTime?: string; timeZone?: string; date?: string; }; // dateTime or date, and timezone
-    end: { dateTime?: string; timeZone?: string; date?: string; };
-    hangoutLink?: string; // Google Meet link
-    htmlLink?: string; // Link to the event in Google Calendar
-    attendees?: Array<{ email: string }>; // List of attendees
-    // Add other fields you might receive from Google Calendar API
+
+// NEW: Payload for updating an event
+// It needs the eventId and potentially all fields that can be updated.
+// We reuse CreateCalendarEventPayload but add the eventId.
+export interface UpdateCalendarEventPayload extends CreateCalendarEventPayload {
+    eventId: string; // The ID of the event to update
+    // You might also include a flag for allDay if it can be changed
 }
 
-export interface CreateCalendarEventPayload {
-    summary: string;
-    description?: string;
-    start_datetime: string; // Expected format for API: 'YYYY-MM-DDTHH:MM'
-    end_datetime: string;   // Expected format for API: 'YYYY-MM-DDTHH:MM'
-    attendees?: Array<{ email: string }>;
-    location?: string;
-    // You might add a timezone field here if your backend supports it
-}
 
-// Interface for the specific response from the Google Auth URL endpoint
 export interface GoogleAuthUrlResponse {
     auth_url: string;
 }
 
-// Query parameters for fetching contacts (assuming this is used elsewhere)
 export interface GetContactsQueryParams {
     page?: number;
     per_page?: number;
     search?: string;
     sort?: string;
-    include?: string; // Relationships to include (e.g., 'user')
+    include?: string;
 }
 
-// Interface for Laravel's paginated API response structure
 interface PaginatedApiResponse<T> {
     current_page: number;
     data: T[];
@@ -58,7 +41,6 @@ interface PaginatedApiResponse<T> {
     total: number;
 }
 
-// Utility function to retrieve a cookie by name
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') {
     return null;
@@ -73,73 +55,50 @@ function getCookie(name: string): string | null {
   return null;
 }
 
-// RTK Query API creation
 export const api = createApi({
-  reducerPath: 'api', // Reducer path in the Redux store
-
+  reducerPath: 'api',
   baseQuery: fetchBaseQuery({
-    baseUrl: 'http://127.0.0.1:8000/api', // Base URL for the Laravel API
-    credentials: 'include', // Important for sending session cookies (Laravel Sanctum)
-
-    // Prepares headers for outgoing requests
+    baseUrl: 'http://127.0.0.1:8000/api',
+    credentials: 'include',
     prepareHeaders: (headers) => {
       const xsrfToken = getCookie('XSRF-TOKEN');
-
       if (xsrfToken) {
-        headers.set('X-XSRF-TOKEN', decodeURIComponent(xsrfToken)); // CSRF token for Laravel
+        headers.set('X-XSRF-TOKEN', decodeURIComponent(xsrfToken));
       }
-
-      // Ensure Laravel recognizes the request as AJAX/JSON
       if (!headers.has('X-Requested-With')) {
         headers.set('X-Requested-With', 'XMLHttpRequest');
       }
       if (!headers.has('Accept')) {
         headers.set('Accept', 'application/json');
       }
-
       return headers;
     },
   }),
-
-  tagTypes: ['Contact', 'GoogleCalendarEvent'], // Add the tag for Google Calendar events
-
+  tagTypes: ['Contact', 'GoogleCalendarEvent'],
   endpoints: (builder) => ({
-    // Fetches a paginated list of contacts
     getContacts: builder.query<PaginatedApiResponse<Contact>, GetContactsQueryParams>({
         query: ({ page = 1, per_page = 15, search = '', sort = '', include = '' }) => {
           const params = new URLSearchParams();
           params.append('page', page.toString());
           params.append('per_page', per_page.toString());
-
-          if (search) {
-            params.append('search', search);
-          }
-          if (sort) {
-            params.append('sort', sort);
-          }
-          if (include) {
-            params.append('include', include);
-          }
+          if (search) { params.append('search', search); }
+          if (sort) { params.append('sort', sort); }
+          if (include) { params.append('include', include); }
           return `contacts?${params.toString()}`;
         },
-        // Provides 'Contact' tags for caching, including 'LIST' for the overall list
         providesTags: (result) =>
           result
             ? [...result.data.map(({ id }) => ({ type: 'Contact' as const, id })), { type: 'Contact', id: 'LIST' }]
             : [{ type: 'Contact', id: 'LIST' }],
     }),
-
-    // Adds a new contact
     addContact: builder.mutation<Contact, Partial<Contact>>({
       query: (newContact) => ({
         url: '/contacts',
         method: 'POST',
         body: newContact,
       }),
-      invalidatesTags: ['Contact'], // Invalidates 'Contact' cache to refresh lists
+      invalidatesTags: ['Contact'],
     }),
-
-    // Updates an existing contact (can include status update)
     updateContact: builder.mutation<Contact, Partial<Contact>>({
       query: ({ id, ...patch }) => ({
         url: `/contacts/${id}`,
@@ -148,35 +107,29 @@ export const api = createApi({
       }),
       invalidatesTags: (result, error, { id }) => [{ type: 'Contact', id }, { type: 'Contact', id: 'LIST' }],
     }),
-
-    // Deletes a contact
     deleteContact: builder.mutation<void, number>({
       query: (id) => ({
         url: `/contacts/${id}`,
         method: 'DELETE',
       }),
-      invalidatesTags: ['Contact'], // Invalidates 'Contact' cache to refresh lists
+      invalidatesTags: ['Contact'],
     }),
-
-    // NEW: Mutation specifically for updating contact status for Kanban
     updateContactStatus: builder.mutation<Contact, { id: number; status: Contact['status'] }>({
         query: ({ id, status }) => ({
-            url: `/contacts/${id}/status`, // The dedicated endpoint we created
+            url: `/contacts/${id}/status`,
             method: 'PUT',
             body: { status },
         }),
-        // Invalidates the specific item and the list to ensure groupings are updated
         invalidatesTags: (result, error, { id }) => [{ type: 'Contact', id }, { type: 'Contact', id: 'LIST' }],
     }),
 
     // Google Calendar Endpoints
-    // Use the specific GoogleAuthUrlResponse interface
     getGoogleAuthUrl: builder.query<GoogleAuthUrlResponse, void>({
         query: () => '/auth/google/redirect',
     }),
     getGoogleCalendarEvents: builder.query<GoogleCalendarEvent[], void>({
         query: () => '/google-calendar/events',
-        providesTags: ['GoogleCalendarEvent'], // Tag for calendar events
+        providesTags: ['GoogleCalendarEvent'],
     }),
     createGoogleCalendarEvent: builder.mutation<GoogleCalendarEvent, CreateCalendarEventPayload>({
         query: (newEvent) => ({
@@ -184,9 +137,27 @@ export const api = createApi({
             method: 'POST',
             body: newEvent,
         }),
-        invalidatesTags: ['GoogleCalendarEvent'], // Invalidate cache after creation
+        invalidatesTags: ['GoogleCalendarEvent'],
     }),
-    // You can add mutations for updateGoogleCalendarEvent, deleteGoogleCalendarEvent, etc.
+    // NOUVEAU: Mutation pour mettre à jour un événement Google Calendar
+    updateGoogleCalendarEvent: builder.mutation<GoogleCalendarEvent, UpdateCalendarEventPayload>({
+        query: ({ eventId, ...patch }) => ({
+            url: `/google-calendar/events/${eventId}`, // Endpoint pour la mise à jour
+            method: 'PUT', // Ou 'PATCH' selon votre backend
+            body: patch,
+        }),
+        // Invalide le tag de l'événement spécifique et tous les événements pour rafraîchir le calendrier
+        invalidatesTags: (result, error, { eventId }) => [{ type: 'GoogleCalendarEvent', id: eventId }, 'GoogleCalendarEvent'],
+    }),
+    // NOUVEAU: Mutation pour supprimer un événement Google Calendar
+    deleteGoogleCalendarEvent: builder.mutation<void, string>({ // L'ID de l'événement est une chaîne
+        query: (eventId) => ({
+            url: `/google-calendar/events/${eventId}`, // Endpoint pour la suppression
+            method: 'DELETE',
+        }),
+        // Invalide le tag de l'événement spécifique et tous les événements
+        invalidatesTags: (result, error, eventId) => [{ type: 'GoogleCalendarEvent', id: eventId }, 'GoogleCalendarEvent'],
+    }),
   }),
 });
 
@@ -196,9 +167,11 @@ export const {
   useAddContactMutation,
   useUpdateContactMutation,
   useDeleteContactMutation,
-  useUpdateContactStatusMutation, // Export the hook for Kanban
+  useUpdateContactStatusMutation,
 
   useGetGoogleAuthUrlQuery,
   useGetGoogleCalendarEventsQuery,
   useCreateGoogleCalendarEventMutation,
+  useUpdateGoogleCalendarEventMutation, // EXPORTER LE NOUVEAU HOOK
+  useDeleteGoogleCalendarEventMutation, // EXPORTER LE NOUVEAU HOOK
 } = api;
