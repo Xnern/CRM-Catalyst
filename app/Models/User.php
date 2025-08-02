@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Event;
 use App\Models\Contact;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
@@ -63,5 +64,13 @@ class User extends Authenticatable
     public function contacts()
     {
         return $this->hasMany(Contact::class);
+    }
+
+    /**
+     * Get the events for the user.
+     */
+    public function events()
+    {
+        return $this->hasMany(Event::class);
     }
 }

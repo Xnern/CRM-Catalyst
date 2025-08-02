@@ -1,9 +1,12 @@
 // resources/js/services/api.ts
 
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { Contact } from '@/types/Contact';
-import { GoogleCalendarEvent,CreateCalendarEventPayload } from '@/types/GoogleCalendarEvent';
+import { createApi, fetchBaseQuery, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query/react';
+import { BaseQueryFn, FetchBaseQueryMeta } from '@reduxjs/toolkit/query/react';
 
+// Imports corrigés
+import { Contact } from '@/types/Contact';
+import { GoogleCalendarEvent, CreateCalendarEventPayload } from '@/types/GoogleCalendarEvent';
+import { LocalCalendarEvent, LocalEventPayload, UpdateLocalEventPayload } from '@/types/LocalCalendarEvent';
 
 // NEW: Payload for updating an event
 // It needs the eventId and potentially all fields that can be updated.
@@ -12,7 +15,6 @@ export interface UpdateCalendarEventPayload extends CreateCalendarEventPayload {
     eventId: string; // The ID of the event to update
     // You might also include a flag for allDay if it can be changed
 }
-
 
 export interface GoogleAuthUrlResponse {
     auth_url: string;
@@ -73,8 +75,8 @@ export const api = createApi({
       }
       return headers;
     },
-  }),
-  tagTypes: ['Contact', 'GoogleCalendarEvent'],
+  }) as BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError, {}, FetchBaseQueryMeta>,
+  tagTypes: ['Contact', 'GoogleCalendarEvent', 'LocalCalendarEvent'],
   endpoints: (builder) => ({
     getContacts: builder.query<PaginatedApiResponse<Contact>, GetContactsQueryParams>({
         query: ({ page = 1, per_page = 15, search = '', sort = '', include = '' }) => {
@@ -125,7 +127,7 @@ export const api = createApi({
 
     // Google Calendar Endpoints
     getGoogleAuthUrl: builder.query<GoogleAuthUrlResponse, void>({
-        query: () => '/auth/google/redirect',
+        query: () => 'google-calendar/auth/google/redirect',
     }),
     getGoogleCalendarEvents: builder.query<GoogleCalendarEvent[], void>({
         query: () => '/google-calendar/events',
@@ -139,24 +141,56 @@ export const api = createApi({
         }),
         invalidatesTags: ['GoogleCalendarEvent'],
     }),
-    // NOUVEAU: Mutation pour mettre à jour un événement Google Calendar
     updateGoogleCalendarEvent: builder.mutation<GoogleCalendarEvent, UpdateCalendarEventPayload>({
         query: ({ eventId, ...patch }) => ({
-            url: `/google-calendar/events/${eventId}`, // Endpoint pour la mise à jour
-            method: 'PUT', // Ou 'PATCH' selon votre backend
+            url: `/google-calendar/events/${eventId}`,
+            method: 'PUT',
             body: patch,
         }),
-        // Invalide le tag de l'événement spécifique et tous les événements pour rafraîchir le calendrier
-        invalidatesTags: (result, error, { eventId }) => [{ type: 'GoogleCalendarEvent', id: eventId }, 'GoogleCalendarEvent'],
+        invalidatesTags: ['GoogleCalendarEvent'],
     }),
-    // NOUVEAU: Mutation pour supprimer un événement Google Calendar
-    deleteGoogleCalendarEvent: builder.mutation<void, string>({ // L'ID de l'événement est une chaîne
+    deleteGoogleCalendarEvent: builder.mutation<void, string>({
         query: (eventId) => ({
-            url: `/google-calendar/events/${eventId}`, // Endpoint pour la suppression
+            url: `/google-calendar/events/${eventId}`,
             method: 'DELETE',
         }),
-        // Invalide le tag de l'événement spécifique et tous les événements
-        invalidatesTags: (result, error, eventId) => [{ type: 'GoogleCalendarEvent', id: eventId }, 'GoogleCalendarEvent'],
+        invalidatesTags: ['GoogleCalendarEvent'],
+    }),
+    logoutGoogleCalendar: builder.mutation<void, void>({
+        query: () => ({
+            url: '/google-calendar/logout',
+            method: 'POST',
+        }),
+        invalidatesTags: ['GoogleCalendarEvent'],
+    }),
+
+    // Endpoints pour les événements locaux
+    getLocalCalendarEvents: builder.query<LocalCalendarEvent[], void>({
+        query: () => '/events/local',
+        providesTags: ['LocalCalendarEvent'],
+    }),
+    createLocalCalendarEvent: builder.mutation<LocalCalendarEvent, LocalEventPayload>({
+        query: (payload) => ({
+            url: '/events/local',
+            method: 'POST',
+            body: payload,
+        }),
+        invalidatesTags: ['LocalCalendarEvent'],
+    }),
+    updateLocalCalendarEvent: builder.mutation<LocalCalendarEvent, UpdateLocalEventPayload>({
+        query: ({ eventId, ...body }) => ({
+            url: `/events/local/${eventId}`,
+            method: 'PUT',
+            body,
+        }),
+        invalidatesTags: ['LocalCalendarEvent'],
+    }),
+    deleteLocalCalendarEvent: builder.mutation<void, number>({
+        query: (eventId) => ({
+            url: `/events/local/${eventId}`,
+            method: 'DELETE',
+        }),
+        invalidatesTags: ['LocalCalendarEvent'],
     }),
   }),
 });
@@ -172,6 +206,11 @@ export const {
   useGetGoogleAuthUrlQuery,
   useGetGoogleCalendarEventsQuery,
   useCreateGoogleCalendarEventMutation,
-  useUpdateGoogleCalendarEventMutation, // EXPORTER LE NOUVEAU HOOK
-  useDeleteGoogleCalendarEventMutation, // EXPORTER LE NOUVEAU HOOK
+  useUpdateGoogleCalendarEventMutation,
+  useDeleteGoogleCalendarEventMutation,
+  useLogoutGoogleCalendarMutation,
+  useGetLocalCalendarEventsQuery,
+  useCreateLocalCalendarEventMutation,
+  useUpdateLocalCalendarEventMutation,
+  useDeleteLocalCalendarEventMutation,
 } = api;

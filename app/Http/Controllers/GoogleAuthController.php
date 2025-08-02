@@ -189,4 +189,24 @@ class GoogleAuthController extends Controller
             return redirect(env('APP_URL', 'http://127.0.0.1:8000') . '/calendrier?google_auth=error&message=' . urlencode('Une erreur inattendue est survenue: ' . $e->getMessage()));
         }
     }
+
+    /**
+     * Disconnect the Google account from the authenticated user.
+     */
+    public function logout()
+    {
+        $user = Auth::user();
+        if ($user) {
+            $user->google_id = null;
+            $user->google_email = null;
+            $user->google_access_token = null;
+            $user->google_refresh_token = null;
+            $user->google_expires_at = null;
+            $user->save();
+            Log::info('Google Auth: User ' . $user->id . ' has been successfully disconnected from Google.');
+            return response()->json(['message' => 'Déconnexion de Google Calendar réussie.'], 200);
+        }
+
+        return response()->json(['message' => 'Aucun utilisateur connecté.'], 401);
+    }
 }
