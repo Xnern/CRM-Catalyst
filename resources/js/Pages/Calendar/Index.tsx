@@ -244,17 +244,6 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
         }
     }, [handleCalendarResize]);
 
-    useEffect(() => {
-        if (isGoogleEventsError) {
-            const errorMessage = (isGoogleEventsError as any)?.data?.message || (isGoogleEventsError as any)?.message || 'Une erreur inconnue est survenue.';
-            toast.warning(`Erreur de synchronisation Google Calendar: ${errorMessage}. Affichage du calendrier local.`);
-        }
-        if (isLocalEventsError) {
-             const errorMessage = (isLocalEventsError as any)?.data?.message || (isLocalEventsError as any)?.message || 'Une erreur inconnue est survenue.';
-             toast.error(`Erreur lors du chargement des événements locaux: ${errorMessage}.`);
-        }
-    }, [isGoogleEventsError, isLocalEventsError]);
-
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -569,7 +558,7 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                     <Button onClick={refetchGoogleEvents} variant="outline" size="icon" className="hover:bg-gray-100">
                         <RefreshCcw className="h-4 w-4" />
                     </Button>
-                    <Button onClick={handleOpenCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Button onClick={handleOpenCreateModal} className="bg-blue-600 hover:bg-blue-700 text-black">
                         <PlusCircle className="mr-2 h-4 w-4" /> Créer un événement
                     </Button>
                     <DropdownMenu>
@@ -595,7 +584,7 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                     <Button onClick={refetchLocalEvents} variant="outline" size="icon" className="hover:bg-gray-100">
                         <RefreshCcw className="h-4 w-4" />
                     </Button>
-                    <Button onClick={handleOpenCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Button onClick={handleOpenCreateModal} className="bg-white border border-primary text-black">
                         <PlusCircle className="mr-2 h-4 w-4" /> Créer un événement
                     </Button>
                     <Button onClick={handleAuthRedirect} className="bg-gray-200 hover:bg-gray-300 text-gray-800">
@@ -618,7 +607,7 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                 <div className="flex-grow h-full">
                     <div className="bg-white overflow-hidden sm:rounded-lg px-6 h-full flex flex-col space-y-6">
                         <Card className="flex-shrink-0 shadow-none border-0">
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 mb-4">
                                 <div>
                                     <CardTitle className="text-2xl font-bold">Calendrier</CardTitle>
                                     <CardDescription>
@@ -777,10 +766,6 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={handleInitiateDelete} className="text-red-600 focus:text-red-600">
                                         <Trash className="mr-2 h-4 w-4" /> Supprimer
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => setIsDetailModalOpen(false)}>
-                                        Fermer
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
