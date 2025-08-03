@@ -198,6 +198,7 @@ export const api = createApi({
 // Export RTK Query hooks for each endpoint
 export const {
   useGetContactsQuery,
+  useLazyGetContactsQuery,
   useAddContactMutation,
   useUpdateContactMutation,
   useDeleteContactMutation,

@@ -221,7 +221,7 @@ export default function Authenticated({
     ];
 
     return (
-        <div className="min-h-screen bg-background text-foreground flex font-inter">
+        <div className="min-h-screen bg-background text-foreground flex font-inter z-50">
             {/* Sidebar Desktop */}
             <div
                 className={`hidden md:flex flex-col h-screen fixed bg-card border-r border-border transition-all duration-300 ease-in-out ${
@@ -436,7 +436,7 @@ export default function Authenticated({
             </div>
 
             {/* Main Content Area */}
-            <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out ${
+            <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out overflow-x-hidden ${
                 sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'
             }`}>
                 {/* Top Navigation Bar (visible on mobile only) */}

@@ -136,3 +136,23 @@
     /* Ajoute un petit espace à droite pour ne pas coller au bord */
     padding-right: 4px;
 }
+
+
+/* Dans resources/css/app.css */
+.custom-scrollbar-horizontal::-webkit-scrollbar {
+    height: 8px;
+}
+
+.custom-scrollbar-horizontal::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.custom-scrollbar-horizontal::-webkit-scrollbar-thumb {
+    background: #c5c5c5;
+    border-radius: 4px;
+}
+
+.custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
