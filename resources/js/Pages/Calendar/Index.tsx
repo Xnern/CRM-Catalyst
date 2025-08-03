@@ -27,10 +27,10 @@ import { Label } from '@/Components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/ui/card';
 import { Separator } from '@/Components/ui/separator';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { ExternalLink, Loader2, Notebook, Video } from 'lucide-react';
 
 import { format, isValid, parseISO, subDays } from 'date-fns';
-import { Calendar as CalendarIcon, Clock, Link, BookOpen, Edit, Trash, PlusCircle, MoreVertical, LogOut, RefreshCcw } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Link, BookOpen, Edit, Trash, PlusCircle, MoreVertical, LogOut, RefreshCcw, MapPin } from 'lucide-react';
 
 // FullCalendar Imports
 import FullCalendar from '@fullcalendar/react';
@@ -655,265 +655,377 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                 </div>
             </div>
 
-            {/* Modale de Création d'Événement */}
             <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                <DialogContent className="sm:max-w-[425px] !top-1/2 !left-1/2 !-translate-x-1/2 !-translate-y-1/2">
-                    <DialogHeader>
-                        <DialogTitle>Créer un Nouvel Événement {isGoogleConnected ? 'Google Calendar' : 'Local'}</DialogTitle>
-                        <DialogDescription>
-                            Entrez les détails pour planifier un événement dans votre calendrier.
-                        </DialogDescription>
+                <DialogContent className="sm:max-w-[500px] rounded-lg !top-1/2 !left-1/2 !-translate-x-1/2 !-translate-y-1/2">
+                    <DialogHeader className="border-b pb-4">
+                    <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+                        <PlusCircle className="h-5 w-5 text-blue-600" />
+                        Créer un Nouvel Événement
+                    </DialogTitle>
+                    <DialogDescription className="mt-1">
+                        {isGoogleConnected ? 'Ajout à Google Calendar' : 'Événement local'}
+                    </DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={handleCreateEvent} className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                        <div className="space-y-2 col-span-full">
-                            <Label htmlFor="create-summary">Titre de l'événement <span className="text-red-500">*</span></Label>
+
+                    <form onSubmit={handleCreateEvent} className="py-4">
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                        <Label htmlFor="create-summary" className="flex items-center gap-1 font-medium">
+                            <BookOpen className="h-4 w-4 text-gray-500" />
+                            Titre de l'événement <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                            id="create-summary"
+                            className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                            value={createForm.summary}
+                            onChange={(e) => setCreateForm({ ...createForm, summary: e.target.value })}
+                            placeholder="Ex: Réunion avec client X"
+                            required
+                        />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="create-start_datetime" className="flex items-center gap-1 font-medium">
+                            <CalendarIcon className="h-4 w-4 text-gray-500" />
+                            Début <span className="text-red-500">*</span>
+                            </Label>
                             <Input
-                                id="create-summary"
-                                value={createForm.summary}
-                                onChange={(e) => setCreateForm({ ...createForm, summary: e.target.value })}
-                                placeholder="Ex: Réunion avec client X"
-                                required
+                            id="create-start_datetime"
+                            type="datetime-local"
+                            className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                            value={createForm.start_datetime}
+                            onChange={(e) => setCreateForm({ ...createForm, start_datetime: e.target.value })}
+                            required
                             />
                         </div>
-                        <div className="space-y-2 col-span-full">
-                            <Label htmlFor="create-description">Description</Label>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="create-end_datetime" className="flex items-center gap-1 font-medium">
+                            <Clock className="h-4 w-4 text-gray-500" />
+                            Fin <span className="text-red-500">*</span>
+                            </Label>
                             <Input
-                                id="create-description"
-                                value={createForm.description || ''}
-                                onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                                placeholder="Détails de l'événement..."
+                            id="create-end_datetime"
+                            type="datetime-local"
+                            className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                            value={createForm.end_datetime}
+                            onChange={(e) => setCreateForm({ ...createForm, end_datetime: e.target.value })}
+                            required
                             />
                         </div>
-                         {isGoogleConnected && (
-                            <div className="space-y-2 col-span-full">
-                                <Label htmlFor="create-location">Lieu</Label>
-                                <Input
-                                    id="create-location"
-                                    value={createForm.location || ''}
-                                    onChange={(e) => setCreateForm({ ...createForm, location: e.target.value })}
-                                    placeholder="Ex: Bureau, Visio, Adresse..."
-                                />
-                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                        <Label htmlFor="create-description" className="font-medium">
+                            Description
+                        </Label>
+                        <textarea
+                            id="create-description"
+                            rows={3}
+                            className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                            value={createForm.description || ''}
+                            onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                            placeholder="Détails de l'événement..."
+                        />
+                        </div>
+
+                        {isGoogleConnected && (
+                        <div className="space-y-2">
+                            <Label htmlFor="create-location" className="font-medium">
+                            Lieu
+                            </Label>
+                            <Input
+                            id="create-location"
+                            className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                            value={createForm.location || ''}
+                            onChange={(e) => setCreateForm({ ...createForm, location: e.target.value })}
+                            placeholder="Ex: Bureau, Visio, Adresse..."
+                            />
+                        </div>
                         )}
-                        <div className="space-y-2">
-                            <Label htmlFor="create-start_datetime">Début <span className="text-red-500">*</span></Label>
-                            <Input
-                                id="create-start_datetime"
-                                type="datetime-local"
-                                value={createForm.start_datetime}
-                                onChange={(e) => setCreateForm({ ...createForm, start_datetime: e.target.value })}
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="create-end_datetime">Fin <span className="text-red-500">*</span></Label>
-                            <Input
-                                id="create-end_datetime"
-                                type="datetime-local"
-                                value={createForm.end_datetime}
-                                onChange={(e) => setCreateForm({ ...createForm, end_datetime: e.target.value })}
-                                required
-                            />
-                        </div>
-                        <DialogFooter className="col-span-full flex justify-end gap-2 mt-4">
-                            <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} type="button">Annuler</Button>
-                            <Button type="submit" disabled={isCreatingGoogleEvent || isCreatingLocalEvent}>
-                                {(isCreatingGoogleEvent || isCreatingLocalEvent) ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Création en cours...
-                                    </>
-                                ) : (
-                                    'Créer l\'événement'
-                                )}
-                            </Button>
-                        </DialogFooter>
+                    </div>
+
+                    <DialogFooter className="mt-6 flex justify-end gap-3">
+                        <Button
+                        variant="outline"
+                        onClick={() => setIsCreateModalOpen(false)}
+                        type="button"
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                        Annuler
+                        </Button>
+                        <Button
+                        type="submit"
+                        className="bg-blue-600 hover:bg-blue-700 shadow-sm"
+                        disabled={isCreatingGoogleEvent || isCreatingLocalEvent}
+                        >
+                        {(isCreatingGoogleEvent || isCreatingLocalEvent) ? (
+                            <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Création...
+                            </>
+                        ) : (
+                            'Créer l\'événement'
+                        )}
+                        </Button>
+                    </DialogFooter>
                     </form>
                 </DialogContent>
-            </Dialog>
+                </Dialog>
 
-            {/* Modale de Détails/Modification d'Événement */}
-            <Dialog open={isDetailModalOpen} onOpenChange={(open) => {
-                if (!open) {
-                    resetModalStates();
-                }
-            }}>
-                <DialogContent className="sm:max-w-[425px] [&>button]:!hidden !top-1/2 !left-1/2 !-translate-x-1/2 !-translate-y-1/2">
-                    <DialogHeader className="pr-8">
-                        <div>
-                            <DialogTitle>{selectedEvent?.summary || selectedEvent?.title || 'Détails de l\'événement'}</DialogTitle>
-                            {selectedEvent?.description && (
-                                <DialogDescription className="text-gray-500 mt-3">
-                                    {selectedEvent.description}
-                                </DialogDescription>
-                            )}
-                        </div>
+                <Dialog open={isDetailModalOpen} onOpenChange={resetModalStates}>
+                <DialogContent className="sm:max-w-[500px] rounded-lg !top-1/2 !left-1/2 !-translate-x-1/2 !-translate-y-1/2 [&>button]:!hidden">
+                    <DialogHeader className="border-b pb-4">
+                    <DialogTitle className="text-xl font-semibold">
+                        {selectedEvent?.summary || selectedEvent?.title || 'Détails de l\'événement'}
+                    </DialogTitle>
+                    {selectedEvent?.description && (
+                        <DialogDescription className="text-gray-600 mt-1">
+                        {selectedEvent.description}
+                        </DialogDescription>
+                    )}
                     </DialogHeader>
 
                     {selectedEvent && (
-                        <div className="absolute top-4 right-4">
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="h-8 w-8 p-0">
-                                        <span className="sr-only">Ouvrir le menu</span>
-                                        <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={handleEditButtonClick}>
-                                        <Edit className="mr-2 h-4 w-4" /> Modifier
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={handleInitiateDelete} className="text-red-600 focus:text-red-600">
-                                        <Trash className="mr-2 h-4 w-4" /> Supprimer
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                    <div className="absolute top-5 right-5">
+                        <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0 text-gray-500 hover:bg-gray-100">
+                                <MoreVertical className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-md shadow-lg">
+                            <DropdownMenuItem
+                            onClick={handleEditButtonClick}
+                            className="cursor-pointer hover:bg-gray-50 px-3 py-2"
+                            >
+                            <Edit className="mr-2 h-4 w-4 text-blue-500" /> Modifier
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="my-1" />
+                            <DropdownMenuItem
+                            onClick={handleInitiateDelete}
+                            className="cursor-pointer hover:bg-gray-50 px-3 py-2 text-red-600"
+                            >
+                            <Trash className="mr-2 h-4 w-4" /> Supprimer
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                    )}
+
+                    {selectedEvent && (isEditingEvent ? (
+                    <form onSubmit={handleUpdateEvent} className="py-4">
+                        <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-summary" className="font-medium">
+                            Titre de l'événement <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                            id="edit-summary"
+                            className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                            value={editForm.summary}
+                            onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })}
+                            placeholder="Ex: Réunion avec client X"
+                            required
+                            />
                         </div>
-                    )}
 
-                    {selectedEvent && (
-                        isEditingEvent ? (
-                            <form onSubmit={handleUpdateEvent} className="space-y-4 py-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-summary">Titre de l'événement <span className="text-red-500">*</span></Label>
-                                    <Input
-                                        id="edit-summary"
-                                        value={editForm.summary}
-                                        onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })}
-                                        placeholder="Ex: Réunion avec client X"
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-description">Description</Label>
-                                    <Input
-                                        id="edit-description"
-                                        value={editForm.description || ''}
-                                        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                                        placeholder="Détails de l'événement..."
-                                    />
-                                </div>
-                                {isGoogleConnected && (
-                                    <div className="space-y-2">
-                                        <Label htmlFor="edit-location">Lieu</Label>
-                                        <Input
-                                            id="edit-location"
-                                            value={editForm.location || ''}
-                                            onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                                            placeholder="Ex: Bureau, Visio, Adresse..."
-                                        />
-                                    </div>
-                                )}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="edit-start_datetime">Début <span className="text-red-500">*</span></Label>
-                                        <Input
-                                            id="edit-start_datetime"
-                                            type="datetime-local"
-                                            value={editForm.start_datetime}
-                                            onChange={(e) => setEditForm({ ...editForm, start_datetime: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="edit-end_datetime">Fin <span className="text-red-500">*</span></Label>
-                                        <Input
-                                            id="edit-end_datetime"
-                                            type="datetime-local"
-                                            value={editForm.end_datetime}
-                                            onChange={(e) => setEditForm({ ...editForm, end_datetime: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-                                </div>
-
-                                <DialogFooter className="flex justify-end gap-2 mt-6">
-                                    <Button variant="outline" onClick={() => setIsEditingEvent(false)} type="button">Annuler</Button>
-                                    <Button type="submit" disabled={isUpdatingGoogleEvent || isUpdatingLocalEvent}>
-                                        {(isUpdatingGoogleEvent || isUpdatingLocalEvent) ? (
-                                            <>
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                Mise à jour...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Edit className="mr-2 h-4 w-4" /> Enregistrer les modifs
-                                            </>
-                                        )}
-                                    </Button>
-                                </DialogFooter>
-                            </form>
-                        ) : (
-                            <div className="space-y-4 py-4">
-                                <p className="text-gray-700">
-                                    <span className="font-semibold">Début :</span>
-                                    {'start_datetime' in selectedEvent
-                                        ? format(new Date(selectedEvent.start_datetime), 'dd/MM/yyyy HH:mm')
-                                        : selectedEvent.start?.dateTime ? format(new Date(selectedEvent.start.dateTime), 'dd/MM/yyyy HH:mm') : selectedEvent.start?.date ? format(new Date(selectedEvent.start.date), 'dd/MM/yyyy') : 'N/A'
-                                    }
-                                </p>
-                                <p className="text-gray-700">
-                                    <span className="font-semibold">Fin :</span>
-                                    {'end_datetime' in selectedEvent
-                                        ? format(new Date(selectedEvent.end_datetime), 'dd/MM/yyyy HH:mm')
-                                        : selectedEvent.end?.dateTime ? format(new Date(selectedEvent.end.dateTime), 'dd/MM/yyyy HH:mm') : selectedEvent.end?.date ? format(new Date(selectedEvent.end.date), 'dd/MM/yyyy') : 'N/A'
-                                    }
-                                </p>
-                                {isGoogleConnected && ('location' in selectedEvent && selectedEvent.location) && (
-                                    <p className="text-gray-600">
-                                        <span className="font-semibold">Lieu :</span> {selectedEvent.location}
-                                    </p>
-                                )}
-                                {isGoogleConnected && ('hangoutLink' in selectedEvent && selectedEvent.hangoutLink) && (
-                                    <a href={selectedEvent.hangoutLink} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline flex items-center text-sm">
-                                        <Link className="mr-2 h-4 w-4" /> Rejoindre la réunion (Meet)
-                                    </a>
-                                )}
-
-                                <DialogFooter className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mt-6 gap-2">
-                                    {isGoogleConnected && ('htmlLink' in selectedEvent && selectedEvent.htmlLink) && (
-                                        <a href={selectedEvent.htmlLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center text-sm order-2 sm:order-1">
-                                            <Link className="mr-2 h-4 w-4" /> Voir sur Google Calendar
-                                        </a>
-                                    )}
-                                    <Button variant="outline" onClick={() => setIsDetailModalOpen(false)} className="order-1 sm:order-2">Fermer</Button>
-                                </DialogFooter>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                            <Label htmlFor="edit-start_datetime" className="font-medium">
+                                Début <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                id="edit-start_datetime"
+                                type="datetime-local"
+                                className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                                value={editForm.start_datetime}
+                                onChange={(e) => setEditForm({ ...editForm, start_datetime: e.target.value })}
+                                required
+                            />
                             </div>
-                        )
-                    )}
-                </DialogContent>
-            </Dialog>
+                            <div className="space-y-2">
+                            <Label htmlFor="edit-end_datetime" className="font-medium">
+                                Fin <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                id="edit-end_datetime"
+                                type="datetime-local"
+                                className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                                value={editForm.end_datetime}
+                                onChange={(e) => setEditForm({ ...editForm, end_datetime: e.target.value })}
+                                required
+                            />
+                            </div>
+                        </div>
 
-            {/* Modale de Confirmation de Suppression */}
-            <AlertDialog open={isDeleteConfirmModalOpen} onOpenChange={setIsDeleteConfirmModalOpen}>
-                <AlertDialogContent className="sm:max-w-[425px] !top-1/2 !left-1/2 !-translate-x-1/2 !-translate-y-1/2">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Êtes-vous absolument sûr ?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Cette action est irréversible. Cela supprimera définitivement votre événement
-                            "<span className="font-bold">{selectedEvent?.summary || selectedEvent?.title || 'cet événement'}</span>" {isGoogleConnected ? 'de Google Calendar.' : 'de votre calendrier local.'}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Annuler</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={confirmDeleteEvent}
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                            disabled={isDeletingGoogleEvent || isDeletingLocalEvent}
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-description" className="font-medium">
+                            Description
+                            </Label>
+                            <textarea
+                            id="edit-description"
+                            rows={3}
+                            className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                            value={editForm.description || ''}
+                            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                            placeholder="Détails de l'événement..."
+                            />
+                        </div>
+
+                        {isGoogleConnected && (
+                            <div className="space-y-2">
+                            <Label htmlFor="edit-location" className="font-medium">
+                                Lieu
+                            </Label>
+                            <Input
+                                id="edit-location"
+                                className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                                value={editForm.location || ''}
+                                onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                                placeholder="Ex: Bureau, Visio, Adresse..."
+                            />
+                            </div>
+                        )}
+                        </div>
+
+                        <DialogFooter className="mt-6 flex justify-end gap-3">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsEditingEvent(false)}
+                            type="button"
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50"
                         >
-                            {(isDeletingGoogleEvent || isDeletingLocalEvent) ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Suppression...
-                                </>
+                            Annuler
+                        </Button>
+                        <Button
+                            type="submit"
+                            className="bg-blue-600 hover:bg-blue-700 shadow-sm"
+                            disabled={isUpdatingGoogleEvent || isUpdatingLocalEvent}
+                        >
+                            {(isUpdatingGoogleEvent || isUpdatingLocalEvent) ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Enregistrement...
+                            </>
                             ) : (
-                                'Supprimer'
+                            'Enregistrer les modifications'
                             )}
-                        </AlertDialogAction>
+                        </Button>
+                        </DialogFooter>
+                    </form>
+                    ) : (
+                    <div className="py-4">
+                        <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                            <CalendarIcon className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
+                            <div>
+                            <p className="text-sm text-gray-500">Date et heure</p>
+                            <p className="text-gray-800">
+                                {format(new Date(editForm.start_datetime), 'dd/MM/yyyy HH:mm')} - {' '}
+                                {format(new Date(editForm.end_datetime), 'dd/MM/yyyy HH:mm')}
+                            </p>
+                            </div>
+                        </div>
+
+                        {isGoogleConnected && editForm.location && (
+                            <div className="flex items-start gap-3">
+                            <MapPin className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
+                            <div>
+                                <p className="text-sm text-gray-500">Lieu</p>
+                                <p className="text-gray-800">{editForm.location}</p>
+                            </div>
+                            </div>
+                        )}
+
+                        {editForm.description && (
+                            <div className="flex items-start gap-3">
+                            <Notebook className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
+                            <div>
+                                <p className="text-sm text-gray-500">Description</p>
+                                <p className="text-gray-800 whitespace-pre-line">{editForm.description}</p>
+                            </div>
+                            </div>
+                        )}
+                        </div>
+
+                        <div className="mt-8 flex flex-col sm:flex-row justify-between gap-3">
+                        <div className="flex gap-2">
+                            {isGoogleConnected && ('hangoutLink' in selectedEvent && selectedEvent.hangoutLink) && (
+                            <a
+                                href={selectedEvent.hangoutLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm px-3 py-1.5 border border-blue-200 rounded-md bg-blue-50"
+                            >
+                                <Video className="mr-2 h-4 w-4" /> Rejoindre la réunion
+                            </a>
+                            )}
+
+                            {isGoogleConnected && ('htmlLink' in selectedEvent && selectedEvent.htmlLink) && (
+                            <a
+                                href={selectedEvent.htmlLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-gray-600 hover:text-gray-800 text-sm px-3 py-1.5 border border-gray-200 rounded-md bg-gray-50"
+                            >
+                                <ExternalLink className="mr-2 h-4 w-4" /> Ouvrir dans Google
+                            </a>
+                            )}
+                        </div>
+
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsDetailModalOpen(false)}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                            Fermer
+                        </Button>
+                        </div>
+                    </div>
+                    ))}
+                </DialogContent>
+                </Dialog>
+
+                <AlertDialog open={isDeleteConfirmModalOpen} onOpenChange={setIsDeleteConfirmModalOpen}>
+                <AlertDialogContent className="sm:max-w-[425px] rounded-lg !top-1/2 !left-1/2 !-translate-x-1/2 !-translate-y-1/2">
+                    <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2 text-lg">
+                        <Trash className="h-5 w-5 text-red-500" />
+                        Confirmer la suppression
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="mt-2 text-gray-600">
+                        Voulez-vous vraiment supprimer définitivement l'événement
+                        <span className="font-semibold text-gray-800 mx-1">
+                        "{selectedEvent?.summary || selectedEvent?.title || 'cet événement'}"?
+                        </span>
+                        <br />
+                        Cette action est irréversible.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    <AlertDialogFooter className="mt-4">
+                    <AlertDialogCancel className="border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-0">
+                        Annuler
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={confirmDeleteEvent}
+                        className="bg-red-600 hover:bg-red-700 focus:ring-red-500 shadow-sm"
+                        disabled={isDeletingGoogleEvent || isDeletingLocalEvent}
+                    >
+                        {(isDeletingGoogleEvent || isDeletingLocalEvent) ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Suppression...
+                        </>
+                        ) : (
+                        'Supprimer définitivement'
+                        )}
+                    </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
-            </AlertDialog>
+                </AlertDialog>
         </AuthenticatedLayout>
     );
 };
