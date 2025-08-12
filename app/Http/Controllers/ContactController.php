@@ -108,6 +108,56 @@ class ContactController extends Controller
     }
 
     /**
+     * Fetch a paginated list of contacts filtered by status for RTK Query.
+     * This is an optimized endpoint for the Kanban board.
+     */
+    public function getContactsByStatus(Request $request, string $status)
+    {
+        Gate::authorize('viewAny', Contact::class);
+
+        // Utilisez `cursor_page` au lieu de `per_page` pour la pagination par curseur
+        $perPage = $request->input('per_page', 15);
+        $perPage = min((int) $perPage, 10000);
+
+        $baseQuery = Contact::query();
+
+        // Apply RBAC filtering for 'sales' role if applicable
+        if ($request->user()->hasRole('sales') && $request->user()->can('view own contacts')) {
+            $baseQuery->where('user_id', $request->user()->id);
+        }
+
+        $contactsQuery = QueryBuilder::for($baseQuery)
+            ->where('status', $status)
+            ->allowedFilters([
+                AllowedFilter::partial('name'),
+                AllowedFilter::exact('email'),
+                AllowedFilter::exact('phone'),
+                AllowedFilter::exact('user_id'),
+                AllowedFilter::callback('search', function (Builder $query, $value) {
+                    $query->where(function ($q) use ($value) {
+                        $q->where('name', 'LIKE', "%{$value}%")
+                        ->orWhere('email', 'LIKE', "%{$value}%")
+                        ->orWhere('phone', 'LIKE', "%{$value}%");
+                    });
+                }),
+            ])
+            ->allowedIncludes([
+                AllowedInclude::relationship('user')
+            ])
+            ->allowedSorts([
+                'name',
+                'email',
+                'created_at',
+            ]);
+
+        // Remplacer `paginate` par `cursorPaginate`
+        $contacts = $contactsQuery->cursorPaginate($perPage);
+
+        return response()->json($contacts);
+    }
+
+
+    /**
      * Store a newly created contact.
      */
     public function store(StoreContactRequest $request)

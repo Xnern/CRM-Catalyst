@@ -26,21 +26,32 @@ export interface GetContactsQueryParams {
     search?: string;
     sort?: string;
     include?: string;
+    cursor?: string;
 }
 
-interface PaginatedApiResponse<T> {
-    current_page: number;
+export interface PaginatedApiResponse<T> {
     data: T[];
-    first_page_url: string;
-    from: number;
-    last_page: number;
-    links: Array<{ url: string | null; label: string; active: boolean }>;
-    next_page_url: string | null;
-    path: string;
-    per_page: number;
-    prev_page_url: string | null;
-    to: number;
-    total: number;
+    links: {
+        first: string;
+        last: string;
+        prev: string | null;
+        next: string | null;
+    };
+    meta: {
+        current_page: number;
+        from: number;
+        last_page: number;
+        links: Array<{
+            url: string | null;
+            label: string;
+            active: boolean;
+        }>;
+        path: string;
+        per_page: number;
+        to: number;
+        total: number;
+    };
+    next_cursor?: string;
 }
 
 function getCookie(name: string): string | null {
@@ -92,6 +103,27 @@ export const api = createApi({
           result
             ? [...result.data.map(({ id }) => ({ type: 'Contact' as const, id })), { type: 'Contact', id: 'LIST' }]
             : [{ type: 'Contact', id: 'LIST' }],
+    }),
+    getContactsByStatus: builder.query<PaginatedApiResponse<Contact>, { status: Contact['status']; per_page?: number; cursor?: string }>({
+        query: ({ status, per_page = 15, cursor }) => {
+            const params = new URLSearchParams();
+            params.append('per_page', per_page.toString());
+            if (cursor) {
+                params.append('cursor', cursor);
+            }
+
+            return {
+                url: `/contacts/by-status/${status}`,
+                params: params,
+            };
+        },
+        providesTags: (result, error, { status }) =>
+            result
+                ? [
+                    ...result.data.map(({ id }) => ({ type: 'Contact' as const, id })),
+                    { type: 'Contact', id: 'LIST', status },
+                ]
+                : [{ type: 'Contact', id: 'LIST', status }],
     }),
     addContact: builder.mutation<Contact, Partial<Contact>>({
       query: (newContact) => ({
@@ -198,6 +230,7 @@ export const api = createApi({
 // Export RTK Query hooks for each endpoint
 export const {
   useGetContactsQuery,
+  useGetContactsByStatusQuery,
   useLazyGetContactsQuery,
   useAddContactMutation,
   useUpdateContactMutation,

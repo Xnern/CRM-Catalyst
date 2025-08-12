@@ -70,6 +70,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('contacts', ContactController::class);
     Route::put('/contacts/{contact}/status', [ContactController::class, 'updateStatus']);
+    Route::get('/contacts/by-status/{status}', [ContactController::class, 'getContactsByStatus']);
 
     Route::prefix('google-calendar')->group(function () {
         Route::post('/logout', [GoogleAuthController::class, 'logout'])->name('google.logout'); // NOUVELLE ROUTE
