@@ -86,4 +86,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/events/local/{event}', [LocalCalendarEventsController::class, 'update']);
     Route::delete('/events/local/{event}', [LocalCalendarEventsController::class, 'destroy']);
 
+    // Route for company
+    Route::get('/companies', [CompaniesController::class, 'index']);
+    Route::post('/companies', [CompaniesController::class, 'store']);
+    Route::get('/companies/{company}', [CompaniesController::class, 'show']);
+    Route::put('/companies/{company}', [CompaniesController::class, 'update']);
+    Route::delete('/companies/{company}', [CompaniesController::class, 'destroy']);
+    
+    Route::get('/companies/{company}/contacts', [CompaniesController::class, 'contacts']);
+
 });
