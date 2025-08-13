@@ -1,4 +1,3 @@
-// resources/js/Components/Kanban/KanbanColumn.tsx
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { Contact } from '@/types/Contact';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/ui/card';
@@ -8,8 +7,12 @@ import { useDrop, useDrag } from 'react-dnd';
 import { useGetContactsByStatusQuery } from '@/services/api';
 import { Button } from '@/Components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/Components/ui/avatar';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/Components/ui/dropdown-menu';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
+} from '@/Components/ui/dropdown-menu';
 
+// Drag-and-drop item type constant used by react-dnd
 const ItemTypes = { CONTACT: 'contact' };
 
 interface KanbanColumnProps {
@@ -27,15 +30,23 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   status, perPage, columnHeight,
   onDropContact, onEditContact, onDeleteContact, onMoveContact, kanbanStatuses
 }) => {
+
+  /**
+   * React DnD "drop target" configuration for the column.
+   * Allows dropping a CONTACT card into this column to change its status.
+   */
   const [{ isOver }, drop] = useDrop(() => ({
-    accept: 'contact',
+    accept: ItemTypes.CONTACT,
     drop: (item: { id: number; currentStatus: Contact['status'] }) => {
       if (item.currentStatus !== status) onDropContact(item.id, status);
     },
     collect: monitor => ({ isOver: monitor.isOver() })
   }), [status, onDropContact]);
 
-  // Map de couleurs par statut (fond en-tête + légère teinte de fond colonne)
+  /**
+   * Status-based color palette used for header background,
+   * text color, column background, and border color.
+   */
   const palette = useMemo(() => {
     switch (status) {
       case 'Nouveau': return { headerBg: 'bg-blue-50', headerText: 'text-blue-800', bodyBg: 'bg-blue-50/40', border: 'border-blue-200' };
@@ -48,11 +59,27 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
     }
   }, [status]);
 
-  // Cursor + accumulation locale
+  /**
+   * Local pagination state: 'cursor' for infinite scroll
+   * and 'items' array to accumulate all loaded contacts across pages.
+   */
   const [cursor, setCursor] = useState<string | null>(null);
   const [items, setItems] = useState<Contact[]>([]);
-  const { data, isFetching, isLoading } = useGetContactsByStatusQuery({ status, per_page: perPage, cursor });
 
+  /**
+   * RTK Query call to fetch contacts for this column/status
+   * with pagination cursor.
+   */
+  const { data, isFetching, isLoading } = useGetContactsByStatusQuery({
+    status,
+    per_page: perPage,
+    cursor
+  });
+
+  /**
+   * Synchronize local state with API results.
+   * First page replaces items; subsequent pages merge without duplicates.
+   */
   useEffect(() => {
     if (!data?.data) return;
     if (cursor === null) {
@@ -68,13 +95,17 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
 
   const hasMore = Boolean(data?.next_cursor);
 
-  // Détection bas
+  /**
+   * Scroll listener to detect when the user is near the bottom of the column,
+   * triggering loading of the next page if available.
+   */
   const scrollRef = useRef<HTMLDivElement>(null);
   const handleScroll = useCallback(() => {
     if (!hasMore || isFetching) return;
     const el = scrollRef.current;
     if (!el) return;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 150) {
+      // Load next page when near bottom
       setCursor(data?.next_cursor || null);
     }
   }, [hasMore, isFetching, data?.next_cursor]);
@@ -85,14 +116,19 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
     return () => el?.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
-  // Carte (KanbanCard) interne inchangée sauf marges/hover soft
+  /**
+   * Draggable contact card component for this column.
+   * Supports edit/delete/move actions via dropdown menu.
+   */
   const KanbanCard: React.FC<{ contact: Contact }> = ({ contact }) => {
     const [{ isDragging }, drag] = useDrag(() => ({
       type: ItemTypes.CONTACT,
       item: { id: contact.id, currentStatus: contact.status },
       collect: (m) => ({ isDragging: m.isDragging() }),
     }), [contact]);
-    const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase();
+    const getInitials = (name: string) =>
+      name.split(' ').map(n => n[0]).join('').toUpperCase();
+
     return (
       <Card
         ref={drag}
@@ -124,6 +160,8 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
             )}
           </div>
         </div>
+
+        {/* Action menu for edit/move/delete */}
         <div className="absolute top-2 right-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -166,6 +204,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
       `}
       aria-label={`Colonne ${status}`}
     >
+      {/* Column header with title and total count */}
       <CardHeader className={`py-3 px-4 border-b ${palette.headerBg}`}>
         <div className="flex justify-between items-center">
           <CardTitle className={`text-md font-bold ${palette.headerText}`}>{status}</CardTitle>
@@ -174,6 +213,8 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
           </Badge>
         </div>
       </CardHeader>
+
+      {/* Body with scrollable cards area */}
       <CardContent className={`p-3 flex-1 overflow-hidden ${palette.bodyBg}`}>
         <div
           ref={scrollRef}
@@ -181,8 +222,9 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
           style={{ maxHeight: `${columnHeight}px` }}
           role="list"
         >
-          <div className="space-y-3"> {/* ✅ espace vertical entre cartes */}
+          <div className="space-y-3">
             {items.length === 0 && !isLoading ? (
+              /* Empty state placeholder when column has no cards */
               <div className="flex flex-col items-center justify-center py-8 text-gray-400">
                 <ArrowLeft className="mb-2" /> Glissez-déposez des contacts ici
               </div>
@@ -194,6 +236,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
               ))
             )}
 
+            {/* Bottom loader / end-of-list indicators */}
             {isFetching && <div className="text-center text-sm text-gray-500 py-2">Chargement...</div>}
             {!isFetching && !hasMore && items.length > 0 && (
               <div className="text-center text-xs text-gray-400 py-2">Fin de la liste</div>

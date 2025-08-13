@@ -1,5 +1,3 @@
-// resources/js/Pages/Calendar/CalendarPage.tsx
-
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Head } from '@inertiajs/react';
 import { PageProps } from '@/types';
@@ -65,7 +63,6 @@ const formatDatetimeLocal = (date: Date): string => {
     return format(date, "yyyy-MM-dd'T'HH:mm");
 };
 
-// Interface pour les événements FullCalendar
 export interface FullCalendarEvent {
     id: string;
     title: string;
@@ -80,7 +77,6 @@ export interface FullCalendarEvent {
     };
 }
 
-// Mapper les événements Google Calendar vers le format FullCalendar
 const mapGoogleEventsToFullCalendar = (googleEvents: GoogleCalendarEvent[]): FullCalendarEvent[] => {
     if (!Array.isArray(googleEvents)) return [];
     return googleEvents.map(event => {
@@ -125,7 +121,6 @@ const mapGoogleEventsToFullCalendar = (googleEvents: GoogleCalendarEvent[]): Ful
     });
 };
 
-// Mapper les événements locaux vers le format FullCalendar
 const mapLocalEventsToFullCalendar = (localEvents: LocalCalendarEvent[]): FullCalendarEvent[] => {
     if (!Array.isArray(localEvents)) {
         return [];
@@ -168,19 +163,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
     const [deleteGoogleEvent, { isLoading: isDeletingGoogleEvent }] = useDeleteGoogleCalendarEventMutation();
     const [logoutGoogleCalendar] = useLogoutGoogleCalendarMutation();
 
-    // NOUVEAU: Hooks pour les événements locaux
+    // Hooks for Local Calendar
     const [createLocalEvent, { isLoading: isCreatingLocalEvent }] = useCreateLocalCalendarEventMutation();
     const [updateLocalEvent, { isLoading: isUpdatingLocalEvent }] = useUpdateLocalCalendarEventMutation();
     const [deleteLocalEvent, { isLoading: isDeletingLocalEvent }] = useDeleteLocalCalendarEventMutation();
 
     const isGoogleConnected = isGoogleEventsSuccess;
 
-    // Logique pour déterminer les événements à afficher.
+    // Logic to handle Google authentication redirect
     const eventsToDisplay: FullCalendarEvent[] = isGoogleConnected
         ? mapGoogleEventsToFullCalendar(googleEvents || [])
         : mapLocalEventsToFullCalendar(localEvents || []);
 
-    // États de chargement et d'erreur consolidés pour une meilleure lisibilité
+    // State for creating and editing events
     const isLoading = isGoogleEventsLoading || isLocalEventsLoading;
     const isError = isGoogleEventsError || isLocalEventsError;
 
@@ -362,8 +357,6 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
             });
         } else {
             const localEvent = event as LocalCalendarEvent;
-            // Correction pour les événements locaux :
-            // Nous devons nettoyer la chaîne de caractères ISO 8601 pour le champ datetime-local
             const cleanedStart = localEvent.start_datetime.split('.')[0].replace('Z', '');
             const cleanedEnd = localEvent.end_datetime.split('.')[0].replace('Z', '');
 
@@ -380,7 +373,7 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
         setIsDetailModalOpen(true);
     };
 
-    // Fonction de réinitialisation des états des modales
+    // Function to reset modal states
     const resetModalStates = () => {
         setIsDetailModalOpen(false);
         setIsEditingEvent(false);
@@ -463,7 +456,7 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
     };
 
     const handleEditButtonClick = () => {
-        if (!selectedEvent) return; // Sécurité
+        if (!selectedEvent) return;
         setIsEditingEvent(true);
     };
 
@@ -550,7 +543,7 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
         setIsCreateModalOpen(true);
     };
 
-    // Logique pour le bouton "Créer un événement" et le menu déroulant
+    // Logic to render calendar buttons based on Google connection status
     const renderCalendarButtons = () => {
         if (isGoogleConnected) {
             return (
