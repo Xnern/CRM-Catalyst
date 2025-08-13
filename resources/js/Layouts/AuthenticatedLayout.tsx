@@ -214,13 +214,14 @@ export default function Authenticated({
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, route: 'dashboard' },
         { id: 'contacts', label: 'Contacts', icon: <Contact size={20} />, route: 'contacts.indexInertia' },
         { id: 'companies', label: 'Entreprises', icon: <Building2 size={20} />, route: 'contacts.index' },
-        { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'contacts.index' },
+        { id: 'kanban', label: 'Kanban', icon: <Building2 size={20} />, route: 'kanban.indexInertia' },
+        { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'calendar.indexInertia' },
         { id: 'documents', label: 'Documents', icon: <FileText size={20} />, route: 'contacts.index' },
         { id: 'settings', label: 'Paramètres', icon: <Settings size={20} />, route: 'contacts.index' },
     ];
 
     return (
-        <div className="min-h-screen bg-background text-foreground flex font-inter">
+        <div className="min-h-screen bg-background text-foreground flex font-inter z-50">
             {/* Sidebar Desktop */}
             <div
                 className={`hidden md:flex flex-col h-screen fixed bg-card border-r border-border transition-all duration-300 ease-in-out ${
@@ -435,7 +436,7 @@ export default function Authenticated({
             </div>
 
             {/* Main Content Area */}
-            <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out ${
+            <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out overflow-x-hidden ${
                 sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'
             }`}>
                 {/* Top Navigation Bar (visible on mobile only) */}

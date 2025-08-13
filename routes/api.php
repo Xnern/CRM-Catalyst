@@ -4,8 +4,11 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\GoogleController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\GoogleAuthController;
 use Illuminate\Validation\ValidationException;
+use App\Http\Controllers\LocalCalendarEventsController;
 
 // Route pour obtenir le CSRF cookie (important pour les SPAs)
 Route::get('/sanctum/csrf-cookie', function (Request $request) {
@@ -66,4 +69,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     Route::apiResource('contacts', ContactController::class);
+    Route::put('/contacts/{contact}/status', [ContactController::class, 'updateStatus']);
+    Route::get('/contacts/by-status/{status}', [ContactController::class, 'getContactsByStatus']);
+
+    Route::prefix('google-calendar')->group(function () {
+        Route::post('/logout', [GoogleAuthController::class, 'logout'])->name('google.logout'); // NOUVELLE ROUTE
+        Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirectToGoogle'])->name('google.redirect');
+        Route::get('/events', [GoogleController::class, 'getGoogleCalendarEvents']);
+        Route::post('/events', [GoogleController::class, 'createGoogleCalendarEvent']);
+        Route::put('/events/{eventId}', [GoogleController::class, 'updateGoogleCalendarEvent']);
+        Route::delete('/events/{eventId}', [GoogleController::class, 'deleteGoogleCalendarEvent']);
+    });
+
+    Route::get('/events/local', [LocalCalendarEventsController::class, 'getLocalEvents']);
+    Route::post('/events/local', [LocalCalendarEventsController::class, 'store']);
+    Route::put('/events/local/{event}', [LocalCalendarEventsController::class, 'update']);
+    Route::delete('/events/local/{event}', [LocalCalendarEventsController::class, 'destroy']);
+
 });
