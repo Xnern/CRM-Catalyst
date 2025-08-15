@@ -8,6 +8,7 @@ use App\Http\Controllers\GoogleController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\GoogleAuthController;
 use Illuminate\Validation\ValidationException;
+use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\LocalCalendarEventsController;
 
 // Route pour obtenir le CSRF cookie (important pour les SPAs)
@@ -87,12 +88,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/events/local/{event}', [LocalCalendarEventsController::class, 'destroy']);
 
     // Route for company
-    Route::get('/companies', [CompaniesController::class, 'index']);
-    Route::post('/companies', [CompaniesController::class, 'store']);
-    Route::get('/companies/{company}', [CompaniesController::class, 'show']);
-    Route::put('/companies/{company}', [CompaniesController::class, 'update']);
-    Route::delete('/companies/{company}', [CompaniesController::class, 'destroy']);
+    Route::get('/companies', [CompanyController::class, 'index']);
+    Route::post('/companies', [CompanyController::class, 'store']);
+    Route::get('/companies/{company}', [CompanyController::class, 'show']);
+    Route::put('/companies/{company}', [CompanyController::class, 'update']);
+    Route::delete('/companies/{company}', [CompanyController::class, 'destroy']);
     
-    Route::get('/companies/{company}/contacts', [CompaniesController::class, 'contacts']);
+    Route::get('/companies/{company}/contacts', [CompanyController::class, 'contacts']);
 
 });

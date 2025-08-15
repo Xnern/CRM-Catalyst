@@ -5,6 +5,8 @@ import { BaseQueryFn, FetchBaseQueryMeta } from '@reduxjs/toolkit/query/react';
 import { Contact } from '@/types/Contact';
 import { GoogleCalendarEvent, CreateCalendarEventPayload } from '@/types/GoogleCalendarEvent';
 import { LocalCalendarEvent, LocalEventPayload, UpdateLocalEventPayload } from '@/types/LocalCalendarEvent';
+import { Company } from '@/types/Company';
+
 
 // --- Types & Interfaces ---
 
@@ -108,7 +110,7 @@ export const api = createApi({
   }) as BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError, {}, FetchBaseQueryMeta>,
 
   // Tag types used for automatic cache invalidation
-  tagTypes: ['Contact', 'GoogleCalendarEvent', 'LocalCalendarEvent'],
+  tagTypes: ['Contact', 'Company', 'GoogleCalendarEvent', 'LocalCalendarEvent'],
 
   // Endpoint definitions
   endpoints: (builder) => ({
@@ -283,7 +285,51 @@ export const api = createApi({
         }),
         invalidatesTags: ['LocalCalendarEvent'],
     }),
-  }),
+
+    // ---- Company Endpoints --
+    getCompanies: builder.query<PaginatedApiResponse<Company>,{ page?: number; per_page?: number; search?: string; status?: string; owner_id?: number; sort?: string }>({
+        query: ({ page = 1, per_page = 15, search = '', status = '', owner_id, sort = '-created_at' }) => {
+            const params = new URLSearchParams();
+            params.append('page', String(page));
+            params.append('per_page', String(per_page));
+            if (search) params.append('search', search);
+            if (status) params.append('status', status);
+            if (typeof owner_id === 'number') params.append('owner_id', String(owner_id));
+            if (sort) params.append('sort', sort);
+            return { url: '/companies', params };
+        },
+        providesTags: (result) =>
+            result
+            ? [
+                ...result.data.map(({ id }) => ({ type: 'Company' as const, id })),
+                { type: 'Company', id: 'LIST' },
+                ]
+            : [{ type: 'Company', id: 'LIST' }],
+    }),
+
+    createCompany: builder.mutation<Company, Partial<Company>>({
+        query: (body) => ({ url: '/companies', method: 'POST', body }),
+        invalidatesTags: [{ type: 'Company', id: 'LIST' }],
+    }),
+
+    updateCompany: builder.mutation<Company, Partial<Company> & { id: number }>({
+        query: ({ id, ...patch }) => ({ url: `/companies/${id}`, method: 'PUT', body: patch }),
+        invalidatesTags: (result, error, { id }) => [
+          { type: 'Company', id },
+          { type: 'Company', id: 'LIST' },
+        ],
+    }),
+
+    deleteCompany: builder.mutation<void, number>({
+        query: (id) => ({ url: `/companies/${id}`, method: 'DELETE' }),
+        invalidatesTags: [{ type: 'Company', id: 'LIST' }],
+    }),
+      
+    getCompany: builder.query<Company, number>({
+        query: (id) => ({ url: `/companies/${id}` }),
+        providesTags: (result) => (result ? [{ type: 'Company', id: result.id }] : []),
+    }),
+  })
 });
 
 // --- Export generated RTK Query hooks for usage in components ---
@@ -307,4 +353,10 @@ export const {
   useCreateLocalCalendarEventMutation,
   useUpdateLocalCalendarEventMutation,
   useDeleteLocalCalendarEventMutation,
+
+  useGetCompaniesQuery,
+  useGetCompanyQuery,
+  useCreateCompanyMutation,
+  useUpdateCompanyMutation,
+  useDeleteCompanyMutation,
 } = api;

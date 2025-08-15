@@ -1,18 +1,33 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
+use Inertia\Inertia;
 use App\Models\Company;
 use Illuminate\Http\Request;
-use App\Http\Requests\StoreCompanyRequest;
-use App\Http\Requests\UpdateCompanyRequest;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Companies\StoreCompanyRequest;
+use App\Http\Requests\Companies\UpdateCompanyRequest;
 
-class CompaniesController extends Controller
+class CompanyController extends Controller
 {
-    public function __construct()
+
+    /**
+     * Render the Company list page (Inertia React).
+     */
+    public function indexInertia()
     {
-        $this->authorizeResource(Company::class, 'company');
+        return Inertia::render('Companies/Index');
+    }
+
+    /**
+     * Render the Company details page (Inertia React).
+     */
+    public function showInertia($id)
+    {
+        return Inertia::render('Companies/Show', [
+            'id' => (int) $id
+        ]);
     }
 
     public function index(Request $request)
