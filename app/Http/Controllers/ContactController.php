@@ -43,7 +43,6 @@ class ContactController extends Controller
     public function index(Request $request)
     {
         // Maps frontend search/filter parameters to Spatie Query Builder's 'filter' format.
-        // Example: 'search=keyword' becomes 'filter[search]=keyword'.
         $filterParams = [];
         $spatieCompatibleParams = ['search', 'name', 'email', 'phone', 'user_id'];
 
@@ -58,50 +57,53 @@ class ContactController extends Controller
 
         $request->merge([
             'filter' => $mergedFilters,
-            // ...array_fill_keys($spatieCompatibleParams, null) // Optionally unset original params
         ]);
 
         Gate::authorize('viewAny', Contact::class);
 
-        $perPage = $request->input('per_page', 15);
+        $perPage = (int) $request->input('per_page', 15);
         $perPage = min($perPage, 100); // Limit per_page to a reasonable maximum
 
         $baseQuery = Contact::query();
 
-        // Apply RBAC filtering for 'sales' role if applicable
+        // Scope: limite aux non assignés si demandé
+        $scope = (string) $request->input('scope', '');
+        if ($scope === 'unassigned') {
+            $baseQuery->whereNull('company_id');
+        }
+        // si $scope === 'all' ou vide, pas de filtre ici
+
+        // RBAC sales: ne voir que ses propres contacts
         if ($request->user()->hasRole('sales') && $request->user()->can('view own contacts')) {
             $baseQuery->where('user_id', $request->user()->id);
         }
 
-        // Build query using Spatie Query Builder
+        // Spatie Query Builder
         $contactsQuery = QueryBuilder::for($baseQuery)
             ->allowedFilters([
                 AllowedFilter::partial('name'),
                 AllowedFilter::exact('email'),
                 AllowedFilter::exact('phone'),
                 AllowedFilter::exact('user_id'),
-
-                // Global search filter: searches across name, email, phone
+                // Optionnel: autoriser le filtrage explicite company_id=null depuis le front
+                // AllowedFilter::exact('company_id'),
                 AllowedFilter::callback('search', function (Builder $query, $value) {
-                    $query->where(function ($q) use ($value) { // Group OR clauses
+                    $query->where(function ($q) use ($value) {
                         $q->where('name', 'LIKE', "%{$value}%")
                         ->orWhere('email', 'LIKE', "%{$value}%")
                         ->orWhere('phone', 'LIKE', "%{$value}%");
                     });
                 }),
             ])
-            // Allow including 'user' relationship
             ->allowedIncludes([
                 AllowedInclude::relationship('user')
             ])
-            // Allow sorting by specified fields
             ->allowedSorts([
                 'name',
                 'email',
                 'created_at',
             ]);
 
-        // Execute the query with pagination
         $contacts = $contactsQuery->paginate($perPage);
 
         return response()->json($contacts);

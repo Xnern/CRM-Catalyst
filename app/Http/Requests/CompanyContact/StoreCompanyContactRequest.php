@@ -1,22 +1,21 @@
 <?php
 
-namespace App\Http\Requests\Contacts;
+namespace App\Http\Requests\CompanyContact;
 
 use App\Enums\ContactStatus;
 use Illuminate\Validation\Rule;
+use App\Traits\CleansPhoneNumbers;
 use Illuminate\Foundation\Http\FormRequest;
-use App\Traits\CleansPhoneNumbers; // Importer le trait
 
-class UpdateContactRequest extends FormRequest
+class StoreCompanyContactRequest extends FormRequest
 {
-    use CleansPhoneNumbers; // Utiliser le trait
+    use CleansPhoneNumbers;
 
     /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
     {
-        $contact = $this->route('contact');
         return true;
     }
 
@@ -25,10 +24,18 @@ class UpdateContactRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        $cleanedPhone = $this->cleanPhoneNumber($this->input('phone'));
+
+        $latitude = $this->input('latitude');
+        $longitude = $this->input('longitude');
+
+        $parsedLatitude = is_numeric($latitude) ? (float) $latitude : null;
+        $parsedLongitude = is_numeric($longitude) ? (float) $longitude : null;
+
         $this->merge([
-            'phone' => $this->cleanPhoneNumber($this->input('phone')),
-            'latitude' => filter_var($this->input('latitude'), FILTER_VALIDATE_FLOAT),
-            'longitude' => filter_var($this->input('longitude'), FILTER_VALIDATE_FLOAT),
+            'phone' => $cleanedPhone,
+            'latitude' => $parsedLatitude,
+            'longitude' => $parsedLongitude,
         ]);
     }
 
@@ -37,22 +44,14 @@ class UpdateContactRequest extends FormRequest
      */
     public function rules(): array
     {
-        $contactId = $this->route('contact')->id;
-
         return [
             'name' => ['required', 'string', 'max:50'],
-            'email' => [
-                'nullable',
-                'string',
-                'email',
-                'max:100',
-                Rule::unique('contacts', 'email')->ignore($contactId),
-            ],
-            'status' => ['sometimes', 'string', Rule::in(ContactStatus::values())],
+            'email' => ['nullable', 'string', 'email', 'max:255', 'unique:contacts,email'],
             'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?\d{10,15}$/'],
             'address' => ['nullable', 'string', 'max:255'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'status' => ['sometimes', 'string', Rule::in(ContactStatus::values())],
         ];
     }
 
@@ -64,11 +63,9 @@ class UpdateContactRequest extends FormRequest
         return [
             'name.required' => 'Le nom du contact est obligatoire.',
             'name.max' => 'Le nom ne doit pas dépasser :max caractères.',
-            'status.string' => 'Le statut doit être une chaîne de caractères.',
-            'status.in' => 'Le statut fourni n\'est pas valide. Veuillez choisir',
             'email.email' => 'Veuillez entrer une adresse email valide.',
             'email.max' => "L'email ne doit pas dépasser :max caractères.",
-            'email.unique' => 'Cet e-mail est déjà utilisé par un autre contact.',
+            'email.unique' => 'Cet e-mail est déjà utilisé.',
             'phone.regex' => 'Le numéro de téléphone n\'est pas valide (ex: +33612345678).',
             'phone.max' => 'Le numéro de téléphone ne doit pas dépasser :max caractères.',
             'latitude.numeric' => 'La latitude doit être un nombre.',

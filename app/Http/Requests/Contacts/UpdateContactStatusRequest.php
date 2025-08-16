@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Contacts;
 
+use App\Enums\ContactStatus;
 use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -23,12 +24,7 @@ class UpdateContactStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => [
-                'required',
-                'string',
-                // Define your specific allowed statuses here
-                Rule::in(['Nouveau', 'Qualification', 'Proposition envoyée', 'Négociation', 'Converti', 'Perdu']),
-            ],
+            'status' => ['required', 'string', Rule::in(ContactStatus::values())],
         ];
     }
 
