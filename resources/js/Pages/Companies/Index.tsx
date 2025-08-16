@@ -8,7 +8,6 @@ import {
   useUpdateCompanyMutation,
   useDeleteCompanyMutation,
   useGetCompanyQuery,
-  // nouveau hook (à créer côté api.ts)
   useGetCompanyStatusOptionsQuery,
 } from '@/services/api';
 import { Button } from '@/Components/ui/button';
@@ -33,7 +32,7 @@ import CompanyAddressMapSplit from '@/Components/Companies/CompanyAddressMapSpli
 
 type Props = { auth: any };
 
-// Palette badges par statut (par label/valeur identique ici)
+// Badges statut entreprise
 const badgeClassesForStatus = (status?: string) => {
   switch (status) {
     case 'Client':
@@ -62,7 +61,7 @@ export default function CompaniesIndex({ auth }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  // Fallback local si l’API meta n’est pas prête
+  // Fallback meta statuts
   const fallbackCompanyStatuses = useMemo(
     () => [
       { value: 'Prospect', label: 'Prospect' },
@@ -72,7 +71,7 @@ export default function CompaniesIndex({ auth }: Props) {
     []
   );
 
-  // Chargement des statuts dynamiques (nécessite d’ajouter l’endpoint côté api.ts)
+  // Meta statuts dynamiques (si dispo)
   const { data: companyStatusesRes } = useGetCompanyStatusOptionsQuery?.() ?? { data: undefined as any };
   const companyStatuses: { value: string; label: string }[] = useMemo(() => {
     const remote = companyStatusesRes?.data ?? [];
@@ -80,13 +79,13 @@ export default function CompaniesIndex({ auth }: Props) {
     return fallbackCompanyStatuses;
   }, [companyStatusesRes?.data, fallbackCompanyStatuses]);
 
+  // Form édition/création
   const [form, setForm] = useState<Partial<Company> & { latitude?: number | null; longitude?: number | null }>({
     name: '',
     domain: '',
     industry: '',
     size: '',
     status: 'Prospect',
-    owner_id: null,
     address: '',
     city: '',
     zipcode: '',
@@ -123,7 +122,6 @@ export default function CompaniesIndex({ auth }: Props) {
       industry: '',
       size: '',
       status: companyStatuses[0]?.value ?? 'Prospect',
-      owner_id: null,
       address: '',
       city: '',
       zipcode: '',
@@ -144,7 +142,6 @@ export default function CompaniesIndex({ auth }: Props) {
       industry: c.industry ?? '',
       size: c.size ?? '',
       status: c.status,
-      owner_id: c.owner_id,
       address: c.address ?? '',
       city: c.city ?? '',
       zipcode: c.zipcode ?? '',
@@ -219,7 +216,7 @@ export default function CompaniesIndex({ auth }: Props) {
                   />
                 </div>
 
-                {/* Filtre statut: options dynamiques + entrée "Tous" */}
+                {/* Filtre statut */}
                 <Select value={statut || 'tous'} onValueChange={(v) => { setStatut(v === 'tous' ? '' : v); setPage(1); }}>
                   <SelectTrigger className="w-40"><SelectValue placeholder="Statut" /></SelectTrigger>
                   <SelectContent>
@@ -230,6 +227,7 @@ export default function CompaniesIndex({ auth }: Props) {
                   </SelectContent>
                 </Select>
 
+                {/* Tri */}
                 <Select value={tri} onValueChange={(v) => { setTri(v); setPage(1); }}>
                   <SelectTrigger className="w-48"><SelectValue placeholder="Tri" /></SelectTrigger>
                   <SelectContent>
@@ -305,7 +303,6 @@ export default function CompaniesIndex({ auth }: Props) {
                         </span>
                       </td>
                       <td className="px-4 py-2">{(c as any).contacts_count ?? 0}</td>
-
                       <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5">
                           <Button
@@ -417,16 +414,17 @@ export default function CompaniesIndex({ auth }: Props) {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm" className="gap-1" onClick={() => ouvrirEdition(detailsApi ?? selection)}>
+                          <Button variant="outline" size="sm" className="gap-1" onClick={() => ouvrirEdition((detailsApi ?? selection) as Company)}>
                             <Pencil className="h-4 w-4" />
                             Modifier
                           </Button>
-                          <Button variant="destructive" size="sm" className="gap-1" onClick={() => demanderSuppression(detailsApi ?? selection)}>
+                          <Button variant="destructive" size="sm" className="gap-1" onClick={() => demanderSuppression((detailsApi ?? selection) as Company)}>
                             <Trash2 className="h-4 w-4" />
                             Supprimer
                           </Button>
                         </div>
                       </div>
+
                       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                           <div className="text-xs text-gray-500">Secteur</div>
@@ -438,13 +436,14 @@ export default function CompaniesIndex({ auth }: Props) {
                         </div>
                         <div>
                           <div className="text-xs text-gray-500">Statut</div>
-                          <div className="text-sm">{detailsApi?.status ?? selection.status}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500">Propriétaire (ID)</div>
-                          <div className="text-sm">{detailsApi?.owner_id ?? selection.owner_id ?? '-'}</div>
+                          <div className="text-sm">
+                            <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', badgeClassesForStatus(detailsApi?.status ?? selection.status)].join(' ')}>
+                              {detailsApi?.status ?? selection.status}
+                            </span>
+                          </div>
                         </div>
                       </div>
+
                       <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
                           <div className="text-xs text-gray-500">Adresse</div>
@@ -463,6 +462,7 @@ export default function CompaniesIndex({ auth }: Props) {
                           <div className="text-sm">{detailsApi?.country ?? selection.country ?? '-'}</div>
                         </div>
                       </div>
+
                       <div className="mt-4">
                         <div className="text-xs text-gray-500">Notes</div>
                         <div className="text-sm whitespace-pre-wrap">
@@ -470,6 +470,7 @@ export default function CompaniesIndex({ auth }: Props) {
                         </div>
                       </div>
                     </div>
+
                     <div className="rounded-md border p-4 bg-white mt-4">
                       <div className="text-sm text-gray-700">
                         Besoin de plus de détails ? Ouvrir la page dédiée (Show).
@@ -507,11 +508,34 @@ export default function CompaniesIndex({ auth }: Props) {
                   <DialogDescription>Saisissez les informations principales.</DialogDescription>
                 </DialogHeader>
               </div>
+
               <div
                 className="px-6 py-4"
                 style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}
               >
                 <form id="company-edit-form" onSubmit={soumettre} className="space-y-4">
+                  {/* Statut + badge (prévisualisation) */}
+                  <div className="flex flex-col space-y-1">
+
+                    <div className="flex items-center justify-between">
+                        <label className="text-sm text-gray-700">Statut</label>
+                        <span
+                        className={[
+                            'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                            badgeClassesForStatus(form.status as string),
+                        ].join(' ')}
+                        >
+                        {form.status ?? '—'}
+                        </span>
+                    </div>
+                    <Select value={(form.status as string) ?? (companyStatuses[0]?.value ?? 'Prospect')} onValueChange={(v) => setForm((f) => ({ ...f, status: v as Company['status'] }))}>
+                        <SelectTrigger><SelectValue placeholder="Sélectionner un statut" /></SelectTrigger>
+                        <SelectContent>
+                        {companyStatuses.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="text-sm text-gray-700">Nom</label>
@@ -528,19 +552,6 @@ export default function CompaniesIndex({ auth }: Props) {
                     <div>
                       <label className="text-sm text-gray-700">Taille</label>
                       <Input value={form.size ?? ''} onChange={(e) => setForm((f) => ({ ...f, size: e.target.value }))} placeholder="ex: 11-50" />
-                    </div>
-                    <div>
-                      <label className="text-sm text-gray-700">Statut</label>
-                      <Select value={(form.status as string) ?? (companyStatuses[0]?.value ?? 'Prospect')} onValueChange={(v) => setForm((f) => ({ ...f, status: v as Company['status'] }))}>
-                        <SelectTrigger><SelectValue placeholder="Sélectionner un statut" /></SelectTrigger>
-                        <SelectContent>
-                          {companyStatuses.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-sm text-gray-700">ID Propriétaire</label>
-                      <Input type="number" value={form.owner_id ?? ''} onChange={(e) => setForm((f) => ({ ...f, owner_id: e.target.value ? Number(e.target.value) : null }))} placeholder="ex: 1" />
                     </div>
                   </div>
 
@@ -566,6 +577,7 @@ export default function CompaniesIndex({ auth }: Props) {
                   </div>
                 </form>
               </div>
+
               <div
                 className="px-6 py-3"
                 style={{ flex: '0 0 auto', background: 'white', borderTop: '1px solid rgba(0,0,0,0.06)' }}

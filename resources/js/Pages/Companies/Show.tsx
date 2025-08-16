@@ -101,13 +101,12 @@ export default function CompanyShow({ auth, id }: Props) {
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   // Company edit form + errors
-  const [form, setForm] = useState<Partial<Company> & SplitAddress & { owner_id: number | null }>({
+  const [form, setForm] = useState<Partial<Company> & SplitAddress>({
     name: '',
     domain: '',
     industry: '',
     size: '',
     status: 'Prospect',
-    owner_id: null,
     address: '',
     city: '',
     zipcode: '',
@@ -158,7 +157,6 @@ export default function CompanyShow({ auth, id }: Props) {
         industry: data.industry ?? '',
         size: data.size ?? '',
         status: data.status,
-        owner_id: (data as any).owner_id ?? data.owner?.id ?? null,
         address: data.address ?? '',
         city: data.city ?? '',
         zipcode: data.zipcode ?? '',
@@ -193,7 +191,7 @@ export default function CompanyShow({ auth, id }: Props) {
         setCompanyErrors({ name: ['Le nom est obligatoire.'] });
         return;
       }
-      // On envoie owner_id pour mise à jour du propriétaire
+      // On n’envoie PAS d’owner_id ici (non modifiable)
       await updateCompany({ id, ...form }).unwrap();
       toast.success('Entreprise mise à jour.');
       setIsEditOpen(false);
@@ -591,56 +589,54 @@ export default function CompanyShow({ auth, id }: Props) {
 
                   <div className="px-6 py-4" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
                     <form id="company-edit-form" onSubmit={soumettreEdition} className="space-y-4">
+                      {/* Entête label+badge puis Select avec petite marge (mt-1) */}
+                      <div className="flex flex-col space-y-1">
+
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm text-gray-700">Statut</label>
+                            <span
+                            className={[
+                                'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                                companyBadgeClasses(form.status as string),
+                            ].join(' ')}
+                            >
+                            {form.status ?? '—'}
+                            </span>
+                        </div>
+                        <Select
+                            value={(form.status as string) ?? (companyStatusOptions[0]?.value ?? 'Prospect')}
+                            onValueChange={(v) => setForm((f) => ({ ...f, status: v as Company['status'] }))}
+                        >
+                            <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un statut" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            {companyStatusOptions.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        {companyErrors?.status && <p className="text-red-500 text-sm mt-1">{companyErrors.status as string}</p>}
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
+                        <div className="flex flex-col gap-1">
                           <label className="text-sm text-gray-700">Nom</label>
                           <Input value={form.name ?? ''} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
                           {companyErrors?.name && <p className="text-red-500 text-sm mt-1">{Array.isArray(companyErrors.name) ? companyErrors.name[0] : companyErrors.name}</p>}
                         </div>
-                        <div>
+                        <div className="flex flex-col gap-1">
                           <label className="text-sm text-gray-700">Domaine</label>
                           <Input value={form.domain ?? ''} onChange={(e) => setForm((f) => ({ ...f, domain: e.target.value }))} placeholder="ex: exemple.com" />
                           {companyErrors?.domain && <p className="text-red-500 text-sm mt-1">{companyErrors.domain as string}</p>}
                         </div>
-                        <div>
+                        <div className="flex flex-col gap-1">
                           <label className="text-sm text-gray-700">Secteur</label>
                           <Input value={form.industry ?? ''} onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))} placeholder="ex: SaaS, Retail, ..." />
                           {companyErrors?.industry && <p className="text-red-500 text-sm mt-1">{companyErrors.industry as string}</p>}
                         </div>
-                        <div>
+                        <div className="flex flex-col gap-1">
                           <label className="text-sm text-gray-700">Taille</label>
                           <Input value={form.size ?? ''} onChange={(e) => setForm((f) => ({ ...f, size: e.target.value }))} placeholder="ex: 11-50" />
                           {companyErrors?.size && <p className="text-red-500 text-sm mt-1">{companyErrors.size as string}</p>}
-                        </div>
-                        <div>
-                          <label className="text-sm text-gray-700">Statut</label>
-                          <Select
-                            value={(form.status as string) ?? (companyStatusOptions[0]?.value ?? 'Prospect')}
-                            onValueChange={(v) => setForm((f) => ({ ...f, status: v as Company['status'] }))}
-                          >
-                            <SelectTrigger><SelectValue placeholder="Sélectionner un statut" /></SelectTrigger>
-                            <SelectContent>
-                              {companyStatusOptions.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          {companyErrors?.status && <p className="text-red-500 text-sm mt-1">{companyErrors.status as string}</p>}
-                        </div>
-                        <div>
-                          <label className="text-sm text-gray-700">ID Propriétaire</label>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number"
-                              value={(form as any).owner_id ?? ''}
-                              onChange={(e) => setForm((f) => ({ ...f, owner_id: e.target.value ? Number(e.target.value) : null }))}
-                              placeholder="ex: 1"
-                            />
-                            {(data as any)?.owner?.name && (
-                              <span className="text-xs text-gray-500 whitespace-nowrap">
-                                {(data as any).owner.name}
-                              </span>
-                            )}
-                          </div>
-                          {companyErrors?.owner_id && <p className="text-red-500 text-sm mt-1">{companyErrors.owner_id as string}</p>}
                         </div>
                       </div>
 
@@ -655,7 +651,7 @@ export default function CompanyShow({ auth, id }: Props) {
                         mapHeightClass="h-56"
                       />
 
-                      <div>
+                      <div className="flex flex-col gap-1">
                         <label className="text-sm text-gray-700">Notes</label>
                         <textarea
                           className="w-full border rounded-md p-2 text-sm"
