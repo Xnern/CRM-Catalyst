@@ -4,15 +4,36 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ContactController;
-use Illuminate\Validation\ValidationException;
 
-// Route pour obtenir le CSRF cookie (important pour les SPAs)
+use App\Http\Controllers\MetaController;
+
+use App\Http\Controllers\GoogleController;
+use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\ContactController;
+use App\Http\Controllers\GoogleAuthController;
+use Illuminate\Validation\ValidationException;
+use App\Http\Controllers\CompanyContactController;
+use App\Http\Controllers\UnassignedContactController;
+use App\Http\Controllers\LocalCalendarEventsController;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+| These routes are loaded by the RouteServiceProvider within a group
+| which is assigned the "api" middleware group.
+*/
+
+/**
+ * CSRF cookie for SPAs (Sanctum).
+ */
 Route::get('/sanctum/csrf-cookie', function (Request $request) {
     return response()->noContent();
 });
 
-// Route d'enregistrement
+/**
+ * Register
+ */
 Route::post('/register', function (Request $request) {
     $request->validate([
         'name' => ['required', 'string', 'max:255'],
@@ -21,49 +42,142 @@ Route::post('/register', function (Request $request) {
     ]);
 
     $user = User::create([
-        'name' => $request->name,
-        'email' => $request->email,
-        'password' => bcrypt($request->password),
+        'name' => $request->string('name'),
+        'email' => $request->string('email'),
+        'password' => bcrypt($request->string('password')),
     ]);
 
-    Auth::login($user); // Connecter l'utilisateur après l'enregistrement
+    Auth::login($user);
 
-    return response()->json(['message' => 'User registered and logged in successfully!', 'user' => $user]);
-});
+    return response()->json([
+        'message' => 'User registered and logged in successfully!',
+        'user' => $user,
+    ]);
+})->name('auth.register');
 
-// Route de connexion
+/**
+ * Login
+ */
 Route::post('/login', function (Request $request) {
     $request->validate([
         'email' => ['required', 'email'],
         'password' => ['required'],
     ]);
 
-    if (!Auth::attempt($request->only('email', 'password'), $request->boolean('remember'))) {
+    if (! Auth::attempt($request->only('email', 'password'), $request->boolean('remember'))) {
         throw ValidationException::withMessages([
-            'email' => ['Les informations d\'identification fournies sont incorrectes.'],
+            'email' => ["Les informations d'identification fournies sont incorrectes."],
         ]);
     }
 
-    $request->session()->regenerate(); // Régénérer la session pour la sécurité
+    $request->session()->regenerate();
 
-    return response()->json(['message' => 'Logged in successfully!', 'user' => Auth::user()]);
-});
+    return response()->json([
+        'message' => 'Logged in successfully!',
+        'user' => Auth::user(),
+    ]);
+})->name('auth.login');
 
-// Route de déconnexion (protégée)
+/**
+ * Logout (protected)
+ */
 Route::post('/logout', function (Request $request) {
     Auth::guard('web')->logout();
     $request->session()->invalidate();
     $request->session()->regenerateToken();
 
     return response()->json(['message' => 'Logged out successfully!']);
-})->middleware('auth:sanctum'); // Nécessite d'être authentifié pour se déconnecter
+})->middleware('auth:sanctum')->name('auth.logout');
 
+/**
+ * Protected API routes
+ */
 Route::middleware('auth:sanctum')->group(function () {
-    // Rouute for user
+    // Current user
     Route::get('/user', function (Request $request) {
         return response()->json($request->user());
+    })->name('user.me');
+
+    /**
+     * Contacts (resource + extra endpoints)
+     * NOTE: We keep /contacts for the resource.
+     * The "picker" (unassigned/all) is moved to /contacts/picker to avoid collisions.
+     */
+    Route::apiResource('contacts', ContactController::class)->names([
+        'index'   => 'contacts.index',
+        'store'   => 'contacts.store',
+        'show'    => 'contacts.show',
+        'update'  => 'contacts.update',
+        'destroy' => 'contacts.destroy',
+    ]);
+
+    Route::put('/contacts/{contact}/status', [ContactController::class, 'updateStatus'])
+        ->name('contacts.update-status');
+
+    Route::get('/contacts/by-status/{status}', [ContactController::class, 'getContactsByStatus'])
+        ->name('contacts.by-status');
+
+    // Picker for unassigned/all contacts (search + paginate)
+    Route::get('/contacts/picker', [UnassignedContactController::class, 'index'])
+        ->name('contacts.picker');
+
+    /**
+     * Google Calendar
+     */
+    Route::prefix('google-calendar')->name('google.')->group(function () {
+        Route::post('/logout', [GoogleAuthController::class, 'logout'])->name('logout');
+        Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirectToGoogle'])->name('redirect');
+
+        Route::get('/events', [GoogleController::class, 'getGoogleCalendarEvents'])->name('events.index');
+        Route::post('/events', [GoogleController::class, 'createGoogleCalendarEvent'])->name('events.store');
+        Route::put('/events/{eventId}', [GoogleController::class, 'updateGoogleCalendarEvent'])->name('events.update');
+        Route::delete('/events/{eventId}', [GoogleController::class, 'deleteGoogleCalendarEvent'])->name('events.destroy');
     });
 
+    /**
+     * Local events
+     */
+    Route::get('/events/local', [LocalCalendarEventsController::class, 'getLocalEvents'])->name('local-events.index');
+    Route::post('/events/local', [LocalCalendarEventsController::class, 'store'])->name('local-events.store');
+    Route::put('/events/local/{event}', [LocalCalendarEventsController::class, 'update'])->name('local-events.update');
+    Route::delete('/events/local/{event}', [LocalCalendarEventsController::class, 'destroy'])->name('local-events.destroy');
 
-    Route::apiResource('contacts', ContactController::class);
+    /**
+     * Companies (CRUD)
+     */
+    Route::get('/companies', [CompanyController::class, 'index'])->name('companies.index');
+    Route::post('/companies', [CompanyController::class, 'store'])->name('companies.store');
+    Route::get('/companies/{company}', [CompanyController::class, 'show'])->name('companies.show');
+    Route::put('/companies/{company}', [CompanyController::class, 'update'])->name('companies.update');
+    Route::delete('/companies/{company}', [CompanyController::class, 'destroy'])->name('companies.destroy');
+
+    /**
+     * Company-scoped contacts (no collisions; all routes named for Ziggy)
+     */
+    Route::get('/companies/{company}/contacts', [CompanyContactController::class, 'index'])
+        ->name('companies.contacts.index');
+
+    Route::post('/companies/{company}/contacts', [CompanyContactController::class, 'store'])
+        ->name('companies.contacts.store');
+
+    Route::get('/companies/{company}/contacts/{contact}', [CompanyContactController::class, 'show'])
+        ->name('companies.contacts.show');
+
+    Route::put('/companies/{company}/contacts/{contact}', [CompanyContactController::class, 'update'])
+        ->name('companies.contacts.update');
+
+    Route::delete('/companies/{company}/contacts/{contact}', [CompanyContactController::class, 'destroy'])
+        ->name('companies.contacts.destroy');
+
+    // Attach existing contact to company (body: { contact_id })
+    Route::post('/companies/{company}/contacts/attach', [CompanyContactController::class, 'attach'])
+        ->name('companies.contacts.attach');
+
+    // Detach a contact from company (set company_id to null)
+    Route::post('/companies/{company}/contacts/{contact}/detach', [CompanyContactController::class, 'detach'])
+        ->name('companies.contacts.detach');
+
+
+    Route::get('/meta/contact-statuses', [MetaController::class, 'contactStatuses']);
+    Route::get('/meta/company-statuses', [MetaController::class, 'companyStatuses']);
 });

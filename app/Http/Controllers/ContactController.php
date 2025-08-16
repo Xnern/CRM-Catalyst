@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Inertia\Inertia;
 use League\Csv\Reader;
 use App\Models\Contact;
 use Illuminate\Bus\Batch;
@@ -12,15 +13,15 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Gate;
 use Spatie\QueryBuilder\AllowedSort;
 use Spatie\QueryBuilder\QueryBuilder;
+use Throwable; // For Batch callbacks
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\AllowedInclude;
 use Illuminate\Support\Facades\Notification;
-use Inertia\Inertia;
 use App\Notifications\ImportFinishedNotification;
 use App\Http\Requests\Contacts\StoreContactRequest;
 use App\Http\Requests\Contacts\UpdateContactRequest;
+use App\Http\Requests\Contacts\UpdateContactStatusRequest;
 use Illuminate\Database\Eloquent\Builder; // For AllowedFilter::callback type hinting
-use Throwable; // For Batch callbacks
 
 class ContactController extends Controller
 {
@@ -42,7 +43,6 @@ class ContactController extends Controller
     public function index(Request $request)
     {
         // Maps frontend search/filter parameters to Spatie Query Builder's 'filter' format.
-        // Example: 'search=keyword' becomes 'filter[search]=keyword'.
         $filterParams = [];
         $spatieCompatibleParams = ['search', 'name', 'email', 'phone', 'user_id'];
 
@@ -57,13 +57,69 @@ class ContactController extends Controller
 
         $request->merge([
             'filter' => $mergedFilters,
-            // ...array_fill_keys($spatieCompatibleParams, null) // Optionally unset original params
         ]);
 
         Gate::authorize('viewAny', Contact::class);
 
-        $perPage = $request->input('per_page', 15);
+        $perPage = (int) $request->input('per_page', 15);
         $perPage = min($perPage, 100); // Limit per_page to a reasonable maximum
+
+        $baseQuery = Contact::query();
+
+        // Scope: limite aux non assignés si demandé
+        $scope = (string) $request->input('scope', '');
+        if ($scope === 'unassigned') {
+            $baseQuery->whereNull('company_id');
+        }
+        // si $scope === 'all' ou vide, pas de filtre ici
+
+        // RBAC sales: ne voir que ses propres contacts
+        if ($request->user()->hasRole('sales') && $request->user()->can('view own contacts')) {
+            $baseQuery->where('user_id', $request->user()->id);
+        }
+
+        // Spatie Query Builder
+        $contactsQuery = QueryBuilder::for($baseQuery)
+            ->allowedFilters([
+                AllowedFilter::partial('name'),
+                AllowedFilter::exact('email'),
+                AllowedFilter::exact('phone'),
+                AllowedFilter::exact('user_id'),
+                // Optionnel: autoriser le filtrage explicite company_id=null depuis le front
+                // AllowedFilter::exact('company_id'),
+                AllowedFilter::callback('search', function (Builder $query, $value) {
+                    $query->where(function ($q) use ($value) {
+                        $q->where('name', 'LIKE', "%{$value}%")
+                        ->orWhere('email', 'LIKE', "%{$value}%")
+                        ->orWhere('phone', 'LIKE', "%{$value}%");
+                    });
+                }),
+            ])
+            ->allowedIncludes([
+                AllowedInclude::relationship('user')
+            ])
+            ->allowedSorts([
+                'name',
+                'email',
+                'created_at',
+            ]);
+
+        $contacts = $contactsQuery->paginate($perPage);
+
+        return response()->json($contacts);
+    }
+
+    /**
+     * Fetch a paginated list of contacts filtered by status for RTK Query.
+     * This is an optimized endpoint for the Kanban board.
+     */
+    public function getContactsByStatus(Request $request, string $status)
+    {
+        Gate::authorize('viewAny', Contact::class);
+
+        // Utilisez `cursor_page` au lieu de `per_page` pour la pagination par curseur
+        $perPage = $request->input('per_page', 15);
+        $perPage = min((int) $perPage, 10000);
 
         $baseQuery = Contact::query();
 
@@ -72,39 +128,36 @@ class ContactController extends Controller
             $baseQuery->where('user_id', $request->user()->id);
         }
 
-        // Build query using Spatie Query Builder
         $contactsQuery = QueryBuilder::for($baseQuery)
+            ->where('status', $status)
             ->allowedFilters([
                 AllowedFilter::partial('name'),
                 AllowedFilter::exact('email'),
                 AllowedFilter::exact('phone'),
                 AllowedFilter::exact('user_id'),
-
-                // Global search filter: searches across name, email, phone
                 AllowedFilter::callback('search', function (Builder $query, $value) {
-                    $query->where(function ($q) use ($value) { // Group OR clauses
+                    $query->where(function ($q) use ($value) {
                         $q->where('name', 'LIKE', "%{$value}%")
                         ->orWhere('email', 'LIKE', "%{$value}%")
                         ->orWhere('phone', 'LIKE', "%{$value}%");
                     });
                 }),
             ])
-            // Allow including 'user' relationship
             ->allowedIncludes([
                 AllowedInclude::relationship('user')
             ])
-            // Allow sorting by specified fields
             ->allowedSorts([
                 'name',
                 'email',
                 'created_at',
             ]);
 
-        // Execute the query with pagination
-        $contacts = $contactsQuery->paginate($perPage);
+        // Remplacer `paginate` par `cursorPaginate`
+        $contacts = $contactsQuery->cursorPaginate($perPage);
 
         return response()->json($contacts);
     }
+
 
     /**
      * Store a newly created contact.
@@ -143,10 +196,22 @@ class ContactController extends Controller
 
         $validatedData = $request->validated();
 
-        $contact->update($validatedData);
-        // Update latitude and longitude if provided by the frontend
-        $contact->latitude = $request->input('latitude');
-        $contact->longitude = $request->input('longitude');
+        // Update the contact with validated data without latitude/longitude
+        $contact->fill($validatedData);
+
+        // if latitude and longitude are not null, update them
+        if ($request->has('latitude') && $request->input('latitude') !== null) {
+            $contact->latitude = $request->input('latitude');
+        }else{
+            $contact->latitude = null; // Set to null if not provided
+        }
+
+        if ($request->has('longitude') && $request->input('longitude') !== null) {
+            $contact->longitude = $request->input('longitude');
+        }else{
+            $contact->longitude = null; // Set to null if not provided
+        }
+
         $contact->save(); // Save again if lat/lng are not in validatedData directly
 
         return response()->json($contact->load('user'));
@@ -245,5 +310,19 @@ class ContactController extends Controller
             Log::error('CSV import error: ' . $e->getMessage());
             return back()->with('error', 'An unexpected error occurred during import: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Update the specified contact's status.
+     */
+    public function updateStatus(UpdateContactStatusRequest $request, Contact $contact)
+    {
+        Gate::authorize('update', $contact); // Authorize action via Gate/Policy
+
+        $validatedData = $request->validated();
+        $contact->status = $validatedData['status'];
+        $contact->save();
+
+        return response()->json($contact, 200);
     }
 }
