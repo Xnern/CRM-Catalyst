@@ -66,7 +66,6 @@ class CompanyController extends Controller
     {
         $data = $request->validated();
 
-        // Optionnel: si pas fourni, définir le propriétaire sur l'utilisateur courant
         if (! array_key_exists('owner_id', $data) || empty($data['owner_id'])) {
             $data['owner_id'] = (int) $request->user()->id;
         }

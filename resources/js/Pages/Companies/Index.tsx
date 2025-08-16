@@ -32,7 +32,7 @@ import CompanyAddressMapSplit from '@/Components/Companies/CompanyAddressMapSpli
 
 type Props = { auth: any };
 
-// Badges statut entreprise
+// Badges status company
 const badgeClassesForStatus = (status?: string) => {
   switch (status) {
     case 'Client':
@@ -71,7 +71,7 @@ export default function CompaniesIndex({ auth }: Props) {
     []
   );
 
-  // Meta statuts dynamiques (si dispo)
+  // Meta statuts dynamic
   const { data: companyStatusesRes } = useGetCompanyStatusOptionsQuery?.() ?? { data: undefined as any };
   const companyStatuses: { value: string; label: string }[] = useMemo(() => {
     const remote = companyStatusesRes?.data ?? [];
@@ -79,7 +79,7 @@ export default function CompaniesIndex({ auth }: Props) {
     return fallbackCompanyStatuses;
   }, [companyStatusesRes?.data, fallbackCompanyStatuses]);
 
-  // Form édition/création
+  // Form update/store
   const [form, setForm] = useState<Partial<Company> & { latitude?: number | null; longitude?: number | null }>({
     name: '',
     domain: '',
@@ -216,7 +216,7 @@ export default function CompaniesIndex({ auth }: Props) {
                   />
                 </div>
 
-                {/* Filtre statut */}
+                {/* Filter status */}
                 <Select value={statut || 'tous'} onValueChange={(v) => { setStatut(v === 'tous' ? '' : v); setPage(1); }}>
                   <SelectTrigger className="w-40"><SelectValue placeholder="Statut" /></SelectTrigger>
                   <SelectContent>
@@ -227,7 +227,7 @@ export default function CompaniesIndex({ auth }: Props) {
                   </SelectContent>
                 </Select>
 
-                {/* Tri */}
+                {/* Sort */}
                 <Select value={tri} onValueChange={(v) => { setTri(v); setPage(1); }}>
                   <SelectTrigger className="w-48"><SelectValue placeholder="Tri" /></SelectTrigger>
                   <SelectContent>
@@ -492,7 +492,7 @@ export default function CompaniesIndex({ auth }: Props) {
           </DialogContent>
         </Dialog>
 
-        {/* Modale Créer/Modifier */}
+        {/* Modal Create/Update */}
         <Dialog open={isModalEditionOuverte} onOpenChange={setIsModalEditionOuverte}>
           <DialogContent
             className="sm:max-w-[640px] p-0 [&>button[type='button']]:z-30"
@@ -514,7 +514,7 @@ export default function CompaniesIndex({ auth }: Props) {
                 style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}
               >
                 <form id="company-edit-form" onSubmit={soumettre} className="space-y-4">
-                  {/* Statut + badge (prévisualisation) */}
+                  {/* Statut + badge */}
                   <div className="flex flex-col space-y-1">
 
                     <div className="flex items-center justify-between">
@@ -591,7 +591,7 @@ export default function CompaniesIndex({ auth }: Props) {
           </DialogContent>
         </Dialog>
 
-        {/* Modale de confirmation suppression */}
+        {/* Modal confirm delete */}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>

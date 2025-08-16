@@ -44,7 +44,7 @@ import { Company } from '@/types/Company';
 type Props = { auth: any; id: number };
 type ApiErrors = Record<string, string[] | string> | undefined;
 
-// Badge helpers (entreprise)
+// Badge helpers (company)
 const companyBadgeClasses = (status?: string) => {
   switch (status) {
     case 'Client':
@@ -57,7 +57,7 @@ const companyBadgeClasses = (status?: string) => {
   }
 };
 
-// Badge helpers (contact) — normalisation pour robustesse
+// Badge helpers (contact)
 const contactBadgeClasses = (raw?: string) => {
   if (!raw) return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
   const s = raw
@@ -96,7 +96,7 @@ export default function CompanyShow({ auth, id }: Props) {
   const [deleteCompany] = useDeleteCompanyMutation();
   const [updateCompany] = useUpdateCompanyMutation();
 
-  // Modales globales (entreprise)
+  // Modals global
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
@@ -191,7 +191,6 @@ export default function CompanyShow({ auth, id }: Props) {
         setCompanyErrors({ name: ['Le nom est obligatoire.'] });
         return;
       }
-      // On n’envoie PAS d’owner_id ici (non modifiable)
       await updateCompany({ id, ...form }).unwrap();
       toast.success('Entreprise mise à jour.');
       setIsEditOpen(false);
@@ -221,12 +220,12 @@ export default function CompanyShow({ auth, id }: Props) {
   const [deleteCompanyContact, { isLoading: isDeletingContact }] = useDeleteCompanyContactMutation();
   const [detachCompanyContact, { isLoading: isDetaching }] = useDetachCompanyContactMutation();
 
-  // Modale Contact CRUD
+  // Modal Contact CRUD
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<any | null>(null);
   const [contactErrors, setContactErrors] = useState<ApiErrors>(undefined);
 
-  // Modale de confirmation suppression/détachement
+  // Modal de delete
   const [isContactDeleteDialogOpen, setIsContactDeleteDialogOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<any | null>(null);
 
@@ -322,7 +321,7 @@ export default function CompanyShow({ auth, id }: Props) {
 
         {!isLoading && data && (
           <>
-            {/* En-tête */}
+            {/* Header */}
             <Card>
               <CardContent className="p-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="flex items-start gap-3">
@@ -364,7 +363,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </CardContent>
             </Card>
 
-            {/* Infos principales */}
+            {/* Main Info */}
             <Card>
               <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
@@ -405,7 +404,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </CardContent>
             </Card>
 
-            {/* Adresse + Notes */}
+            {/* Address + Notes */}
             <Card>
               <CardContent className="p-6 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -433,7 +432,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </CardContent>
             </Card>
 
-            {/* Contacts de l’entreprise */}
+            {/* Contacts of company */}
             <Card id="company-contacts-section">
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2">
@@ -486,7 +485,6 @@ export default function CompanyShow({ auth, id }: Props) {
                       )}
 
                       {contacts.map((c: any) => {
-                        // Normaliser le statut pour couleurs/labels robustes
                         const normalized = (c.status ?? '')
                           .toString()
                           .trim()
@@ -573,7 +571,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </CardContent>
             </Card>
 
-            {/* Modale Édition Entreprise */}
+            {/* Modale Update Company */}
             <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
               <DialogContent
                 className="sm:max-w-[700px] p-0 [&>button[type='button']]:z-30"
@@ -589,7 +587,6 @@ export default function CompanyShow({ auth, id }: Props) {
 
                   <div className="px-6 py-4" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
                     <form id="company-edit-form" onSubmit={soumettreEdition} className="space-y-4">
-                      {/* Entête label+badge puis Select avec petite marge (mt-1) */}
                       <div className="flex flex-col space-y-1">
 
                         <div className="flex items-center justify-between">
@@ -678,7 +675,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </DialogContent>
             </Dialog>
 
-            {/* Modale Contact (création/édition) */}
+            {/* Modal Contact (store/update) */}
             <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
               <DialogContent
                 className="sm:max-w-[560px] p-0 [&>button[type='button']]:z-30"
@@ -734,7 +731,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </DialogContent>
             </Dialog>
 
-            {/* Modale Ajouter un contact existant */}
+            {/* Modal add existing contact */}
             <Dialog open={isAttachModalOpen} onOpenChange={setIsAttachModalOpen}>
               <DialogContent
                 className="sm:max-w-[700px] p-0 [&>button[type='button']]:z-30"
@@ -838,7 +835,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </DialogContent>
             </Dialog>
 
-            {/* Modale confirmation suppression/détachement de contact */}
+            {/* Modal delete/detach contact */}
             <AlertDialog open={isContactDeleteDialogOpen} onOpenChange={setIsContactDeleteDialogOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -859,7 +856,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </AlertDialogContent>
             </AlertDialog>
 
-            {/* Modale confirmation suppression entreprise */}
+            {/* Modal delete company */}
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
