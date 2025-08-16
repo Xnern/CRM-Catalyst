@@ -1,5 +1,6 @@
 export interface Contact {
     id: number;
+    company_id?: number; // Optional: ID of the associated company
     user_id: number;
     name: string;
     status: 'Nouveau' | 'Qualification' | 'Proposition envoyée' | 'Négociation' | 'Converti' | 'Perdu';

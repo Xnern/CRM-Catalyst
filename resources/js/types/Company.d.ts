@@ -5,7 +5,10 @@ export type Company = {
     industry: string | null;
     size: string | null;
     status: 'Prospect' | 'Client' | 'Inactif';
-    owner_id: number | null;
+    owner: {
+        id: number;
+        name: string;
+    };
     address: string | null;
     city: string | null;
     zipcode: string | null;
@@ -14,5 +17,13 @@ export type Company = {
     created_at: string;
     updated_at: string;
     contacts_count?: number;
-  };
+};
   
+export interface CompanyStatusOption {
+    value: string;
+    label: string;
+}
+
+export interface CompanyStatusOptionsResponse {
+    data: CompanyStatusOption[];
+}

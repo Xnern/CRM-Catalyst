@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Enums\CompanyStatus;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class Company extends Model
 {
@@ -37,5 +39,16 @@ class Company extends Model
     public function contacts()
     {
         return $this->hasMany(Contact::class);
+    }
+
+    protected function statusLabel(): Attribute
+    {
+        return Attribute::get(function () {
+            try {
+                return CompanyStatus::from($this->status)->label();
+            } catch (\ValueError) {
+                return (string) ($this->status ?? '');
+            }
+        });
     }
 }

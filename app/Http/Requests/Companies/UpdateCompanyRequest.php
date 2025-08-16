@@ -2,8 +2,9 @@
 
 namespace App\Http\Requests\Companies;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Enums\CompanyStatus;
 use Illuminate\Validation\Rule;
+use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateCompanyRequest extends FormRequest
 {
@@ -19,7 +20,7 @@ class UpdateCompanyRequest extends FormRequest
             'domain' => ['sometimes','nullable','string','max:255'],
             'industry' => ['sometimes','nullable','string','max:255'],
             'size' => ['sometimes','nullable','string','max:50'],
-            'status' => ['sometimes','nullable', Rule::in(['Prospect','Client','Inactif'])],
+            'status' => ['sometimes','string', Rule::in(CompanyStatus::values())],
             'owner_id' => ['sometimes','nullable','exists:users,id'],
             'address' => ['sometimes','nullable','string','max:255'],
             'city' => ['sometimes','nullable','string','max:255'],

@@ -11,7 +11,6 @@ use App\Http\Requests\Companies\UpdateCompanyRequest;
 
 class CompanyController extends Controller
 {
-
     /**
      * Render the Company list page (Inertia React).
      */
@@ -35,7 +34,7 @@ class CompanyController extends Controller
         $query = Company::query()->withCount('contacts');
 
         if ($search = $request->input('search')) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('domain', 'like', "%{$search}%")
                   ->orWhere('industry', 'like', "%{$search}%");
@@ -53,7 +52,7 @@ class CompanyController extends Controller
         if ($sort = $request->input('sort')) {
             $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
             $field = ltrim($sort, '-');
-            if (in_array($field, ['name','created_at','contacts_count'])) {
+            if (in_array($field, ['name', 'created_at', 'contacts_count'])) {
                 $query->orderBy($field, $direction);
             }
         } else {
@@ -65,7 +64,15 @@ class CompanyController extends Controller
 
     public function store(StoreCompanyRequest $request)
     {
-        $company = Company::create($request->validated());
+        $data = $request->validated();
+
+        // Optionnel: si pas fourni, définir le propriétaire sur l'utilisateur courant
+        if (! array_key_exists('owner_id', $data) || empty($data['owner_id'])) {
+            $data['owner_id'] = (int) $request->user()->id;
+        }
+
+        $company = Company::create($data);
+
         return response()->json($company, 201);
     }
 

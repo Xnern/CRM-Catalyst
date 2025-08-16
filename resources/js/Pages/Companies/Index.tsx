@@ -7,7 +7,9 @@ import {
   useCreateCompanyMutation,
   useUpdateCompanyMutation,
   useDeleteCompanyMutation,
-  useGetCompanyQuery
+  useGetCompanyQuery,
+  // nouveau hook (à créer côté api.ts)
+  useGetCompanyStatusOptionsQuery,
 } from '@/services/api';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -30,7 +32,19 @@ import {
 import CompanyAddressMapSplit from '@/Components/Companies/CompanyAddressMapSplit';
 
 type Props = { auth: any };
-const STATUTS: Company['status'][] = ['Prospect', 'Client', 'Inactif'];
+
+// Palette badges par statut (par label/valeur identique ici)
+const badgeClassesForStatus = (status?: string) => {
+  switch (status) {
+    case 'Client':
+      return 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200';
+    case 'Prospect':
+      return 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200';
+    case 'Inactif':
+    default:
+      return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
+  }
+};
 
 export default function CompaniesIndex({ auth }: Props) {
   const [page, setPage] = useState(1);
@@ -41,11 +55,30 @@ export default function CompaniesIndex({ auth }: Props) {
 
   const [isModalEditionOuverte, setIsModalEditionOuverte] = useState(false);
   const [isModalDetailsOuverte, setIsModalDetailsOuverte] = useState(false);
+
   const [edition, setEdition] = useState<Company | null>(null);
   const [selection, setSelection] = useState<Company | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  // Fallback local si l’API meta n’est pas prête
+  const fallbackCompanyStatuses = useMemo(
+    () => [
+      { value: 'Prospect', label: 'Prospect' },
+      { value: 'Client', label: 'Client' },
+      { value: 'Inactif', label: 'Inactif' },
+    ],
+    []
+  );
+
+  // Chargement des statuts dynamiques (nécessite d’ajouter l’endpoint côté api.ts)
+  const { data: companyStatusesRes } = useGetCompanyStatusOptionsQuery?.() ?? { data: undefined as any };
+  const companyStatuses: { value: string; label: string }[] = useMemo(() => {
+    const remote = companyStatusesRes?.data ?? [];
+    if (Array.isArray(remote) && remote.length > 0) return remote;
+    return fallbackCompanyStatuses;
+  }, [companyStatusesRes?.data, fallbackCompanyStatuses]);
 
   const [form, setForm] = useState<Partial<Company> & { latitude?: number | null; longitude?: number | null }>({
     name: '',
@@ -67,8 +100,8 @@ export default function CompaniesIndex({ auth }: Props) {
     () => ({ page, per_page: perPage, search: recherche, status: statut, sort: tri }),
     [page, perPage, recherche, statut, tri]
   );
-  const { data, isLoading, isFetching } = useGetCompaniesQuery(queryParams);
 
+  const { data, isLoading, isFetching } = useGetCompaniesQuery(queryParams);
   const currentPage = (data as any)?.current_page ?? page;
   const items = (data as any)?.data ?? [];
   const total = (data as any)?.total ?? items.length;
@@ -89,7 +122,7 @@ export default function CompaniesIndex({ auth }: Props) {
       domain: '',
       industry: '',
       size: '',
-      status: 'Prospect',
+      status: companyStatuses[0]?.value ?? 'Prospect',
       owner_id: null,
       address: '',
       city: '',
@@ -148,6 +181,7 @@ export default function CompaniesIndex({ auth }: Props) {
   };
 
   const demanderSuppression = (c: Company) => { setDeleteTarget(c); setIsDeleteDialogOpen(true); };
+
   const confirmerSuppression = async () => {
     if (!deleteTarget) return;
     try {
@@ -184,13 +218,18 @@ export default function CompaniesIndex({ auth }: Props) {
                     onChange={(e) => { setRecherche(e.target.value); setPage(1); }}
                   />
                 </div>
+
+                {/* Filtre statut: options dynamiques + entrée "Tous" */}
                 <Select value={statut || 'tous'} onValueChange={(v) => { setStatut(v === 'tous' ? '' : v); setPage(1); }}>
                   <SelectTrigger className="w-40"><SelectValue placeholder="Statut" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="tous">Tous les statuts</SelectItem>
-                    {STATUTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {companyStatuses.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+
                 <Select value={tri} onValueChange={(v) => { setTri(v); setPage(1); }}>
                   <SelectTrigger className="w-48"><SelectValue placeholder="Tri" /></SelectTrigger>
                   <SelectContent>
@@ -201,6 +240,7 @@ export default function CompaniesIndex({ auth }: Props) {
                     <SelectItem value="-contacts_count">Plus de contacts</SelectItem>
                   </SelectContent>
                 </Select>
+
                 <Button onClick={ouvrirCreation} className="gap-2">
                   <Plus className="h-4 w-4" />
                   Nouvelle entreprise
@@ -236,7 +276,6 @@ export default function CompaniesIndex({ auth }: Props) {
                       </td>
                     </tr>
                   )}
-
                   {!estEnChargement && items.length === 0 && (
                     <tr>
                       <td colSpan={7} className="px-4 py-10 text-center text-gray-400">
@@ -244,7 +283,6 @@ export default function CompaniesIndex({ auth }: Props) {
                       </td>
                     </tr>
                   )}
-
                   {items.map((c: Company) => (
                     <tr
                       key={c.id}
@@ -260,11 +298,7 @@ export default function CompaniesIndex({ auth }: Props) {
                         <span
                           className={[
                             'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                            c.status === 'Client'
-                              ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200'
-                              : c.status === 'Prospect'
-                              ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200'
-                              : 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300'
+                            badgeClassesForStatus(c.status),
                           ].join(' ')}
                         >
                           {c.status}
@@ -272,7 +306,6 @@ export default function CompaniesIndex({ auth }: Props) {
                       </td>
                       <td className="px-4 py-2">{(c as any).contacts_count ?? 0}</td>
 
-                      {/* Colonne Actions: icônes discrètes + kebab */}
                       <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5">
                           <Button
@@ -284,7 +317,6 @@ export default function CompaniesIndex({ auth }: Props) {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-
                           <Button
                             title="Modifier"
                             variant="ghost"
@@ -294,7 +326,6 @@ export default function CompaniesIndex({ auth }: Props) {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -356,7 +387,7 @@ export default function CompaniesIndex({ auth }: Props) {
           </CardContent>
         </Card>
 
-        {/* Modale Détails (structure standard, anti-flash via !!selection) */}
+        {/* Modale Détails */}
         <Dialog open={!!selection && isModalDetailsOuverte} onOpenChange={setIsModalDetailsOuverte}>
           <DialogContent className="sm:max-w-[720px] p-0 [&>button[type='button']]:z-30" style={{ overflow: 'hidden' }}>
             <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 6rem)' }}>
@@ -369,7 +400,6 @@ export default function CompaniesIndex({ auth }: Props) {
                   <DialogDescription>Informations principales et coordonnées</DialogDescription>
                 </DialogHeader>
               </div>
-
               <div className="flex-1 overflow-y-auto px-6 py-4">
                 {(!selection || isFetchingDetails) ? (
                   <div className="flex items-center gap-2 text-gray-500">
@@ -397,7 +427,6 @@ export default function CompaniesIndex({ auth }: Props) {
                           </Button>
                         </div>
                       </div>
-
                       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                           <div className="text-xs text-gray-500">Secteur</div>
@@ -416,7 +445,6 @@ export default function CompaniesIndex({ auth }: Props) {
                           <div className="text-sm">{detailsApi?.owner_id ?? selection.owner_id ?? '-'}</div>
                         </div>
                       </div>
-
                       <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
                           <div className="text-xs text-gray-500">Adresse</div>
@@ -435,7 +463,6 @@ export default function CompaniesIndex({ auth }: Props) {
                           <div className="text-sm">{detailsApi?.country ?? selection.country ?? '-'}</div>
                         </div>
                       </div>
-
                       <div className="mt-4">
                         <div className="text-xs text-gray-500">Notes</div>
                         <div className="text-sm whitespace-pre-wrap">
@@ -443,7 +470,6 @@ export default function CompaniesIndex({ auth }: Props) {
                         </div>
                       </div>
                     </div>
-
                     <div className="rounded-md border p-4 bg-white mt-4">
                       <div className="text-sm text-gray-700">
                         Besoin de plus de détails ? Ouvrir la page dédiée (Show).
@@ -465,7 +491,7 @@ export default function CompaniesIndex({ auth }: Props) {
           </DialogContent>
         </Dialog>
 
-        {/* Modale Créer/Modifier (footer fixe en bas, un seul scroll) */}
+        {/* Modale Créer/Modifier */}
         <Dialog open={isModalEditionOuverte} onOpenChange={setIsModalEditionOuverte}>
           <DialogContent
             className="sm:max-w-[640px] p-0 [&>button[type='button']]:z-30"
@@ -481,7 +507,6 @@ export default function CompaniesIndex({ auth }: Props) {
                   <DialogDescription>Saisissez les informations principales.</DialogDescription>
                 </DialogHeader>
               </div>
-
               <div
                 className="px-6 py-4"
                 style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}
@@ -506,10 +531,10 @@ export default function CompaniesIndex({ auth }: Props) {
                     </div>
                     <div>
                       <label className="text-sm text-gray-700">Statut</label>
-                      <Select value={(form.status as string) ?? 'Prospect'} onValueChange={(v) => setForm((f) => ({ ...f, status: v as Company['status'] }))}>
+                      <Select value={(form.status as string) ?? (companyStatuses[0]?.value ?? 'Prospect')} onValueChange={(v) => setForm((f) => ({ ...f, status: v as Company['status'] }))}>
                         <SelectTrigger><SelectValue placeholder="Sélectionner un statut" /></SelectTrigger>
                         <SelectContent>
-                          {STATUTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          {companyStatuses.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
@@ -541,7 +566,6 @@ export default function CompaniesIndex({ auth }: Props) {
                   </div>
                 </form>
               </div>
-
               <div
                 className="px-6 py-3"
                 style={{ flex: '0 0 auto', background: 'white', borderTop: '1px solid rgba(0,0,0,0.06)' }}

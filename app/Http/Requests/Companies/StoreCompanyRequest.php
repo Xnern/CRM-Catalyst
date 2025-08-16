@@ -2,8 +2,9 @@
 
 namespace App\Http\Requests\Companies;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Enums\CompanyStatus;
 use Illuminate\Validation\Rule;
+use Illuminate\Foundation\Http\FormRequest;
 
 class StoreCompanyRequest extends FormRequest
 {
@@ -19,7 +20,7 @@ class StoreCompanyRequest extends FormRequest
             'domain' => ['nullable','string','max:255'],
             'industry' => ['nullable','string','max:255'],
             'size' => ['nullable','string','max:50'],
-            'status' => ['nullable', Rule::in(['Prospect','Client','Inactif'])],
+            'status' => ['sometimes','string', Rule::in(CompanyStatus::values())],
             'owner_id' => ['nullable','exists:users,id'],
             'address' => ['nullable','string','max:255'],
             'city' => ['nullable','string','max:255'],

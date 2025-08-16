@@ -12,74 +12,62 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
 } from '@/Components/ui/dropdown-menu';
 
-// Drag-and-drop item type constant used by react-dnd
 const ItemTypes = { CONTACT: 'contact' };
 
+type StatusOption = { value: string; label: string };
+
 interface KanbanColumnProps {
-  status: Contact['status'];
+  statusValue: string;
+  statusLabel: string;
   perPage: number;
   columnHeight: number;
-  onDropContact: (id: number, status: Contact['status']) => void;
+  onDropContact: (id: number, statusValue: string) => void;
   onEditContact: (contact: Contact) => void;
   onDeleteContact: (id: number) => void;
-  onMoveContact: (id: number, status: Contact['status']) => void;
-  kanbanStatuses: Contact['status'][];
+  onMoveContact: (id: number, statusValue: string) => void;
+  statuses: StatusOption[];
 }
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({
-  status, perPage, columnHeight,
-  onDropContact, onEditContact, onDeleteContact, onMoveContact, kanbanStatuses
+  statusValue, statusLabel, perPage, columnHeight,
+  onDropContact, onEditContact, onDeleteContact, onMoveContact, statuses
 }) => {
-
-  /**
-   * React DnD "drop target" configuration for the column.
-   * Allows dropping a CONTACT card into this column to change its status.
-   */
   const [{ isOver }, drop] = useDrop(() => ({
     accept: ItemTypes.CONTACT,
-    drop: (item: { id: number; currentStatus: Contact['status'] }) => {
-      if (item.currentStatus !== status) onDropContact(item.id, status);
+    drop: (item: { id: number; currentStatus: string }) => {
+      if (item.currentStatus !== statusValue) onDropContact(item.id, statusValue);
     },
     collect: monitor => ({ isOver: monitor.isOver() })
-  }), [status, onDropContact]);
+  }), [statusValue, onDropContact]);
 
-  /**
-   * Status-based color palette used for header background,
-   * text color, column background, and border color.
-   */
+  // Palette basée sur la value (slug)
   const palette = useMemo(() => {
-    switch (status) {
-      case 'Nouveau': return { headerBg: 'bg-blue-50', headerText: 'text-blue-800', bodyBg: 'bg-blue-50/40', border: 'border-blue-200' };
-      case 'Qualification': return { headerBg: 'bg-yellow-50', headerText: 'text-yellow-800', bodyBg: 'bg-yellow-50/40', border: 'border-yellow-200' };
-      case 'Proposition envoyée': return { headerBg: 'bg-purple-50', headerText: 'text-purple-800', bodyBg: 'bg-purple-50/40', border: 'border-purple-200' };
-      case 'Négociation': return { headerBg: 'bg-orange-50', headerText: 'text-orange-800', bodyBg: 'bg-orange-50/40', border: 'border-orange-200' };
-      case 'Converti': return { headerBg: 'bg-green-50', headerText: 'text-green-800', bodyBg: 'bg-green-50/40', border: 'border-green-200' };
-      case 'Perdu': return { headerBg: 'bg-red-50', headerText: 'text-red-800', bodyBg: 'bg-red-50/40', border: 'border-red-200' };
-      default: return { headerBg: 'bg-gray-50', headerText: 'text-gray-800', bodyBg: 'bg-gray-50', border: 'border-gray-200' };
+    switch (statusValue) {
+      case 'nouveau': return { headerBg: 'bg-blue-50', headerText: 'text-blue-800', bodyBg: 'bg-blue-50/40', border: 'border-blue-200', stripe: 'border-l-blue-400' };
+      case 'qualification': return { headerBg: 'bg-yellow-50', headerText: 'text-yellow-800', bodyBg: 'bg-yellow-50/40', border: 'border-yellow-200', stripe: 'border-l-yellow-400' };
+      case 'proposition_envoyee': return { headerBg: 'bg-purple-50', headerText: 'text-purple-800', bodyBg: 'bg-purple-50/40', border: 'border-purple-200', stripe: 'border-l-purple-400' };
+      case 'negociation': return { headerBg: 'bg-orange-50', headerText: 'text-orange-800', bodyBg: 'bg-orange-50/40', border: 'border-orange-200', stripe: 'border-l-orange-400' };
+      case 'converti': return { headerBg: 'bg-green-50', headerText: 'text-green-800', bodyBg: 'bg-green-50/40', border: 'border-green-200', stripe: 'border-l-green-400' };
+      case 'perdu': return { headerBg: 'bg-red-50', headerText: 'text-red-800', bodyBg: 'bg-red-50/40', border: 'border-red-200', stripe: 'border-l-red-400' };
+      default: return { headerBg: 'bg-gray-50', headerText: 'text-gray-800', bodyBg: 'bg-gray-50', border: 'border-gray-200', stripe: 'border-l-gray-300' };
     }
-  }, [status]);
+  }, [statusValue]);
 
-  /**
-   * Local pagination state: 'cursor' for infinite scroll
-   * and 'items' array to accumulate all loaded contacts across pages.
-   */
   const [cursor, setCursor] = useState<string | null>(null);
   const [items, setItems] = useState<Contact[]>([]);
 
-  /**
-   * RTK Query call to fetch contacts for this column/status
-   * with pagination cursor.
-   */
   const { data, isFetching, isLoading } = useGetContactsByStatusQuery({
-    status,
+    status: statusValue as Contact['status'],
     per_page: perPage,
     cursor
   });
 
-  /**
-   * Synchronize local state with API results.
-   * First page replaces items; subsequent pages merge without duplicates.
-   */
+  useEffect(() => {
+    // reset quand on change de colonne (théorique si dynamique)
+    setCursor(null);
+    setItems([]);
+  }, [statusValue]);
+
   useEffect(() => {
     if (!data?.data) return;
     if (cursor === null) {
@@ -95,17 +83,12 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
 
   const hasMore = Boolean(data?.next_cursor);
 
-  /**
-   * Scroll listener to detect when the user is near the bottom of the column,
-   * triggering loading of the next page if available.
-   */
   const scrollRef = useRef<HTMLDivElement>(null);
   const handleScroll = useCallback(() => {
     if (!hasMore || isFetching) return;
     const el = scrollRef.current;
     if (!el) return;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 150) {
-      // Load next page when near bottom
       setCursor(data?.next_cursor || null);
     }
   }, [hasMore, isFetching, data?.next_cursor]);
@@ -116,18 +99,24 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
     return () => el?.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
-  /**
-   * Draggable contact card component for this column.
-   * Supports edit/delete/move actions via dropdown menu.
-   */
   const KanbanCard: React.FC<{ contact: Contact }> = ({ contact }) => {
     const [{ isDragging }, drag] = useDrag(() => ({
       type: ItemTypes.CONTACT,
       item: { id: contact.id, currentStatus: contact.status },
       collect: (m) => ({ isDragging: m.isDragging() }),
     }), [contact]);
+
     const getInitials = (name: string) =>
       name.split(' ').map(n => n[0]).join('').toUpperCase();
+
+    // Stripe/couleur basée sur la value stockée en base (contact.status)
+    const stripeClass =
+      contact.status === 'nouveau' ? 'border-l-blue-400' :
+      contact.status === 'qualification' ? 'border-l-yellow-400' :
+      contact.status === 'proposition_envoyee' ? 'border-l-purple-400' :
+      contact.status === 'negociation' ? 'border-l-orange-400' :
+      contact.status === 'converti' ? 'border-l-green-400' :
+      contact.status === 'perdu' ? 'border-l-red-400' : 'border-l-gray-300';
 
     return (
       <Card
@@ -136,23 +125,18 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
           p-3 bg-white rounded-lg shadow-sm relative border border-gray-200
           hover:shadow-md transition-all duration-150
           ${isDragging ? 'opacity-60' : ''}
-          border-l-4
-          ${contact.status === 'Nouveau' ? 'border-l-blue-400' :
-            contact.status === 'Qualification' ? 'border-l-yellow-400' :
-            contact.status === 'Proposition envoyée' ? 'border-l-purple-400' :
-            contact.status === 'Négociation' ? 'border-l-orange-400' :
-            contact.status === 'Converti' ? 'border-l-green-400' : 'border-l-red-400'}
+          border-l-4 ${stripeClass}
         `}
         onDoubleClick={() => onEditContact(contact)}
       >
         <div className="flex items-start gap-3">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={contact.avatar} alt={contact.name} />
+            <AvatarImage src={(contact as any).avatar} alt={contact.name} />
             <AvatarFallback className="bg-gray-200 text-gray-700">{getInitials(contact.name)}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
             <CardTitle className="text-sm font-semibold text-gray-900 truncate">{contact.name}</CardTitle>
-            <CardDescription className="text-xs text-gray-500 truncate mt-1">{contact.company || 'Sans entreprise'}</CardDescription>
+            <CardDescription className="text-xs text-gray-500 truncate mt-1">{(contact as any).company || 'Sans entreprise'}</CardDescription>
             {contact.email && (
               <p className="text-xs text-gray-600 truncate mt-1">
                 <a href={`mailto:${contact.email}`} className="hover:text-blue-600 hover:underline">{contact.email}</a>
@@ -161,7 +145,6 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
           </div>
         </div>
 
-        {/* Action menu for edit/move/delete */}
         <div className="absolute top-2 right-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -177,11 +160,13 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
               </DropdownMenuItem>
               <DropdownMenuLabel>Déplacer vers</DropdownMenuLabel>
               <div className="grid grid-cols-2 gap-1 px-1">
-                {kanbanStatuses.map(s => s !== contact.status && (
-                  <DropdownMenuItem key={s} onClick={() => onMoveContact(contact.id, s)} className="text-xs">
-                    {s}
-                  </DropdownMenuItem>
-                ))}
+                {statuses
+                  .filter(s => s.value !== contact.status)
+                  .map(s => (
+                    <DropdownMenuItem key={s.value} onClick={() => onMoveContact(contact.id, s.value)} className="text-xs">
+                      {s.label}
+                    </DropdownMenuItem>
+                  ))}
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onDeleteContact(contact.id)} className="text-red-600">
@@ -202,19 +187,17 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
         rounded-lg shadow-sm transition-all
         ${isOver ? 'ring-2 ring-blue-400' : ''}
       `}
-      aria-label={`Colonne ${status}`}
+      aria-label={`Colonne ${statusLabel}`}
     >
-      {/* Column header with title and total count */}
       <CardHeader className={`py-3 px-4 border-b ${palette.headerBg}`}>
         <div className="flex justify-between items-center">
-          <CardTitle className={`text-md font-bold ${palette.headerText}`}>{status}</CardTitle>
+          <CardTitle className={`text-md font-bold ${palette.headerText}`}>{statusLabel}</CardTitle>
           <Badge variant="secondary" className="bg-white border border-gray-300 text-gray-700">
             {items.length}
           </Badge>
         </div>
       </CardHeader>
 
-      {/* Body with scrollable cards area */}
       <CardContent className={`p-3 flex-1 overflow-hidden ${palette.bodyBg}`}>
         <div
           ref={scrollRef}
@@ -224,7 +207,6 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
         >
           <div className="space-y-3">
             {items.length === 0 && !isLoading ? (
-              /* Empty state placeholder when column has no cards */
               <div className="flex flex-col items-center justify-center py-8 text-gray-400">
                 <ArrowLeft className="mb-2" /> Glissez-déposez des contacts ici
               </div>
@@ -236,7 +218,6 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
               ))
             )}
 
-            {/* Bottom loader / end-of-list indicators */}
             {isFetching && <div className="text-center text-sm text-gray-500 py-2">Chargement...</div>}
             {!isFetching && !hasMore && items.length > 0 && (
               <div className="text-center text-xs text-gray-400 py-2">Fin de la liste</div>
