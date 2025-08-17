@@ -325,4 +325,14 @@ class ContactController extends Controller
 
         return response()->json($contact, 200);
     }
+
+    public function search(Request $request)
+    {
+        $q = trim((string) $request->get('q', ''));
+        $res = \App\Models\Contact::query()
+            ->when($q, fn($qq) => $qq->where('name', 'like', "%{$q}%"))
+            ->limit(15)
+            ->get(['id','name']);
+        return response()->json($res);
+    }
 }

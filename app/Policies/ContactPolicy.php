@@ -11,39 +11,33 @@ class ContactPolicy
 {
     use HandlesAuthorization;
 
+    // Comments in English only
+
     public function viewAny(User $user): bool
     {
-        if ($user->hasRole('admin')) {
-            return true;
-        }
-
-        if ($user->can('view all contacts')) {
-            return true;
-        }
-
-        if ($user->can('view contacts') || $user->can('view own contacts')) {
-            return true;
-        }
-
-        return false;
+        return $user->hasRole('admin')
+            || $user->can('view all contacts')
+            || $user->can('view contacts')
+            || $user->can('view own contacts');
     }
 
     public function view(User $user, Contact $contact): bool
     {
-        if ($user->hasRole('admin')) {
+        if ($user->hasRole('admin') || $user->can('view all contacts')) {
             return true;
         }
 
-        if ($user->can('view all contacts')) {
+        // Own scope
+        if ($user->can('view own contacts') && $this->isOwner($user, $contact)) {
             return true;
         }
 
+        // Scoped viewers
         if ($user->can('view contacts')) {
-            return true;
-        }
-
-        if ($user->can('view own contacts') && (int) $user->id === (int) $contact->user_id) {
-            return true;
+            if ($this->isSameTeam($user, $contact)) return true;
+            if ($this->isSameTenant($user, $contact)) return true;
+            // If contact is tied to a company user can view, allow:
+            if ($this->canViewLinkedCompany($user, $contact)) return true;
         }
 
         return false;
@@ -51,22 +45,19 @@ class ContactPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasAnyPermission(['manage contacts', 'create contact']);
+        return $user->hasRole('admin') || $user->can('create contact');
     }
 
     public function update(User $user, Contact $contact): bool
     {
-        if ($user->hasRole('admin')) {
-            return true;
-        }
+        if ($user->hasRole('admin')) return true;
 
-        // manage contacts => global
+        // Manage within scope
         if ($user->can('manage contacts')) {
-            return true;
-        }
-
-        if ($user->can('edit own contacts') && (int) $user->id === (int) $contact->user_id) {
-            return true;
+            if ($this->isOwner($user, $contact)) return true;
+            if ($this->isSameTeam($user, $contact)) return true;
+            if ($this->isSameTenant($user, $contact)) return true;
+            if ($this->canViewLinkedCompany($user, $contact)) return true;
         }
 
         return false;
@@ -74,16 +65,13 @@ class ContactPolicy
 
     public function delete(User $user, Contact $contact): bool
     {
-        if ($user->hasRole('admin')) {
-            return true;
-        }
+        if ($user->hasRole('admin')) return true;
 
-        if ($user->can('manage contacts')) {
-            return true;
-        }
-
-        if ($user->can('delete own contacts') && (int) $user->id === (int) $contact->user_id) {
-            return true;
+        if ($user->can('delete contacts')) {
+            if ($this->isOwner($user, $contact)) return true;
+            if ($this->isSameTeam($user, $contact)) return true;
+            if ($this->isSameTenant($user, $contact)) return true;
+            if ($this->canViewLinkedCompany($user, $contact)) return true;
         }
 
         return false;
@@ -99,20 +87,17 @@ class ContactPolicy
         return $user->hasRole('admin');
     }
 
+    // Company-scoped helpers (if you keep your forCompany methods)
     public function viewAnyForCompany(User $user, Company $company): bool
     {
-        if (! $this->viewAny($user)) {
-            return false;
-        }
-        return true;
+        return $this->viewAny($user)
+            && $this->canViewCompany($user, $company);
     }
 
     public function createForCompany(User $user, Company $company): bool
     {
-        if (! $this->create($user)) {
-            return false;
-        }
-        return true;
+        return $this->create($user)
+            && $this->canViewCompany($user, $company);
     }
 
     public function viewForCompany(User $user, Company $company, Contact $contact): bool
@@ -125,35 +110,64 @@ class ContactPolicy
 
     public function updateForCompany(User $user, Company $company, Contact $contact): bool
     {
-        if ((int) $contact->company_id !== (int) $company->id) {
-            return false;
-        }
-
-        if ((int) $company->owner_id === (int) $user->id) {
-            return true;
-        }
-
-        if ($user->can('manage company contacts')) {
-            return true;
-        }
-
+        if ((int) $contact->company_id !== (int) $company->id) return false;
         return $this->update($user, $contact);
     }
 
     public function deleteForCompany(User $user, Company $company, Contact $contact): bool
     {
-        if ((int) $contact->company_id !== (int) $company->id) {
-            return false;
-        }
-
-        if ((int) $company->owner_id === (int) $user->id) {
-            return true;
-        }
-
-        if ($user->can('manage company contacts')) {
-            return true;
-        }
-
+        if ((int) $contact->company_id !== (int) $company->id) return false;
         return $this->delete($user, $contact);
+    }
+
+    // Helpers: adapt to your schema
+    protected function isOwner(User $user, Contact $contact): bool
+    {
+        return (int) $user->id === (int) $contact->user_id;
+    }
+
+    protected function isSameTeam(User $user, Contact $contact): bool
+    {
+        // Example:
+        // return $user->team_id && $contact->team_id && $user->team_id === $contact->team_id;
+        return false;
+    }
+
+    protected function isSameTenant(User $user, Contact $contact): bool
+    {
+        // Example for multi-tenant:
+        // return $user->tenant_id && $contact->tenant_id && $user->tenant_id === $contact->tenant_id;
+        return false;
+    }
+
+    protected function canViewCompany(User $user, Company $company): bool
+    {
+        // Delegate to CompanyPolicy via Gate if defined, or replicate logic
+        return $user->hasRole('admin')
+            || $user->can('view all companies')
+            || ($user->can('view companies') && ($this->sameTeamCompany($user, $company) || $this->sameTenantCompany($user, $company)))
+            || ($user->can('view own companies') && (int)$company->owner_id === (int)$user->id);
+    }
+
+    protected function sameTeamCompany(User $user, Company $company): bool
+    {
+        // return $user->team_id && $company->team_id && $user->team_id === $company->team_id;
+        return false;
+    }
+
+    protected function sameTenantCompany(User $user, Company $company): bool
+    {
+        // return $user->tenant_id && $company->tenant_id && $user->tenant_id === $company->tenant_id;
+        return false;
+    }
+
+    protected function canViewLinkedCompany(User $user, Contact $contact): bool
+    {
+        if (!$contact->company_id) return false;
+        // Fast check without Gate call; replace with Gate::allows('view', $company) if you prefer
+        $company = $contact->company ?? null;
+        if (!$company) return false;
+
+        return $this->canViewCompany($user, $company);
     }
 }

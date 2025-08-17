@@ -5,73 +5,97 @@ import { BaseQueryFn, FetchBaseQueryMeta } from '@reduxjs/toolkit/query/react';
 import { Contact } from '@/types/Contact';
 import { GoogleCalendarEvent, CreateCalendarEventPayload } from '@/types/GoogleCalendarEvent';
 import { LocalCalendarEvent, LocalEventPayload, UpdateLocalEventPayload } from '@/types/LocalCalendarEvent';
-import { Company, CompanyStatusOption, CompanyStatusOptionsResponse } from '@/types/Company';
+import { Company, CompanyStatusOptionsResponse } from '@/types/Company';
 
+// Comments in English only
 
 // --- Types & Interfaces ---
 
-/**
- * Extra payload used for updating a Google Calendar event.
- * Extends the create payload with eventId to target the correct event.
- */
 export interface UpdateCalendarEventPayload extends CreateCalendarEventPayload {
-    eventId: string; // The ID of the event to update
-    // Additional flags (e.g. allDay) could be added here if needed
+  eventId: string;
 }
 
-/**
- * Response shape for requesting Google OAuth authorization URL.
- */
 export interface GoogleAuthUrlResponse {
-    auth_url: string;
+  auth_url: string;
 }
 
-/**
- * Query parameters for retrieving contacts list from backend.
- * Supports pagination (page / per_page), filters, and search.
- */
 export interface GetContactsQueryParams {
-    page?: number;
-    per_page?: number;
-    search?: string;
-    sort?: string;
-    include?: string;
-    cursor?: string;
+  page?: number;
+  per_page?: number;
+  search?: string;
+  sort?: string;
+  include?: string;
+  cursor?: string;
 }
 
-/**
- * Standard backend-API paginated response format.
- * Contains data array, pagination links/meta, and optional next_cursor for cursor-based loading.
- */
 export interface PaginatedApiResponse<T> {
-    data: T[];
-    links: {
-        first: string;
-        last: string;
-        prev: string | null;
-        next: string | null;
-    };
-    meta: {
-        current_page: number;
-        from: number;
-        last_page: number;
-        links: Array<{
-            url: string | null;
-            label: string;
-            active: boolean;
-        }>;
-        path: string;
-        per_page: number;
-        to: number;
-        total: number;
-    };
-    next_cursor?: string;
+  data: T[];
+  links: {
+    first: string;
+    last: string;
+    prev: string | null;
+    next: string | null;
+  };
+  meta: {
+    current_page: number;
+    from: number;
+    last_page: number;
+    links: Array<{
+      url: string | null;
+      label: string;
+      active: boolean;
+    }>;
+    path: string;
+    per_page: number;
+    to: number;
+    total: number;
+  };
+  next_cursor?: string;
 }
 
-/**
- * Utility to retrieve a cookie value by name.
- * Used mainly to extract XSRF token for Laravel Sanctum.
- */
+// Documents types (minimal)
+export type DocumentLinkType = 'company' | 'contact';
+
+export interface DocumentLinkPayload {
+  type: DocumentLinkType;
+  id: number;
+  role?: string;
+}
+
+export interface DocumentModel {
+  id: number;
+  uuid: string;
+  name: string;
+  original_filename: string;
+  mime_type: string;
+  extension?: string | null;
+  size_bytes: number;
+  size_human?: string;
+  storage_disk: string;
+  storage_path: string;
+  visibility: 'private' | 'team' | 'company';
+  description?: string | null;
+  tags?: string[];
+  owner?: { id: number; name: string } | null;
+  companies?: { id: number; name: string; role?: string | null }[];
+  contacts?: { id: number; name: string; role?: string | null }[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DocumentVersion {
+  id: number;
+  document_id: number;
+  version: number;
+  storage_path: string;
+  mime_type: string;
+  size_bytes: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- Utils ---
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') {
     return null;
@@ -109,57 +133,62 @@ export const api = createApi({
     },
   }) as BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError, {}, FetchBaseQueryMeta>,
 
-  // Tag types used for automatic cache invalidation
-  tagTypes: ['Contact', 'Company', 'GoogleCalendarEvent', 'LocalCalendarEvent', 'CompanyContacts', 'UnassignedContacts'],
+  // Tag types
+  tagTypes: [
+    'Contact',
+    'Company',
+    'GoogleCalendarEvent',
+    'LocalCalendarEvent',
+    'CompanyContacts',
+    'UnassignedContacts',
+    'Document',
+  ],
 
-  // Endpoint definitions
+  // Endpoints
   endpoints: (builder) => ({
-
     /**
-     * Get contact list with optional search, sort, include, pagination via ?page=...&per_page=...
+     * Contacts
      */
     getContacts: builder.query<PaginatedApiResponse<Contact>, GetContactsQueryParams>({
-        query: ({ page = 1, per_page = 15, search = '', sort = '', include = '' }) => {
-          const params = new URLSearchParams();
-          params.append('page', page.toString());
-          params.append('per_page', per_page.toString());
-          if (search) { params.append('search', search); }
-          if (sort) { params.append('sort', sort); }
-          if (include) { params.append('include', include); }
-          return `contacts?${params.toString()}`;
-        },
-        providesTags: (result) =>
-          result
-            ? [...result.data.map(({ id }) => ({ type: 'Contact' as const, id })), { type: 'Contact', id: 'LIST' }]
-            : [{ type: 'Contact', id: 'LIST' }],
+      query: ({ page = 1, per_page = 15, search = '', sort = '', include = '' }) => {
+        const params = new URLSearchParams();
+        params.append('page', page.toString());
+        params.append('per_page', per_page.toString());
+        if (search) { params.append('search', search); }
+        if (sort) { params.append('sort', sort); }
+        if (include) { params.append('include', include); }
+        return `contacts?${params.toString()}`;
+      },
+      providesTags: (result) =>
+        result
+          ? [...result.data.map(({ id }) => ({ type: 'Contact' as const, id })), { type: 'Contact', id: 'LIST' }]
+          : [{ type: 'Contact', id: 'LIST' }],
     }),
 
-    /**
-     * Get contacts filtered by status (e.g. "Nouveau").
-     * Supports cursor-based pagination (next_cursor).
-     */
-    getContactsByStatus: builder.query<PaginatedApiResponse<Contact>, { status: Contact['status']; per_page?: number; cursor?: string }>({
-        query: ({ status, per_page = 15, cursor }) => {
-            const params = new URLSearchParams();
-            params.append('per_page', per_page.toString());
-            if (cursor) {
-                params.append('cursor', cursor);
-            }
-            return {
-                url: `/contacts/by-status/${status}`,
-                params: params,
-            };
-        },
-        providesTags: (result, error, { status }) =>
-            result
-                ? [
-                    ...result.data.map(({ id }) => ({ type: 'Contact' as const, id })),
-                    { type: 'Contact', id: 'LIST', status },
-                ]
-                : [{ type: 'Contact', id: 'LIST', status }],
+    getContactsByStatus: builder.query<
+      PaginatedApiResponse<Contact>,
+      { status: Contact['status']; per_page?: number; cursor?: string }
+    >({
+      query: ({ status, per_page = 15, cursor }) => {
+        const params = new URLSearchParams();
+        params.append('per_page', per_page.toString());
+        if (cursor) {
+          params.append('cursor', cursor);
+        }
+        return {
+          url: `/contacts/by-status/${status}`,
+          params: params,
+        };
+      },
+      providesTags: (result, error, { status }) =>
+        result
+          ? [
+              ...result.data.map(({ id }) => ({ type: 'Contact' as const, id })),
+              { type: 'Contact', id: 'LIST', status },
+            ]
+          : [{ type: 'Contact', id: 'LIST', status }],
     }),
 
-    /** Create a new contact */
     addContact: builder.mutation<Contact, Partial<Contact>>({
       query: (newContact) => ({
         url: '/contacts',
@@ -169,7 +198,6 @@ export const api = createApi({
       invalidatesTags: ['Contact'],
     }),
 
-    /** Update an existing contact */
     updateContact: builder.mutation<Contact, Partial<Contact>>({
       query: ({ id, ...patch }) => ({
         url: `/contacts/${id}`,
@@ -179,7 +207,6 @@ export const api = createApi({
       invalidatesTags: (result, error, { id }) => [{ type: 'Contact', id }, { type: 'Contact', id: 'LIST' }],
     }),
 
-    /** Delete a contact by ID */
     deleteContact: builder.mutation<void, number>({
       query: (id) => ({
         url: `/contacts/${id}`,
@@ -188,196 +215,196 @@ export const api = createApi({
       invalidatesTags: ['Contact'],
     }),
 
-    /** Update only the status of a contact */
     updateContactStatus: builder.mutation<Contact, { id: number; status: Contact['status'] }>({
-        query: ({ id, status }) => ({
-            url: `/contacts/${id}/status`,
-            method: 'PUT',
-            body: { status },
-        }),
-        invalidatesTags: (result, error, { id }) => [{ type: 'Contact', id }, { type: 'Contact', id: 'LIST' }],
-    }),
-
-    getContactStatusOptions: builder.query<ContactStatusOptionsResponse, void>({
-        query: () => ({
-          url: '/meta/contact-statuses',
-          method: 'GET',
-        }),
+      query: ({ id, status }) => ({
+        url: `/contacts/${id}/status`,
+        method: 'PUT',
+        body: { status },
       }),
+      invalidatesTags: (result, error, { id }) => [{ type: 'Contact', id }, { type: 'Contact', id: 'LIST' }],
+    }),
 
-    // --- Google Calendar Endpoints ---
+    getContactStatusOptions: builder.query<any, void>({
+      query: () => ({
+        url: '/meta/contact-statuses',
+        method: 'GET',
+      }),
+    }),
 
-    /** Retrieve Google OAuth URL for initiating calendar connection */
+    searchContacts: builder.query<{ id: number; name: string }[], string>({
+      query: (q) => ({ url: '/contacts/search', params: { q } }),
+    }),
+
+    /**
+     * Google Calendar
+     */
     getGoogleAuthUrl: builder.query<GoogleAuthUrlResponse, void>({
-        query: () => 'google-calendar/auth/google/redirect',
+      query: () => 'google-calendar/auth/google/redirect',
     }),
 
-    /** Retrieve all events from connected Google Calendar */
     getGoogleCalendarEvents: builder.query<GoogleCalendarEvent[], void>({
-        query: () => '/google-calendar/events',
-        providesTags: ['GoogleCalendarEvent'],
+      query: () => '/google-calendar/events',
+      providesTags: ['GoogleCalendarEvent'],
     }),
 
-    /** Create a new Google Calendar event */
     createGoogleCalendarEvent: builder.mutation<GoogleCalendarEvent, CreateCalendarEventPayload>({
-        query: (newEvent) => ({
-            url: '/google-calendar/events',
-            method: 'POST',
-            body: newEvent,
-        }),
-        invalidatesTags: ['GoogleCalendarEvent'],
+      query: (newEvent) => ({
+        url: '/google-calendar/events',
+        method: 'POST',
+        body: newEvent,
+      }),
+      invalidatesTags: ['GoogleCalendarEvent'],
     }),
 
-    /** Update an existing Google Calendar event */
     updateGoogleCalendarEvent: builder.mutation<GoogleCalendarEvent, UpdateCalendarEventPayload>({
-        query: ({ eventId, ...patch }) => ({
-            url: `/google-calendar/events/${eventId}`,
-            method: 'PUT',
-            body: patch,
-        }),
-        invalidatesTags: ['GoogleCalendarEvent'],
+      query: ({ eventId, ...patch }) => ({
+        url: `/google-calendar/events/${eventId}`,
+        method: 'PUT',
+        body: patch,
+      }),
+      invalidatesTags: ['GoogleCalendarEvent'],
     }),
 
-    /** Delete a Google Calendar event by Google eventId */
     deleteGoogleCalendarEvent: builder.mutation<void, string>({
-        query: (eventId) => ({
-            url: `/google-calendar/events/${eventId}`,
-            method: 'DELETE',
-        }),
-        invalidatesTags: ['GoogleCalendarEvent'],
+      query: (eventId) => ({
+        url: `/google-calendar/events/${eventId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['GoogleCalendarEvent'],
     }),
 
-    /** Disconnect Google Calendar from the current user account */
     logoutGoogleCalendar: builder.mutation<void, void>({
-        query: () => ({
-            url: '/google-calendar/logout',
-            method: 'POST',
-        }),
-        invalidatesTags: ['GoogleCalendarEvent'],
+      query: () => ({
+        url: '/google-calendar/logout',
+        method: 'POST',
+      }),
+      invalidatesTags: ['GoogleCalendarEvent'],
     }),
 
-    // --- Local Calendar Endpoints ---
-
-    /** Get events from local backend calendar (for non-Google mode) */
+    /**
+     * Local Calendar
+     */
     getLocalCalendarEvents: builder.query<LocalCalendarEvent[], void>({
-        query: () => '/events/local',
-        providesTags: ['LocalCalendarEvent'],
+      query: () => '/events/local',
+      providesTags: ['LocalCalendarEvent'],
     }),
 
-    /** Create a new local calendar event */
     createLocalCalendarEvent: builder.mutation<LocalCalendarEvent, LocalEventPayload>({
-        query: (payload) => ({
-            url: '/events/local',
-            method: 'POST',
-            body: payload,
-        }),
-        invalidatesTags: ['LocalCalendarEvent'],
+      query: (payload) => ({
+        url: '/events/local',
+        method: 'POST',
+        body: payload,
+      }),
+      invalidatesTags: ['LocalCalendarEvent'],
     }),
 
-    /** Update an existing local calendar event */
     updateLocalCalendarEvent: builder.mutation<LocalCalendarEvent, UpdateLocalEventPayload>({
-        query: ({ eventId, ...body }) => ({
-            url: `/events/local/${eventId}`,
-            method: 'PUT',
-            body,
-        }),
-        invalidatesTags: ['LocalCalendarEvent'],
+      query: ({ eventId, ...body }) => ({
+        url: `/events/local/${eventId}`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: ['LocalCalendarEvent'],
     }),
 
-    /** Delete a local calendar event by ID */
     deleteLocalCalendarEvent: builder.mutation<void, number>({
-        query: (eventId) => ({
-            url: `/events/local/${eventId}`,
-            method: 'DELETE',
-        }),
-        invalidatesTags: ['LocalCalendarEvent'],
+      query: (eventId) => ({
+        url: `/events/local/${eventId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['LocalCalendarEvent'],
     }),
 
-    // ---- Company Endpoints --
-    getCompanies: builder.query<PaginatedApiResponse<Company>,{ page?: number; per_page?: number; search?: string; status?: string; owner_id?: number; sort?: string }>({
-        query: ({ page = 1, per_page = 15, search = '', status = '', owner_id, sort = '-created_at' }) => {
-            const params = new URLSearchParams();
-            params.append('page', String(page));
-            params.append('per_page', String(per_page));
-            if (search) params.append('search', search);
-            if (status) params.append('status', status);
-            if (typeof owner_id === 'number') params.append('owner_id', String(owner_id));
-            if (sort) params.append('sort', sort);
-            return { url: '/companies', params };
-        },
-        providesTags: (result) =>
-            result
-            ? [
-                ...result.data.map(({ id }) => ({ type: 'Company' as const, id })),
-                { type: 'Company', id: 'LIST' },
-                ]
-            : [{ type: 'Company', id: 'LIST' }],
+    /**
+     * Companies
+     */
+    getCompanies: builder.query<
+      PaginatedApiResponse<Company>,
+      { page?: number; per_page?: number; search?: string; status?: string; owner_id?: number; sort?: string }
+    >({
+      query: ({ page = 1, per_page = 15, search = '', status = '', owner_id, sort = '-created_at' }) => {
+        const params = new URLSearchParams();
+        params.append('page', String(page));
+        params.append('per_page', String(per_page));
+        if (search) params.append('search', search);
+        if (status) params.append('status', status);
+        if (typeof owner_id === 'number') params.append('owner_id', String(owner_id));
+        if (sort) params.append('sort', sort);
+        return { url: '/companies', params };
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.data.map(({ id }) => ({ type: 'Company' as const, id })),
+              { type: 'Company', id: 'LIST' },
+            ]
+          : [{ type: 'Company', id: 'LIST' }],
     }),
 
     createCompany: builder.mutation<Company, Partial<Company>>({
-        query: (body) => ({ url: '/companies', method: 'POST', body }),
-        invalidatesTags: [{ type: 'Company', id: 'LIST' }],
+      query: (body) => ({ url: '/companies', method: 'POST', body }),
+      invalidatesTags: [{ type: 'Company', id: 'LIST' }],
     }),
 
     updateCompany: builder.mutation<Company, Partial<Company> & { id: number }>({
-        query: ({ id, ...patch }) => ({ url: `/companies/${id}`, method: 'PUT', body: patch }),
-        invalidatesTags: (result, error, { id }) => [
-          { type: 'Company', id },
-          { type: 'Company', id: 'LIST' },
-        ],
+      query: ({ id, ...patch }) => ({ url: `/companies/${id}`, method: 'PUT', body: patch }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: 'Company', id },
+        { type: 'Company', id: 'LIST' },
+      ],
     }),
 
     deleteCompany: builder.mutation<void, number>({
-        query: (id) => ({ url: `/companies/${id}`, method: 'DELETE' }),
-        invalidatesTags: [{ type: 'Company', id: 'LIST' }],
+      query: (id) => ({ url: `/companies/${id}`, method: 'DELETE' }),
+      invalidatesTags: [{ type: 'Company', id: 'LIST' }],
     }),
-      
+
     getCompany: builder.query<Company, number>({
-        query: (id) => ({ url: `/companies/${id}` }),
-        providesTags: (result) => (result ? [{ type: 'Company', id: result.id }] : []),
+      query: (id) => ({ url: `/companies/${id}` }),
+      providesTags: (result) => (result ? [{ type: 'Company', id: result.id }] : []),
     }),
 
     getCompanyStatusOptions: builder.query<CompanyStatusOptionsResponse, void>({
-        query: () => ({
-          url: '/meta/company-statuses',
-          method: 'GET',
-        }),
+      query: () => ({
+        url: '/meta/company-statuses',
+        method: 'GET',
       }),
+    }),
 
     getCompanyContacts: builder.query<any, { companyId: number; page?: number; per_page?: number; search?: string }>({
-        query: ({ companyId, page = 1, per_page = 10, search = '' }) =>
-          `/companies/${companyId}/contacts?page=${page}&per_page=${per_page}&search=${encodeURIComponent(search)}`,
-        providesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
-      }),
-  
-      createCompanyContact: builder.mutation<any, { companyId: number; body: any }>({
-        query: ({ companyId, body }) => ({
-          url: `/companies/${companyId}/contacts`,
-          method: 'POST',
-          body,
-        }),
-        invalidatesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
-      }),
-  
-      updateCompanyContact: builder.mutation<any, { companyId: number; contactId: number; body: any }>({
-        query: ({ companyId, contactId, body }) => ({
-          url: `/companies/${companyId}/contacts/${contactId}`,
-          method: 'PUT',
-          body,
-        }),
-        invalidatesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
-      }),
-  
-      deleteCompanyContact: builder.mutation<any, { companyId: number; contactId: number }>({
-        query: ({ companyId, contactId }) => ({
-          url: `/companies/${companyId}/contacts/${contactId}`,
-          method: 'DELETE',
-        }),
-        invalidatesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
-      }),
+      query: ({ companyId, page = 1, per_page = 10, search = '' }) =>
+        `/companies/${companyId}/contacts?page=${page}&per_page=${per_page}&search=${encodeURIComponent(search)}`,
+      providesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
+    }),
 
-      getUnassignedContacts: builder.query<
-      Paginator<Contact>,
+    createCompanyContact: builder.mutation<any, { companyId: number; body: any }>({
+      query: ({ companyId, body }) => ({
+        url: `/companies/${companyId}/contacts`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
+    }),
+
+    updateCompanyContact: builder.mutation<any, { companyId: number; contactId: number; body: any }>({
+      query: ({ companyId, contactId, body }) => ({
+        url: `/companies/${companyId}/contacts/${contactId}`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
+    }),
+
+    deleteCompanyContact: builder.mutation<any, { companyId: number; contactId: number }>({
+      query: ({ companyId, contactId }) => ({
+        url: `/companies/${companyId}/contacts/${contactId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
+    }),
+
+    getUnassignedContacts: builder.query<
+      PaginatedApiResponse<Contact>,
       { page?: number; per_page?: number; search?: string; includeAssigned?: boolean }
     >({
       query: ({ page = 1, per_page = 10, search = '', includeAssigned = false }) => {
@@ -398,7 +425,7 @@ export const api = createApi({
       query: ({ companyId, contactId }) => ({
         url: `/companies/${companyId}/contacts/attach`,
         method: 'POST',
-        body: { contact_id: contactId }, 
+        body: { contact_id: contactId },
       }),
       invalidatesTags: (result, error, arg) => [
         { type: 'CompanyContacts', id: arg.companyId },
@@ -421,11 +448,167 @@ export const api = createApi({
         { type: 'Company', id: arg.companyId },
       ],
     }),
-  })
+
+    searchCompanies: builder.query<{ id: number; name: string }[], string>({
+        query: (q) => ({ url: '/companies/search', params: { q } }),
+      }),
+
+    getCompanyDocuments: builder.query<
+      PaginatedApiResponse<DocumentModel>,
+      { company_id: number; page?: number; per_page?: number; search?: string; tag?: string; type?: string; sort?: string }
+    >({
+      query: ({ company_id, page = 1, per_page = 15, search, tag, type, sort = '-created_at' }) => {
+        const params = new URLSearchParams();
+        params.append('company_id', String(company_id));
+        params.append('page', String(page));
+        params.append('per_page', String(per_page));
+        if (search) params.append('search', search);
+        if (tag) params.append('tag', tag);
+        if (type) params.append('type', type);
+        if (sort) params.append('sort', sort);
+        return { url: '/documents', params };
+      },
+      providesTags: (result) =>
+        result?.data
+          ? [
+              ...result.data.map(d => ({ type: 'Document' as const, id: d.id })),
+              { type: 'Document', id: 'LIST' },
+            ]
+          : [{ type: 'Document', id: 'LIST' }],
+    }),
+
+    /**
+     * Documents
+     */
+    getDocuments: builder.query<
+      PaginatedApiResponse<DocumentModel>,
+      {
+        page?: number;
+        per_page?: number;
+        search?: string;
+        tag?: string;
+        type?: string; // mime prefix or extension
+        company_id?: number;
+        contact_id?: number;
+        owner_id?: number;
+        sort?: string; // e.g., -created_at
+      }
+    >({
+      query: (paramsObj = {}) => {
+        const {
+          page = 1,
+          per_page = 15,
+          search,
+          tag,
+          type,
+          company_id,
+          contact_id,
+          owner_id,
+          sort = '-created_at',
+        } = paramsObj;
+
+        const params = new URLSearchParams();
+        params.append('page', String(page));
+        params.append('per_page', String(per_page));
+        if (search) params.append('search', search);
+        if (tag) params.append('tag', tag);
+        if (type) params.append('type', type);
+        if (typeof company_id === 'number') params.append('company_id', String(company_id));
+        if (typeof contact_id === 'number') params.append('contact_id', String(contact_id));
+        if (typeof owner_id === 'number') params.append('owner_id', String(owner_id));
+        if (sort) params.append('sort', sort);
+
+        return { url: '/documents', params };
+      },
+      providesTags: (result) =>
+        result?.data
+          ? [
+              ...result.data.map((d) => ({ type: 'Document' as const, id: d.id })),
+              { type: 'Document' as const, id: 'LIST' },
+            ]
+          : [{ type: 'Document' as const, id: 'LIST' }],
+    }),
+
+    getDocument: builder.query<DocumentModel, number>({
+      query: (id) => ({ url: `/documents/${id}` }),
+      providesTags: (_res, _err, id) => [{ type: 'Document', id }],
+    }),
+
+    uploadDocument: builder.mutation<DocumentModel, FormData>({
+      query: (formData) => ({
+        url: '/documents',
+        method: 'POST',
+        body: formData, // Do not set content-type; browser sets multipart boundary
+      }),
+      invalidatesTags: [{ type: 'Document', id: 'LIST' }],
+    }),
+
+    updateDocument: builder.mutation<DocumentModel, { id: number; data: Partial<Pick<DocumentModel, 'name' | 'description' | 'visibility' | 'tags'>> }>({
+      query: ({ id, data }) => ({
+        url: `/documents/${id}`,
+        method: 'PATCH',
+        body: data,
+      }),
+      invalidatesTags: (_res, _err, { id }) => [{ type: 'Document', id }, { type: 'Document', id: 'LIST' }],
+    }),
+
+    deleteDocument: builder.mutation<{ status: string }, { id: number; hard?: boolean }>({
+      query: ({ id, hard }) => ({
+        url: `/documents/${id}`,
+        method: 'DELETE',
+        params: { hard_delete: hard ? 'true' : 'false' },
+      }),
+      invalidatesTags: [{ type: 'Document', id: 'LIST' }],
+    }),
+
+    downloadDocument: builder.query<{ url?: string }, number>({
+      query: (id) => ({ url: `/documents/${id}/download` }),
+    }),
+
+    linkDocument: builder.mutation<DocumentModel, { id: number; payload: DocumentLinkPayload }>({
+      query: ({ id, payload }) => ({
+        url: `/documents/${id}/links`,
+        method: 'POST',
+        body: payload,
+      }),
+      invalidatesTags: (_res, _err, { id }) => [{ type: 'Document', id }],
+    }),
+
+    unlinkDocument: builder.mutation<DocumentModel, { id: number; payload: { type: DocumentLinkType; id: number } }>({
+      query: ({ id, payload }) => ({
+        url: `/documents/${id}/unlinks`,
+        method: 'DELETE',
+        body: payload as any, // fetchBaseQuery supports body in DELETE
+      }),
+      invalidatesTags: (_res, _err, { id }) => [{ type: 'Document', id }],
+    }),
+
+    listDocumentVersions: builder.query<DocumentVersion[], number>({
+      query: (id) => ({ url: `/documents/${id}/versions` }),
+      providesTags: (_res, _err, id) => [{ type: 'Document', id }],
+    }),
+
+    uploadDocumentVersion: builder.mutation<
+      { version: number; document: DocumentModel },
+      { id: number; file: File }
+    >({
+      query: ({ id, file }) => {
+        const form = new FormData();
+        form.append('file', file);
+        return {
+          url: `/documents/${id}/versions`,
+          method: 'POST',
+          body: form,
+        };
+      },
+      invalidatesTags: (_res, _err, { id }) => [{ type: 'Document', id }, { type: 'Document', id: 'LIST' }],
+    }),
+  }),
 });
 
 // --- Export generated RTK Query hooks for usage in components ---
 export const {
+  // Contacts
   useGetContactsQuery,
   useGetContactsByStatusQuery,
   useLazyGetContactsQuery,
@@ -435,6 +618,7 @@ export const {
   useUpdateContactStatusMutation,
   useGetContactStatusOptionsQuery,
 
+  // Google Calendar
   useGetGoogleAuthUrlQuery,
   useGetGoogleCalendarEventsQuery,
   useCreateGoogleCalendarEventMutation,
@@ -442,11 +626,13 @@ export const {
   useDeleteGoogleCalendarEventMutation,
   useLogoutGoogleCalendarMutation,
 
+  // Local Calendar
   useGetLocalCalendarEventsQuery,
   useCreateLocalCalendarEventMutation,
   useUpdateLocalCalendarEventMutation,
   useDeleteLocalCalendarEventMutation,
 
+  // Companies
   useGetCompaniesQuery,
   useGetCompanyQuery,
   useCreateCompanyMutation,
@@ -461,4 +647,23 @@ export const {
   useGetUnassignedContactsQuery,
   useAttachCompanyContactMutation,
   useDetachCompanyContactMutation,
+
+  // Documents
+  useGetDocumentsQuery,
+  useGetCompanyDocumentsQuery,
+  useLazyGetCompanyDocumentsQuery,
+  useGetDocumentQuery,
+  useUploadDocumentMutation,
+  useUpdateDocumentMutation,
+  useDeleteDocumentMutation,
+  useDownloadDocumentQuery,
+  useLinkDocumentMutation,
+  useUnlinkDocumentMutation,
+  useListDocumentVersionsQuery,
+  useUploadDocumentVersionMutation,
+
+  useSearchCompaniesQuery,
+  useLazySearchCompaniesQuery,
+  useSearchContactsQuery,
+  useLazySearchContactsQuery,
 } = api;

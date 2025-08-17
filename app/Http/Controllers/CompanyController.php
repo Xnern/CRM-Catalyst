@@ -97,4 +97,14 @@ class CompanyController extends Controller
     {
         return response()->json($company->contacts()->latest()->paginate(15));
     }
+
+    public function search(Request $request)
+    {
+        $q = trim((string) $request->get('q', ''));
+        $res = \App\Models\Company::query()
+            ->when($q, fn($qq) => $qq->where('name', 'like', "%{$q}%"))
+            ->limit(15)
+            ->get(['id','name']);
+        return response()->json($res);
+    }
 }

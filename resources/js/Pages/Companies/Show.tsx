@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import {
@@ -17,6 +17,10 @@ import {
   // Meta
   useGetCompanyStatusOptionsQuery,
   useGetContactStatusOptionsQuery,
+  // Documents
+  useLazyGetCompanyDocumentsQuery,
+  useLinkDocumentMutation,
+  useUnlinkDocumentMutation,
 } from '@/services/api';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent } from '@/Components/ui/card';
@@ -34,17 +38,19 @@ import {
 import { toast } from 'sonner';
 import {
   Building2, ArrowLeft, MoreVertical, Pencil, Trash2,
-  Plus, Loader2, ChevronLeft, ChevronRight
+  Plus, Loader2, ChevronLeft, ChevronRight, Eye
 } from 'lucide-react';
 import CompanyAddressMapSplit, { SplitAddress } from '@/Components/Companies/CompanyAddressMapSplit';
 import ContactForm from '@/Components/ContactForm';
 import { Company } from '@/types/Company';
+import { Document } from '@/types/Document';
 
-// Types
+import { DocumentDetailsModal } from '@/Components/Documents/DocumentDetailsModal';
+
 type Props = { auth: any; id: number };
 type ApiErrors = Record<string, string[] | string> | undefined;
 
-// Badge helpers (company)
+// Badge helpers
 const companyBadgeClasses = (status?: string) => {
   switch (status) {
     case 'Client':
@@ -57,7 +63,6 @@ const companyBadgeClasses = (status?: string) => {
   }
 };
 
-// Badge helpers (contact)
 const contactBadgeClasses = (raw?: string) => {
   if (!raw) return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
   const s = raw
@@ -96,11 +101,11 @@ export default function CompanyShow({ auth, id }: Props) {
   const [deleteCompany] = useDeleteCompanyMutation();
   const [updateCompany] = useUpdateCompanyMutation();
 
-  // Modals global
+  // Global modals
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
-  // Company edit form + errors
+  // Edit form state
   const [form, setForm] = useState<Partial<Company> & SplitAddress>({
     name: '',
     domain: '',
@@ -117,7 +122,7 @@ export default function CompanyShow({ auth, id }: Props) {
   });
   const [companyErrors, setCompanyErrors] = useState<ApiErrors>(undefined);
 
-  // Meta status options
+  // Status options
   const { data: companyStatusesRes } = useGetCompanyStatusOptionsQuery();
   const companyStatusOptions = useMemo(
     () =>
@@ -169,8 +174,8 @@ export default function CompanyShow({ auth, id }: Props) {
     }
   }, [data]);
 
+  // Delete company flow
   const demanderSuppression = () => setIsDeleteDialogOpen(true);
-
   const confirmerSuppression = async () => {
     try {
       await deleteCompany(id).unwrap();
@@ -183,6 +188,7 @@ export default function CompanyShow({ auth, id }: Props) {
     }
   };
 
+  // Save edits
   const soumettreEdition = async (e: React.FormEvent) => {
     e.preventDefault();
     setCompanyErrors(undefined);
@@ -201,7 +207,7 @@ export default function CompanyShow({ auth, id }: Props) {
     }
   };
 
-  // Contacts list/CRUD state
+  // Contacts list/filter
   const [contactPage, setContactPage] = useState(1);
   const [contactPerPage] = useState(10);
   const [contactSearch, setContactSearch] = useState('');
@@ -215,17 +221,18 @@ export default function CompanyShow({ auth, id }: Props) {
   const contactsLastPage = (contactData as any)?.last_page ?? 1;
   const contactsCurrentPage = (contactData as any)?.current_page ?? contactPage;
 
+  // Contacts mutations
   const [createContact, { isLoading: isCreatingContact }] = useCreateCompanyContactMutation();
   const [updateContact, { isLoading: isUpdatingContact }] = useUpdateCompanyContactMutation();
   const [deleteCompanyContact, { isLoading: isDeletingContact }] = useDeleteCompanyContactMutation();
   const [detachCompanyContact, { isLoading: isDetaching }] = useDetachCompanyContactMutation();
 
-  // Modal Contact CRUD
+  // Modal state (contacts)
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<any | null>(null);
   const [contactErrors, setContactErrors] = useState<ApiErrors>(undefined);
 
-  // Modal de delete
+  // Contact delete confirm
   const [isContactDeleteDialogOpen, setIsContactDeleteDialogOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<any | null>(null);
 
@@ -272,7 +279,7 @@ export default function CompanyShow({ auth, id }: Props) {
     }
   };
 
-  // Attach existing contacts (unassigned)
+  // Attach existing contacts modal
   const [isAttachModalOpen, setIsAttachModalOpen] = useState(false);
   const [attachSearch, setAttachSearch] = useState('');
   const [attachPage, setAttachPage] = useState(1);
@@ -309,6 +316,115 @@ export default function CompanyShow({ auth, id }: Props) {
       } else {
         toast.error("Échec de l'association du contact.");
       }
+    }
+  };
+
+  // Documents list
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+
+  const [fetchDocuments] = useLazyGetCompanyDocumentsQuery();
+  const [unlinkDocument] = useUnlinkDocumentMutation();
+
+  const loadDocuments = async () => {
+    setDocumentsLoading(true);
+    try {
+      const result = await fetchDocuments({ company_id: id, per_page: 100 }).unwrap();
+      setDocuments(result.data || []);
+    } catch {
+      toast.error('Impossible de charger les documents.');
+    } finally {
+      setDocumentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (id) loadDocuments();
+  }, [id]);
+
+  const detachDoc = async (doc: Document) => {
+    try {
+      await unlinkDocument({ id: doc.id, payload: { type: 'company', id } }).unwrap();
+      toast.success('Document détaché de l’entreprise.');
+      loadDocuments();
+    } catch {
+      toast.error('Échec du détachement du document.');
+    }
+  };
+
+  // Document details modal
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsDoc, setDetailsDoc] = useState<Document | null>(null);
+
+  const openDetailsFromList = async (doc: Document) => {
+    try {
+      const resp = await fetch(`/api/documents/${doc.id}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (resp.ok) {
+        const full = await resp.json();
+        setDetailsDoc(full as Document);
+      } else {
+        setDetailsDoc(doc);
+      }
+    } catch {
+      setDetailsDoc(doc);
+    }
+    setDetailsOpen(true);
+  };
+
+  // Row-level delete/detach confirmation
+  const [isDocDeleteDialogOpen, setIsDocDeleteDialogOpen] = useState(false);
+  const [docDeleteTarget, setDocDeleteTarget] = useState<Document | null>(null);
+  const [deleteMode, setDeleteMode] = useState<'detach' | 'delete'>('detach');
+
+  const confirmDocAction = async () => {
+    if (!docDeleteTarget) return;
+    try {
+      if (deleteMode === 'detach') {
+        await unlinkDocument({ id: docDeleteTarget.id, payload: { type: 'company', id } }).unwrap();
+        toast.success('Document détaché de l’entreprise.');
+      } else {
+        const resp = await fetch(`/api/documents/${docDeleteTarget.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+        if (!resp.ok) throw new Error();
+        toast.success('Document supprimé définitivement.');
+        if (detailsDoc?.id === docDeleteTarget.id) {
+          setDetailsOpen(false);
+          setDetailsDoc(null);
+        }
+      }
+      setIsDocDeleteDialogOpen(false);
+      setDocDeleteTarget(null);
+      loadDocuments();
+    } catch {
+      toast.error('Action impossible.');
+    }
+  };
+
+  // Search providers for LinkPicker in details modal:
+  // - Company search can be disabled (modal handles it via currentCompanyId)
+  // - Provide contact search implementation here; replace with your RTK search if available
+  const searchCompanies = async (_q: string) => {
+    // Can be intentionally left as no-op if disabled; return empty list.
+    return [];
+  };
+
+  const searchContacts = async (q: string) => {
+    // Example simple endpoint; replace with your actual search source if needed.
+    try {
+      if (!q || q.trim().length < 2) return [];
+      const resp = await fetch(`/api/contacts/search?q=${encodeURIComponent(q)}`, { credentials: 'include' });
+      if (!resp.ok) return [];
+      const arr = await resp.json();
+      // Expecting array of { id, name }
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
     }
   };
 
@@ -432,7 +548,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </CardContent>
             </Card>
 
-            {/* Contacts of company */}
+            {/* Company contacts */}
             <Card id="company-contacts-section">
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2">
@@ -561,7 +677,7 @@ export default function CompanyShow({ auth, id }: Props) {
                       variant="outline"
                       size="sm"
                       disabled={contactsCurrentPage >= contactsLastPage || isFetchingContacts}
-                      onClick={() => setContactPage((p) => Math.min(contactsLastPage, p + 1))}
+                      onClick={() => setContactPage((p) => Math.min(unassignedLastPage, p + 1))}
                       className="gap-1"
                     >
                       Suivant <ChevronRight className="h-4 w-4" />
@@ -571,7 +687,72 @@ export default function CompanyShow({ auth, id }: Props) {
               </CardContent>
             </Card>
 
-            {/* Modale Update Company */}
+            {/* Documents liés */}
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-lg font-semibold">Documents liés</div>
+                </div>
+
+                {documentsLoading ? (
+                  <div className="text-gray-500 flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Chargement des documents...
+                  </div>
+                ) : documents.length === 0 ? (
+                  <div className="text-gray-400">Aucun document lié à cette entreprise.</div>
+                ) : (
+                  <div className="overflow-x-auto max-h-64">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr className="text-left">
+                          <th className="px-4 py-2">Nom</th>
+                          <th className="px-4 py-2">Type</th>
+                          <th className="px-4 py-2">Taille</th>
+                          <th className="px-4 py-2">Créé le</th>
+                          <th className="px-4 py-2 w-[160px]">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {documents.map((doc) => (
+                          <tr key={doc.id} className="border-t hover:bg-gray-50/60 transition-colors">
+                            <td className="px-4 py-2 font-medium text-gray-900">{doc.name}</td>
+                            <td className="px-4 py-2 text-gray-700">{doc.extension?.toUpperCase() || doc.mime_type}</td>
+                            <td className="px-4 py-2 text-gray-700">{(doc.size_bytes / 1024).toFixed(1)} KB</td>
+                            <td className="px-4 py-2 text-gray-700">{doc.created_at ? new Date(doc.created_at).toLocaleDateString() : '-'}</td>
+                            <td className="px-4 py-2">
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  title="Détails"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 opacity-80 hover:opacity-100"
+                                  onClick={() => openDetailsFromList(doc)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+
+                                <Button
+                                  title="Supprimer"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-red-600 opacity-80 hover:opacity-100"
+                                  onClick={() => { setDocDeleteTarget(doc); setDeleteMode('detach'); setIsDocDeleteDialogOpen(true); }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Company edit modal */}
             <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
               <DialogContent
                 className="sm:max-w-[700px] p-0 [&>button[type='button']]:z-30"
@@ -588,28 +769,27 @@ export default function CompanyShow({ auth, id }: Props) {
                   <div className="px-6 py-4" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
                     <form id="company-edit-form" onSubmit={soumettreEdition} className="space-y-4">
                       <div className="flex flex-col space-y-1">
-
                         <div className="flex items-center justify-between">
-                            <label className="text-sm text-gray-700">Statut</label>
-                            <span
+                          <label className="text-sm text-gray-700">Statut</label>
+                          <span
                             className={[
-                                'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                                companyBadgeClasses(form.status as string),
+                              'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                              companyBadgeClasses(form.status as string),
                             ].join(' ')}
-                            >
+                          >
                             {form.status ?? '—'}
-                            </span>
+                          </span>
                         </div>
                         <Select
-                            value={(form.status as string) ?? (companyStatusOptions[0]?.value ?? 'Prospect')}
-                            onValueChange={(v) => setForm((f) => ({ ...f, status: v as Company['status'] }))}
+                          value={(form.status as string) ?? (companyStatusOptions[0]?.value ?? 'Prospect')}
+                          onValueChange={(v) => setForm((f) => ({ ...f, status: v as Company['status'] }))}
                         >
-                            <SelectTrigger>
+                          <SelectTrigger>
                             <SelectValue placeholder="Sélectionner un statut" />
-                            </SelectTrigger>
-                            <SelectContent>
+                          </SelectTrigger>
+                          <SelectContent>
                             {companyStatusOptions.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                            </SelectContent>
+                          </SelectContent>
                         </Select>
                         {companyErrors?.status && <p className="text-red-500 text-sm mt-1">{companyErrors.status as string}</p>}
                       </div>
@@ -675,7 +855,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </DialogContent>
             </Dialog>
 
-            {/* Modal Contact (store/update) */}
+            {/* Contact create/update modal */}
             <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
               <DialogContent
                 className="sm:max-w-[560px] p-0 [&>button[type='button']]:z-30"
@@ -731,7 +911,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </DialogContent>
             </Dialog>
 
-            {/* Modal add existing contact */}
+            {/* Add existing contact modal */}
             <Dialog open={isAttachModalOpen} onOpenChange={setIsAttachModalOpen}>
               <DialogContent
                 className="sm:max-w-[700px] p-0 [&>button[type='button']]:z-30"
@@ -835,7 +1015,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </DialogContent>
             </Dialog>
 
-            {/* Modal delete/detach contact */}
+            {/* Contact delete/detach confirmation */}
             <AlertDialog open={isContactDeleteDialogOpen} onOpenChange={setIsContactDeleteDialogOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -856,7 +1036,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </AlertDialogContent>
             </AlertDialog>
 
-            {/* Modal delete company */}
+            {/* Company delete confirmation */}
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -873,6 +1053,44 @@ export default function CompanyShow({ auth, id }: Props) {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+
+            {/* Row-level document delete/detach confirmation */}
+            <AlertDialog open={isDocDeleteDialogOpen} onOpenChange={setIsDocDeleteDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Que faire avec ce document ?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Choisir une action: détacher le document de l’entreprise (le document restera disponible ailleurs), ou le supprimer définitivement.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
+                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <Button
+                    variant="outline"
+                    onClick={() => { setDeleteMode('detach'); confirmDocAction(); }}
+                  >
+                    Détacher de l’entreprise
+                  </Button>
+                  <AlertDialogAction
+                    onClick={() => { setDeleteMode('delete'); confirmDocAction(); }}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Supprimer définitivement
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Reusable Document Details Modal integration */}
+            <DocumentDetailsModal
+              open={detailsOpen && !!detailsDoc}
+              onOpenChange={(o) => setDetailsOpen(o)}
+              document={detailsDoc as any}
+              currentCompanyId={id}
+              onAfterChange={loadDocuments}
+              searchCompanies={searchCompanies}
+              searchContacts={searchContacts}
+            />
           </>
         )}
       </div>

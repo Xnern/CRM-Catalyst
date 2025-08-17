@@ -7,43 +7,80 @@ use App\Models\Company;
 
 class CompanyPolicy
 {
-    /**
-     * Show all companies.
-     */
+    // Comments in English only
+
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->hasRole('admin')
+            || $user->can('view all companies')
+            || $user->can('view companies')
+            || $user->can('view own companies');
     }
 
-    /**
-     * Show a specific company.
-     */
     public function view(User $user, Company $company): bool
     {
-        return $user->id === $company->owner_id || $user->is_admin;
+        if ($user->hasRole('admin') || $user->can('view all companies')) {
+            return true;
+        }
+
+        if ($user->can('view own companies') && (int)$user->id === (int)$company->owner_id) {
+            return true;
+        }
+
+        if ($user->can('view companies')) {
+            if ($this->isSameTeam($user, $company)) return true;
+            if ($this->isSameTenant($user, $company)) return true;
+        }
+
+        return false;
     }
 
-    /**
-     * Create a new company.
-     */
     public function create(User $user): bool
     {
-        return true; 
+        return $user->hasRole('admin') || $user->can('create company');
     }
 
-    /**
-     * Update company data.
-     */
     public function update(User $user, Company $company): bool
     {
-        return $user->id === $company->owner_id || $user->is_admin;
+        if ($user->hasRole('admin')) return true;
+
+        if ($user->can('manage companies')) {
+            if ($this->isOwner($user, $company)) return true;
+            if ($this->isSameTeam($user, $company)) return true;
+            if ($this->isSameTenant($user, $company)) return true;
+        }
+
+        return false;
     }
 
-    /**
-     * Delete a company.
-     */
     public function delete(User $user, Company $company): bool
     {
-        return $user->id === $company->owner_id || $user->is_admin;
+        if ($user->hasRole('admin')) return true;
+
+        if ($user->can('delete companies')) {
+            if ($this->isOwner($user, $company)) return true;
+            if ($this->isSameTeam($user, $company)) return true;
+            if ($this->isSameTenant($user, $company)) return true;
+        }
+
+        return false;
+    }
+
+    // Helpers: adapt to your schema
+    protected function isOwner(User $user, Company $company): bool
+    {
+        return (int)$user->id === (int)$company->owner_id;
+    }
+
+    protected function isSameTeam(User $user, Company $company): bool
+    {
+        // return $user->team_id && $company->team_id && $user->team_id === $company->team_id;
+        return false;
+    }
+
+    protected function isSameTenant(User $user, Company $company): bool
+    {
+        // return $user->tenant_id && $company->tenant_id && $user->tenant_id === $company->tenant_id;
+        return false;
     }
 }

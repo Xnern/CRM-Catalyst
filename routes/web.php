@@ -5,10 +5,11 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Foundation\Application;
 use App\Http\Controllers\GoogleController;
 use App\Http\Controllers\KanbanController;
+use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\GoogleAuthController;
-use App\Http\Controllers\CompanyController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -30,6 +31,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/entreprises', [CompanyController::class, 'indexInertia'])->name('companies.indexInertia');
     Route::get('/entreprises/{id}', [CompanyController::class, 'showInertia'])->name('companies.showInertia');
+    Route::get('/documents', [DocumentController::class, 'indexInertia'])->name('documents.indexInertia');
 });
 
 Route::get('/dashboard', function () {
