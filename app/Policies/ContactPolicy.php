@@ -11,7 +11,6 @@ class ContactPolicy
 {
     use HandlesAuthorization;
 
-    // Comments in English only
 
     public function viewAny(User $user): bool
     {
@@ -120,7 +119,6 @@ class ContactPolicy
         return $this->delete($user, $contact);
     }
 
-    // Helpers: adapt to your schema
     protected function isOwner(User $user, Contact $contact): bool
     {
         return (int) $user->id === (int) $contact->user_id;

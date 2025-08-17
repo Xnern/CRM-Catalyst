@@ -1,13 +1,3 @@
-// resources/js/Pages/Companies/Show.tsx
-// CompanyShow with:
-// - French UI and English comments
-// - Eye/trash actions on documents with confirmation (detach/delete)
-// - UploadModal integration to upload documents directly from company page
-// - Prefill UploadModal links with current company (initialLinks)
-// - Company and contact search providers wired for UploadModal and Details modal
-// - Contact CRUD with pagination/search
-// - Details modal integration for documents
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';

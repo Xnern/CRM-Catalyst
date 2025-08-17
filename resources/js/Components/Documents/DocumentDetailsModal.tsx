@@ -1,10 +1,3 @@
-// src/Components/Documents/DocumentDetailsModal.tsx
-// Reusable Document Details Modal
-// - French UI labels and messages
-// - English-only comments
-// - Refresh parent via onAfterChange after link/unlink/save/delete/upload
-// - Instant local UI update on attach/detach (update localDoc state)
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';

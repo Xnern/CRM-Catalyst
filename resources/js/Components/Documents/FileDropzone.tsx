@@ -1,6 +1,5 @@
 import React, { useCallback } from 'react';
 
-// Comments in English only
 type Props = {
   onFileSelected: (file: File) => void;
   accept?: string;           // comma separated extensions, e.g. ".pdf,.docx"

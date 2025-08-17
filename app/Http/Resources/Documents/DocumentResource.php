@@ -7,7 +7,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class DocumentResource extends JsonResource
 {
-    // Keep comments in English only
     public function toArray(Request $request): array
     {
         return [

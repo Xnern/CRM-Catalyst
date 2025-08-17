@@ -7,8 +7,6 @@ import { GoogleCalendarEvent, CreateCalendarEventPayload } from '@/types/GoogleC
 import { LocalCalendarEvent, LocalEventPayload, UpdateLocalEventPayload } from '@/types/LocalCalendarEvent';
 import { Company, CompanyStatusOptionsResponse } from '@/types/Company';
 
-// Comments in English only
-
 // --- Types & Interfaces ---
 
 export interface UpdateCalendarEventPayload extends CreateCalendarEventPayload {

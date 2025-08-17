@@ -3,7 +3,6 @@ import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
 import { X } from 'lucide-react';
 
-// Comments in English only
 type Props = {
   value: string[];
   onChange: (v: string[]) => void;

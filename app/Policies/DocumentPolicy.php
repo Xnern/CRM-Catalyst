@@ -100,7 +100,6 @@ class DocumentPolicy
 
     protected function isSameTeam(User $user, Document $document): bool
     {
-        // Implement your own logic:
         // Example if you have user->team_id and document is associated to team scope:
         // return $document->team_id && $user->team_id === $document->team_id;
 
@@ -111,7 +110,6 @@ class DocumentPolicy
 
     protected function isSameCompanyScope(User $user, Document $document): bool
     {
-        // Implement your own company scope logic:
         // Example if user->company_id and document has company links:
         // return $document->companies()->where('companies.id', $user->company_id)->exists();
 

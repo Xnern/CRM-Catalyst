@@ -1,11 +1,3 @@
-// src/Components/Documents/UploadModal.tsx
-// Upload modal for documents
-// - French UI labels and messages
-// - English-only comments
-// - Extended allow-list aligned with backend validation
-// - Accepts initialLinks to prefill LinkPicker (e.g., current company)
-// - Returns upload result to parent via onUploaded
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { FileDropzone } from './FileDropzone';
 import { TagInput } from './TagInput';
@@ -14,8 +6,6 @@ import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/Components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/Components/ui/dialog';
-
-// Comments in English only
 
 type Link = { type: 'company' | 'contact'; id: number; name: string; role?: string };
 

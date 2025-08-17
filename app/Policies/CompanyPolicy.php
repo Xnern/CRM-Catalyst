@@ -7,7 +7,6 @@ use App\Models\Company;
 
 class CompanyPolicy
 {
-    // Comments in English only
 
     public function viewAny(User $user): bool
     {
@@ -66,7 +65,6 @@ class CompanyPolicy
         return false;
     }
 
-    // Helpers: adapt to your schema
     protected function isOwner(User $user, Company $company): bool
     {
         return (int)$user->id === (int)$company->owner_id;

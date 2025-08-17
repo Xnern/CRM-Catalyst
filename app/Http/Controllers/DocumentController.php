@@ -26,7 +26,6 @@ class DocumentController extends Controller
     // GET /api/documents
     public function index(Request $req)
     {
-        // Optional: define viewAny policy if needed
         $q = Document::query()->with(['owner'])
             ->when($req->search, function ($qq, $s) {
                 $qq->where(function ($w) use ($s) {
@@ -297,7 +296,7 @@ class DocumentController extends Controller
             abort(404);
         }
 
-        // If you use S3 and want a signed URL in JSON (uncomment and adapt):
+        // If S3 and want a signed URL in JSON :
         // if ($disk === 's3') {
         //     $mime = $document->mime_type ?: 'application/octet-stream';
         //     $signedUrl = \Storage::disk('s3')->temporaryUrl(
