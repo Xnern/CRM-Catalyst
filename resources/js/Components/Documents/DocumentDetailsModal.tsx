@@ -1,3 +1,10 @@
+// src/Components/Documents/DocumentDetailsModal.tsx
+// Reusable Document Details Modal
+// - French UI labels and messages
+// - English-only comments
+// - Refresh parent via onAfterChange after link/unlink/save/delete/upload
+// - Instant local UI update on attach/detach (update localDoc state)
+
 import React, { useEffect, useState, useRef } from 'react';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -218,7 +225,6 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
       if (deleteMode === 'detach' && currentCompanyId) {
         await unlinkDocument({ id: localDoc.id, payload: { type: 'company', id: currentCompanyId } }).unwrap();
         toast.success('Document détaché de l’entreprise.');
-        // Close details modal when detaching from current company context to reflect immediate remove in parent list if desired
         onOpenChange(false);
       } else if (deleteMode === 'delete') {
         await deleteDocument({ id: localDoc.id, hard: true } as any).unwrap();
@@ -366,7 +372,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                             </div>
                           </div>
 
-                          {/* Disable company search optionally when already on a company page */}
+                          {/* LinkPicker: allow searching both companies and contacts */}
                           <div className="mt-1">
                             <LinkPicker
                               value={[]}
@@ -379,7 +385,6 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                               searchContacts={searchContacts}
                               minChars={2}
                               debounceMs={300}
-                              disableCompanySearch={!!currentCompanyId}
                             />
                           </div>
                         </div>

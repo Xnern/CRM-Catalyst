@@ -247,7 +247,7 @@ class DocumentController extends Controller
         $this->authorize('update', $document);
 
         $data = $req->validate([
-            'file' => ['required','file','max:25600'],
+            'file' => ['required','file','max:25600','mimes:pdf,doc,docx,rtf,odt,xls,xlsx,xlsm,ods,csv,ppt,pptx,odp,txt,md,png,jpg,jpeg,gif,bmp,tiff,webp,svg,zip'],
         ]);
 
         $file = $req->file('file');

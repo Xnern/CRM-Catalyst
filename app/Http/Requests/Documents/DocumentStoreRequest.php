@@ -10,7 +10,7 @@ class DocumentStoreRequest extends FormRequest
 
     public function rules(): array {
         return [
-            'file' => ['required','file','max:25600','mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg'],
+            'file' => ['required','file','max:25600','mimes:pdf,doc,docx,rtf,odt,xls,xlsx,xlsm,ods,csv,ppt,pptx,odp,txt,md,png,jpg,jpeg,gif,bmp,tiff,webp,svg,zip'],
             'name' => ['sometimes','string','max:255'],
             'description' => ['nullable','string'],
             'visibility' => ['sometimes','in:private,team,company'],

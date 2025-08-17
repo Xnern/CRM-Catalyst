@@ -1,3 +1,13 @@
+// resources/js/Pages/Companies/Show.tsx
+// CompanyShow with:
+// - French UI and English comments
+// - Eye/trash actions on documents with confirmation (detach/delete)
+// - UploadModal integration to upload documents directly from company page
+// - Prefill UploadModal links with current company (initialLinks)
+// - Company and contact search providers wired for UploadModal and Details modal
+// - Contact CRUD with pagination/search
+// - Details modal integration for documents
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
@@ -21,7 +31,9 @@ import {
   useLazyGetCompanyDocumentsQuery,
   useLinkDocumentMutation,
   useUnlinkDocumentMutation,
+  useUploadDocumentMutation, // used by UploadModal upload callback
 } from '@/services/api';
+
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent } from '@/Components/ui/card';
 import { Input } from '@/Components/ui/input';
@@ -40,12 +52,13 @@ import {
   Building2, ArrowLeft, MoreVertical, Pencil, Trash2,
   Plus, Loader2, ChevronLeft, ChevronRight, Eye
 } from 'lucide-react';
+
 import CompanyAddressMapSplit, { SplitAddress } from '@/Components/Companies/CompanyAddressMapSplit';
 import ContactForm from '@/Components/ContactForm';
 import { Company } from '@/types/Company';
 import { Document } from '@/types/Document';
-
 import { DocumentDetailsModal } from '@/Components/Documents/DocumentDetailsModal';
+import { UploadModal } from '@/Components/Documents/UploadModal';
 
 type Props = { auth: any; id: number };
 type ApiErrors = Record<string, string[] | string> | undefined;
@@ -96,7 +109,7 @@ const contactBadgeClasses = (raw?: string) => {
 };
 
 export default function CompanyShow({ auth, id }: Props) {
-  // Company base data
+  // Base company data
   const { data, isLoading } = useGetCompanyQuery(id);
   const [deleteCompany] = useDeleteCompanyMutation();
   const [updateCompany] = useUpdateCompanyMutation();
@@ -306,7 +319,7 @@ export default function CompanyShow({ auth, id }: Props) {
   const doAttach = async (contactId: number) => {
     try {
       await attachCompanyContact({ companyId: id, contactId }).unwrap();
-      toast.success('Contact associé à l’entreprise.');
+    toast.success('Contact associé à l’entreprise.');
       setIsAttachModalOpen(false);
     } catch (err: any) {
       const apiErrors: ApiErrors = err?.data?.errors;
@@ -325,6 +338,7 @@ export default function CompanyShow({ auth, id }: Props) {
 
   const [fetchDocuments] = useLazyGetCompanyDocumentsQuery();
   const [unlinkDocument] = useUnlinkDocumentMutation();
+  const [linkDocument] = useLinkDocumentMutation();
 
   const loadDocuments = async () => {
     setDocumentsLoading(true);
@@ -341,16 +355,6 @@ export default function CompanyShow({ auth, id }: Props) {
   useEffect(() => {
     if (id) loadDocuments();
   }, [id]);
-
-  const detachDoc = async (doc: Document) => {
-    try {
-      await unlinkDocument({ id: doc.id, payload: { type: 'company', id } }).unwrap();
-      toast.success('Document détaché de l’entreprise.');
-      loadDocuments();
-    } catch {
-      toast.error('Échec du détachement du document.');
-    }
-  };
 
   // Document details modal
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -374,7 +378,7 @@ export default function CompanyShow({ auth, id }: Props) {
     setDetailsOpen(true);
   };
 
-  // Row-level delete/detach confirmation
+  // Row-level document delete/detach confirmation
   const [isDocDeleteDialogOpen, setIsDocDeleteDialogOpen] = useState(false);
   const [docDeleteTarget, setDocDeleteTarget] = useState<Document | null>(null);
   const [deleteMode, setDeleteMode] = useState<'detach' | 'delete'>('detach');
@@ -406,26 +410,62 @@ export default function CompanyShow({ auth, id }: Props) {
     }
   };
 
-  // Search providers for LinkPicker in details modal:
-  // - Company search can be disabled (modal handles it via currentCompanyId)
-  // - Provide contact search implementation here; replace with your RTK search if available
-  const searchCompanies = async (_q: string) => {
-    // Can be intentionally left as no-op if disabled; return empty list.
-    return [];
-  };
-
-  const searchContacts = async (q: string) => {
-    // Example simple endpoint; replace with your actual search source if needed.
+  // Search providers for LinkPicker (used in details modal and upload modal)
+  const searchCompanies = async (q: string) => {
     try {
       if (!q || q.trim().length < 2) return [];
-      const resp = await fetch(`/api/contacts/search?q=${encodeURIComponent(q)}`, { credentials: 'include' });
+      const resp = await fetch(`/api/companies/search?q=${encodeURIComponent(q)}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
       if (!resp.ok) return [];
       const arr = await resp.json();
-      // Expecting array of { id, name }
-      return Array.isArray(arr) ? arr : [];
+      return Array.isArray(arr)
+        ? arr
+            .map((x: any) => ({ id: x.id, name: x.name ?? x.label ?? x.title ?? String(x.id) }))
+            .filter((x: any) => x.id && x.name)
+        : [];
     } catch {
       return [];
     }
+  };
+
+  const searchContacts = async (q: string) => {
+    try {
+      if (!q || q.trim().length < 2) return [];
+      const resp = await fetch(`/api/contacts/search?q=${encodeURIComponent(q)}`, { credentials: 'include', headers: { Accept: 'application/json' } });
+      if (!resp.ok) return [];
+      const arr = await resp.json();
+      return Array.isArray(arr)
+        ? arr.map((x: any) => ({ id: x.id, name: x.name ?? (`${x.first_name ?? ''} ${x.last_name ?? ''}`.trim() || String(x.id)) }))
+        : [];
+    } catch {
+      return [];
+    }
+  };
+
+  // Upload modal state and upload logic
+  const [openUpload, setOpenUpload] = useState(false);
+  const [uploadDocument] = useUploadDocumentMutation();
+
+  // Control initial links for UploadModal (pre-link current company)
+  const [uploadLinks, setUploadLinks] = useState<Array<{ type:'company'|'contact'; id:number; name:string; role?:string }>>([]);
+
+  const ouvrirUpload = () => {
+    // Pre-fill with current company link (type: company, id, name)
+    setUploadLinks([
+      { type: 'company', id, name: (data?.name ?? 'Entreprise') as string }
+    ]);
+    setOpenUpload(true);
+  };
+
+  const fermerUpload = () => setOpenUpload(false);
+
+  // Since links are sent in the upload (StoreRequest), no need to relink after upload
+  const onUploaded = async (_created: any) => {
+    toast.success('Document téléversé.');
+    fermerUpload();
+    loadDocuments();
   };
 
   return (
@@ -677,7 +717,7 @@ export default function CompanyShow({ auth, id }: Props) {
                       variant="outline"
                       size="sm"
                       disabled={contactsCurrentPage >= contactsLastPage || isFetchingContacts}
-                      onClick={() => setContactPage((p) => Math.min(unassignedLastPage, p + 1))}
+                      onClick={() => setContactPage((p) => Math.min(contactsLastPage, p + 1))}
                       className="gap-1"
                     >
                       Suivant <ChevronRight className="h-4 w-4" />
@@ -692,6 +732,9 @@ export default function CompanyShow({ auth, id }: Props) {
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="text-lg font-semibold">Documents liés</div>
+                  <Button className="gap-2" onClick={ouvrirUpload}>
+                    <Plus className="h-4 w-4" /> Téléverser un document
+                  </Button>
                 </div>
 
                 {documentsLoading ? (
@@ -850,62 +893,6 @@ export default function CompanyShow({ auth, id }: Props) {
                         Enregistrer
                       </Button>
                     </div>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* Contact create/update modal */}
-            <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
-              <DialogContent
-                className="sm:max-w-[560px] p-0 [&>button[type='button']]:z-30"
-                style={{ overflow: 'hidden' }}
-              >
-                <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 6rem)' }}>
-                  <div className="px-6 py-4">
-                    <DialogHeader className="p-0">
-                      <DialogTitle>{editingContact ? 'Modifier un contact' : 'Nouveau contact'}</DialogTitle>
-                      <DialogDescription>Renseigner les informations du contact.</DialogDescription>
-                    </DialogHeader>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto px-6 py-4">
-                    <ContactForm
-                      initialData={editingContact ? {
-                        id: editingContact.id,
-                        name: editingContact.name,
-                        email: editingContact.email,
-                        phone: editingContact.phone,
-                        address: editingContact.address,
-                        latitude: editingContact.latitude,
-                        longitude: editingContact.longitude,
-                        user_id: editingContact.user_id,
-                        status: editingContact.status,
-                        created_at: editingContact.created_at,
-                        updated_at: editingContact.updated_at,
-                        user: (editingContact as any).user ?? null,
-                      } : null}
-                      isLoading={isCreatingContact || isUpdatingContact}
-                      errors={contactErrors as any}
-                      statusOptions={contactStatusOptions}
-                      onSubmit={async (values) => {
-                        setContactErrors(undefined);
-                        try {
-                          if (editingContact) {
-                            await updateContact({ companyId: id, contactId: editingContact.id, body: values }).unwrap();
-                            toast.success('Contact mis à jour.');
-                          } else {
-                            await createContact({ companyId: id, body: values }).unwrap();
-                            toast.success('Contact créé.');
-                          }
-                          setIsContactModalOpen(false);
-                        } catch (err: any) {
-                          const apiErrors: ApiErrors = err?.data?.errors;
-                          if (apiErrors) setContactErrors(apiErrors);
-                          else toast.error('Échec de la sauvegarde du contact.');
-                        }
-                      }}
-                    />
                   </div>
                 </div>
               </DialogContent>
@@ -1081,7 +1068,7 @@ export default function CompanyShow({ auth, id }: Props) {
               </AlertDialogContent>
             </AlertDialog>
 
-            {/* Reusable Document Details Modal integration */}
+            {/* Document details modal (with company and contact search enabled) */}
             <DocumentDetailsModal
               open={detailsOpen && !!detailsDoc}
               onOpenChange={(o) => setDetailsOpen(o)}
@@ -1090,6 +1077,21 @@ export default function CompanyShow({ auth, id }: Props) {
               onAfterChange={loadDocuments}
               searchCompanies={searchCompanies}
               searchContacts={searchContacts}
+            />
+
+            {/* Upload modal with prefilled links and active company search */}
+            <UploadModal
+              isOpen={openUpload}
+              onClose={fermerUpload}
+              onUploaded={onUploaded}
+              searchCompanies={searchCompanies}
+              searchContacts={searchContacts}
+              initialLinks={uploadLinks}
+              onLinksChange={setUploadLinks}
+              upload={async (form: FormData) => {
+                await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+                return await uploadDocument(form).unwrap();
+              }}
             />
           </>
         )}

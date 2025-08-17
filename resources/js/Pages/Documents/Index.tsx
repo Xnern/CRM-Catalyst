@@ -31,6 +31,11 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator
 } from '@/Components/ui/dropdown-menu';
 
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from '@/Components/ui/alert-dialog';
+
 import { toast } from 'sonner';
 
 // Types
@@ -86,6 +91,10 @@ export default function DocumentsIndex({ auth }: Props) {
   // Details modal via reusable component
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsDoc, setDetailsDoc] = useState<Document | null>(null);
+
+  // Delete confirm modal state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
 
   // Query params
   const queryParams = useMemo(() => ({
@@ -185,6 +194,27 @@ export default function DocumentsIndex({ auth }: Props) {
       window.open(`/api/documents/${d.id}/download`, '_blank');
     } catch {
       toast.error('Téléchargement impossible.');
+    }
+  };
+
+  // Open delete confirmation
+  const demanderSuppression = (doc: Document) => {
+    setDeleteTarget(doc);
+    setIsDeleteDialogOpen(true);
+  };
+
+  // Confirm deletion
+  const confirmerSuppression = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteDocument({ id: deleteTarget.id }).unwrap();
+      toast.success('Document supprimé.');
+      if (detailsDoc?.id === deleteTarget.id) { setDetailsOpen(false); setDetailsDoc(null); }
+      setIsDeleteDialogOpen(false);
+      setDeleteTarget(null);
+      refetch();
+    } catch {
+      toast.error('Échec de la suppression.');
     }
   };
 
@@ -345,16 +375,7 @@ export default function DocumentsIndex({ auth }: Props) {
                                 <Eye className="h-4 w-4" /> Détails
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={async () => {
-                                  try {
-                                    await deleteDocument({ id: d.id }).unwrap();
-                                    toast.success('Document supprimé.');
-                                    if (detailsDoc?.id === d.id) { setDetailsOpen(false); setDetailsDoc(null); }
-                                    refetch();
-                                  } catch {
-                                    toast.error('Echec de la suppression.');
-                                  }
-                                }}
+                                onClick={() => demanderSuppression(d)}
                                 className="text-red-600 gap-2"
                               >
                                 <Trash2 className="h-4 w-4" /> Supprimer
@@ -419,6 +440,24 @@ export default function DocumentsIndex({ auth }: Props) {
           searchCompanies={searchCompanies}
           searchContacts={searchContacts}
         />
+
+        {/* Delete confirmation dialog */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Supprimer le document ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Cette action supprimera définitivement “{deleteTarget?.name}”. Elle est irréversible.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmerSuppression} className="bg-red-600 hover:bg-red-700">
+                Supprimer définitivement
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AuthenticatedLayout>
   );
