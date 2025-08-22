@@ -14,6 +14,7 @@ type Props = {
   minChars?: number;              // minimum chars before search
   debounceMs?: number;            // debounce delay
   disableCompanySearch?: boolean; // when true, hide/disable company option
+  disableContactSearch?: boolean; // when true, hide/disable contact option
 };
 
 export const LinkPicker: React.FC<Props> = ({
@@ -24,9 +25,16 @@ export const LinkPicker: React.FC<Props> = ({
   minChars = 2,
   debounceMs = 300,
   disableCompanySearch = false,
+  disableContactSearch = false, // New prop
 }) => {
-  // If company search is disabled, default to contact
-  const [type, setType] = useState<'company' | 'contact'>(disableCompanySearch ? 'contact' : 'company');
+  // Improved logic to determine default type
+  const getDefaultType = (): 'company' | 'contact' => {
+    if (disableCompanySearch && !disableContactSearch) return 'contact';
+    if (disableContactSearch && !disableCompanySearch) return 'company';
+    return 'company'; // Default if both are enabled
+  };
+
+  const [type, setType] = useState<'company' | 'contact'>(getDefaultType());
   const [q, setQ] = useState('');
   const [role, setRole] = useState<string>('');
   const [results, setResults] = useState<{ id: number; name: string }[]>([]);
@@ -39,6 +47,9 @@ export const LinkPicker: React.FC<Props> = ({
   const abortedRef = useRef<boolean>(false);
 
   const canSearch = useMemo(() => q.trim().length >= minChars, [q, minChars]);
+
+  // Check if at least one search option is available
+  const hasSearchOptions = !disableCompanySearch || !disableContactSearch;
 
   useEffect(() => {
     // Cleanup on unmount
@@ -67,8 +78,23 @@ export const LinkPicker: React.FC<Props> = ({
       return;
     }
 
-    // If company search disabled, do not allow type company
-    const actualType = disableCompanySearch ? 'contact' : type;
+    // Improved logic to determine current type
+    let actualType = type;
+    if (disableCompanySearch && actualType === 'company') {
+      actualType = 'contact';
+    }
+    if (disableContactSearch && actualType === 'contact') {
+      actualType = 'company';
+    }
+
+    // If both are disabled, don't search
+    if (disableCompanySearch && disableContactSearch) {
+      setResults([]);
+      setError('Aucun type de recherche disponible');
+      setLoading(false);
+      return;
+    }
+
     const requestKey = `${actualType}|${q.trim()}`;
 
     // Skip if same request (avoid re-run)
@@ -108,10 +134,18 @@ export const LinkPicker: React.FC<Props> = ({
         timerRef.current = null;
       }
     };
-  }, [q, type, canSearch, searchCompanies, searchContacts, debounceMs, disableCompanySearch]);
+  }, [q, type, canSearch, searchCompanies, searchContacts, debounceMs, disableCompanySearch, disableContactSearch]);
 
   const add = (item: { id: number; name: string }) => {
-    const actualType = disableCompanySearch ? 'contact' : type;
+    // Improved logic to determine type
+    let actualType = type;
+    if (disableCompanySearch && actualType === 'company') {
+      actualType = 'contact';
+    }
+    if (disableContactSearch && actualType === 'contact') {
+      actualType = 'company';
+    }
+
     const link: Link = { type: actualType, id: item.id, name: item.name, role: role || undefined };
     if (!value.find((v) => v.type === link.type && v.id === link.id)) {
       onChange([...value, link]);
@@ -126,13 +160,38 @@ export const LinkPicker: React.FC<Props> = ({
 
   const remove = (l: Link) => onChange(value.filter((v) => !(v.type === l.type && v.id === l.id)));
 
+  // Function to get dynamic placeholder
+  const getSearchPlaceholder = () => {
+    if (disableCompanySearch && !disableContactSearch) {
+      return `Rechercher un contact (min ${minChars})`;
+    }
+    if (disableContactSearch && !disableCompanySearch) {
+      return `Rechercher une entreprise (min ${minChars})`;
+    }
+    if (disableCompanySearch && disableContactSearch) {
+      return 'Aucune recherche disponible';
+    }
+    return `Rechercher ${type === 'company' ? 'une entreprise' : 'un contact'} (min ${minChars})`;
+  };
+
+  // If no option is available, show message
+  if (!hasSearchOptions) {
+    return (
+      <div className="p-4 text-center text-gray-500 border rounded-md bg-gray-50">
+        Aucun type de recherche disponible
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {/* Row 1 on md+: Type | Search | Reset; stacked on mobile */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
         {/* Type selector */}
         <div className="md:col-span-3">
-          {!disableCompanySearch ? (
+          {/* Improved logic for type selector */}
+          {!disableCompanySearch && !disableContactSearch ? (
+            // Both options are available
             <Select
               value={type}
               onValueChange={(v) => {
@@ -151,8 +210,8 @@ export const LinkPicker: React.FC<Props> = ({
                 <SelectItem value="contact">Contact</SelectItem>
               </SelectContent>
             </Select>
-          ) : (
-            // Maintain alignment with a disabled select
+          ) : disableCompanySearch ? (
+            // Only contacts are available
             <Select value="contact" onValueChange={() => {}}>
               <SelectTrigger className="h-10 opacity-60 cursor-not-allowed">
                 <SelectValue>Contact</SelectValue>
@@ -161,16 +220,27 @@ export const LinkPicker: React.FC<Props> = ({
                 <SelectItem value="contact">Contact</SelectItem>
               </SelectContent>
             </Select>
+          ) : (
+            // Only companies are available
+            <Select value="company" onValueChange={() => {}}>
+              <SelectTrigger className="h-10 opacity-60 cursor-not-allowed">
+                <SelectValue>Entreprise</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="company">Entreprise</SelectItem>
+              </SelectContent>
+            </Select>
           )}
         </div>
 
         {/* Search input: wide */}
         <div className="md:col-span-6">
           <Input
-            placeholder={`Rechercher ${disableCompanySearch ? 'un contact' : (type === 'company' ? 'une entreprise' : 'un contact')} (min ${minChars})`}
+            placeholder={getSearchPlaceholder()}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="h-10"
+            disabled={disableCompanySearch && disableContactSearch}
           />
         </div>
 
@@ -187,6 +257,7 @@ export const LinkPicker: React.FC<Props> = ({
               lastRequestKeyRef.current = '';
             }}
             className="h-10 w-full md:w-auto border-teal-600 text-teal-700 hover:bg-teal-50"
+            disabled={disableCompanySearch && disableContactSearch}
           >
             Réinitialiser
           </Button>
@@ -200,6 +271,7 @@ export const LinkPicker: React.FC<Props> = ({
           value={role}
           onChange={(e) => setRole(e.target.value)}
           className="h-10"
+          disabled={disableCompanySearch && disableContactSearch}
         />
       </div>
 

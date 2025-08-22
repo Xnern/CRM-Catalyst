@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
@@ -19,7 +19,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Card, CardContent } from '@/Components/ui/card';
 import { UploadModal } from '@/Components/Documents/UploadModal';
 import { DocumentDetailsModal } from '@/Components/Documents/DocumentDetailsModal';
-import { Document } from '@/types/Document';
+import type { Document } from '@/types/Document';
 
 import {
   FileText, Search, Plus, Trash2, Eye, Loader2, Download, MoreVertical,
@@ -38,10 +38,8 @@ import {
 
 import { toast } from 'sonner';
 
-// Types
 type Props = { auth: any };
 
-// Format bytes to human readable (e.g. "1.2MB")
 const formatBytes = (n: number) => {
   if (!n) return '0B';
   const u = ['B','KB','MB','GB','TB'];
@@ -49,17 +47,12 @@ const formatBytes = (n: number) => {
   return `${(n / Math.pow(1024, i)).toFixed(1)}${u[i]}`;
 };
 
-// Badge for visibility
 const badgeForVisibility = (v: Document['visibility']) => {
   switch (v) {
-    case 'private':
-      return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
-    case 'team':
-      return 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200';
-    case 'company':
-      return 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200';
-    default:
-      return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
+    case 'private': return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
+    case 'team': return 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200';
+    case 'company': return 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200';
+    default: return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
   }
 };
 
@@ -72,13 +65,44 @@ const iconForExtension = (ext?: string | null) => {
   return <FileText className="h-4 w-4 text-gray-600" />;
 };
 
+// Helpers
+const normalizeLinks = (arr?: Array<{ id: number; name: string }>) => {
+  if (!Array.isArray(arr)) return [];
+  return [...arr].map(x => ({ id: x.id, name: x.name })).sort((a,b) => a.id - b.id);
+};
+const shallowEqualDocRobust = (a: Document | null, b: Document | null) => {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const tagsA = (a.tags ?? []).slice().sort().join('|');
+  const tagsB = (b.tags ?? []).slice().sort().join('|');
+  const ownerA = a.owner ? `${a.owner.id}:${a.owner.name ?? ''}` : '';
+  const ownerB = b.owner ? `${b.owner.id}:${b.owner.name ?? ''}` : '';
+  const companiesA = normalizeLinks(a.companies);
+  const companiesB = normalizeLinks(b.companies);
+  const contactsA = normalizeLinks(a.contacts);
+  const contactsB = normalizeLinks(b.contacts);
+  return (
+    a.id === b.id &&
+    a.name === b.name &&
+    a.description === b.description &&
+    a.visibility === b.visibility &&
+    a.original_filename === b.original_filename &&
+    a.mime_type === b.mime_type &&
+    a.extension === b.extension &&
+    a.size_bytes === b.size_bytes &&
+    tagsA === tagsB &&
+    ownerA === ownerB &&
+    JSON.stringify(companiesA) === JSON.stringify(companiesB) &&
+    JSON.stringify(contactsA) === JSON.stringify(contactsB)
+  );
+};
+
 export default function DocumentsIndex({ auth }: Props) {
-  // Ensure CSRF cookie for Sanctum
   useEffect(() => {
     fetch('/sanctum/csrf-cookie', { credentials: 'include' }).catch(() => {});
   }, []);
 
-  // Filters and state
+  // Filtres
   const [page, setPage] = useState(1);
   const [perPage] = useState(15);
   const [recherche, setRecherche] = useState('');
@@ -88,15 +112,15 @@ export default function DocumentsIndex({ auth }: Props) {
 
   const [openUpload, setOpenUpload] = useState(false);
 
-  // Details modal via reusable component
+  // Détails
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsDoc, setDetailsDoc] = useState<Document | null>(null);
 
-  // Delete confirm modal state
+  // Suppression
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
 
-  // Query params
+  // Params de requête
   const queryParams = useMemo(() => ({
     page, per_page: perPage,
     search: recherche || undefined,
@@ -105,7 +129,7 @@ export default function DocumentsIndex({ auth }: Props) {
     sort,
   }), [page, perPage, recherche, type, tag, sort]);
 
-  // Data queries
+  // Listing
   const { data: list, isLoading, isFetching, refetch } = useGetDocumentsQuery(queryParams);
   const items: Document[] = (list as any)?.data ?? [];
   const currentPage = (list as any)?.meta?.current_page ?? page;
@@ -120,7 +144,7 @@ export default function DocumentsIndex({ auth }: Props) {
   const [linkDocument] = useLinkDocumentMutation();
   const [unlinkDocument] = useUnlinkDocumentMutation();
 
-  // Lazy search hooks (RTK), to pass into modal and upload dialog
+  // Searches lazy
   const [triggerCompanies] = useLazySearchCompaniesQuery();
   const [triggerContacts] = useLazySearchContactsQuery();
 
@@ -144,43 +168,59 @@ export default function DocumentsIndex({ auth }: Props) {
     }
   }, [triggerContacts]);
 
-  // Refresh a specific document (used after attach/detach or meta save)
+  // Guards
+  const [isRefreshingOne, setIsRefreshingOne] = useState(false);
+  const afterChangeInProgress = useRef(false);
+
   const refreshOne = async (id: number) => {
+    if (isRefreshingOne) return;
+    setIsRefreshingOne(true);
     try {
-      const resp = await fetch(`/api/documents/${id}`, { credentials: 'include' });
-      if (resp.ok) {
-        const full = await resp.json();
-        setDetailsDoc(full as Document);
-      }
-    } catch {}
-  };
-
-  // Upload controls
-  const ouvrirUpload = () => setOpenUpload(true);
-  const fermerUpload = () => setOpenUpload(false);
-  const onUploaded = () => { toast.success('Document importé.'); refetch(); };
-
-  // Open details modal (load full resource, then open)
-  const ouvrirDetails = async (d: Document) => {
-    try {
-      const resp = await fetch(`/api/documents/${d.id}`, {
+      const resp = await fetch(`/api/documents/${id}?include=companies,contacts`, {
         credentials: 'include',
         headers: { Accept: 'application/json' }
       });
       if (resp.ok) {
-        const full = await resp.json();
-        setDetailsDoc(full as Document);
-      } else {
-        setDetailsDoc(d);
+        const json = await resp.json();
+        const full = (json && json.data) ? json.data : json;
+        setDetailsDoc(prev => (shallowEqualDocRobust(prev, full) ? prev : { ...(prev ?? {} as any), ...full }));
       }
     } catch {
-      setDetailsDoc(d);
+      // ignore
+    } finally {
+      setIsRefreshingOne(false);
     }
-    setDetailsOpen(true);
   };
 
-  // Download/preview handler
+  const ouvrirUpload = () => setOpenUpload(true);
+  const fermerUpload = () => setOpenUpload(false);
+  const onUploaded = () => { toast.success('Document importé.'); refetch(); };
+
+  // Ouverture de la modale: poser le doc minimal, ouvrir, fetch full (+include) puis merge
+  const ouvrirDetails = async (d: Document) => {
+    if (!d?.id) return;
+    setDetailsDoc(d);            // 1) doc minimal immédiatement
+    setDetailsOpen(true);        // 2) ouvrir la modale
+    try {
+      const resp = await fetch(`/api/documents/${d.id}?include=companies,contacts`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        const full = (json && json.data) ? json.data : json;
+        setDetailsDoc(prev => {
+          if (!prev) return full;
+          return (prev.id === full.id) ? { ...prev, ...full } : full;
+        });
+      }
+    } catch {
+      // garder le doc minimal
+    }
+  };
+
   const download = async (d: Document) => {
+    if (!d?.id) return;
     try {
       const resp = await fetch(`/api/documents/${d.id}/download`, { credentials: 'include' });
       const ct = resp.headers.get('content-type') || '';
@@ -197,15 +237,13 @@ export default function DocumentsIndex({ auth }: Props) {
     }
   };
 
-  // Open delete confirmation
   const demanderSuppression = (doc: Document) => {
     setDeleteTarget(doc);
     setIsDeleteDialogOpen(true);
   };
 
-  // Confirm deletion
   const confirmerSuppression = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget?.id) return;
     try {
       await deleteDocument({ id: deleteTarget.id }).unwrap();
       toast.success('Document supprimé.');
@@ -217,6 +255,18 @@ export default function DocumentsIndex({ auth }: Props) {
       toast.error('Échec de la suppression.');
     }
   };
+
+  const handleAfterChange = useCallback(async () => {
+    if (afterChangeInProgress.current) return;
+    afterChangeInProgress.current = true;
+    try {
+      if (detailsDoc?.id) {
+        await refreshOne(detailsDoc.id);
+      }
+    } finally {
+      setTimeout(() => { afterChangeInProgress.current = false; }, 0);
+    }
+  }, [detailsDoc?.id]);
 
   return (
     <AuthenticatedLayout user={auth.user} header={<h2 className="font-semibold text-xl">Documents</h2>}>
@@ -301,7 +351,7 @@ export default function DocumentsIndex({ auth }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {estEnChargement && (
+                  {(isLoading || isFetching) && (
                     <tr>
                       <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                         <div className="inline-flex items-center gap-2">
@@ -428,15 +478,12 @@ export default function DocumentsIndex({ auth }: Props) {
           }}
         />
 
-        {/* Details Dialog via reusable component */}
+        {/* Details Dialog */}
         <DocumentDetailsModal
-          open={detailsOpen && !!detailsDoc}
+          open={detailsOpen}
           onOpenChange={(o) => setDetailsOpen(o)}
           document={detailsDoc}
-          onAfterChange={() => {
-            if (detailsDoc?.id) refreshOne(detailsDoc.id);
-            refetch();
-          }}
+          onAfterChange={handleAfterChange}
           searchCompanies={searchCompanies}
           searchContacts={searchContacts}
         />

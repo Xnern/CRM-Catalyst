@@ -25,6 +25,9 @@ Route::get('/auth/google/callback', [GoogleAuthController::class, 'handleGoogleC
 Route::middleware(['auth', 'verified'])->group(function () {
     // Route pour la page des contacts
     Route::get('/contacts', [ContactController::class, 'indexInertia'])->name('contacts.indexInertia');
+    Route::get('/contacts/{id}', [ContactController::class, 'showInertia'])
+        ->whereNumber('id')
+        ->name('contacts.showInertia');
     Route::post('/contacts/import', [ContactController::class, 'importCsv'])->name('contacts.import');
     Route::get('/kanban', [KanbanController::class, 'indexInertia'])->name('kanban.indexInertia');
     Route::get('/calendrier', [GoogleController::class, 'indexInertia'])->name('calendar.indexInertia');

@@ -1,14 +1,22 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, router } from '@inertiajs/react';
 import { PageProps } from '@/types';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Button } from '@/Components/ui/button';
-import { PlusIcon, MoreHorizontal, UploadCloud } from 'lucide-react';
+import { PlusIcon, MoreHorizontal, UploadCloud, Eye } from 'lucide-react';
 import {
   useGetContactsQuery,
   useAddContactMutation,
   useUpdateContactMutation,
   useDeleteContactMutation,
+  useLazySearchCompaniesQuery,
+  useLazySearchContactsQuery,
+  // Company-Contact Relations - Hooks that match existing routes
+  useAttachCompanyContactMutation,
+  useDetachCompanyContactMutation,
+  // Documents
+  useUploadDocumentMutation,
+  useUnlinkDocumentFromContactMutation,
 } from '@/services/api';
 import { Contact } from '@/types/Contact';
 import ContactForm from '@/Components/ContactForm';
@@ -43,21 +51,7 @@ import {
   DropdownMenuTrigger,
 } from '@/Components/ui/dropdown-menu';
 import { debounce } from 'lodash';
-
-interface PaginatedApiResponse<T> {
-  current_page: number;
-  data: T[];
-  first_page_url: string;
-  from: number;
-  last_page: number;
-  links: Array<{ url: string | null; label: string; active: boolean }>;
-  next_page_url: string | null;
-  path: string;
-  per_page: number;
-  prev_page_url: string | null;
-  to: number;
-  total: number;
-}
+import { ContactDetailsModal } from '@/Components/Contacts/ContactDetailsModal';
 
 interface BackendValidationErrors {
   [key: string]: string[];
@@ -91,20 +85,17 @@ const formatPhoneNumberForDisplay = (phoneNumber: string | null | undefined): st
   return phoneNumber;
 };
 
-export default function Index({ auth, errors, canCreateContact }: PageProps<{ canCreateContact: boolean }>) {
-  // Etat pagination et recherche
+export default function ContactsIndex({ auth, errors, canCreateContact }: PageProps<{ canCreateContact: boolean }>) {
+  // Pagination and search states
   const [currentPage, setCurrentPage] = useState<number>(() => getPersistedState('contactsCurrentPage', 1));
   const [perPage, setPerPage] = useState<number>(() => getPersistedState('contactsPerPage', 15));
   const [searchQuery, setSearchQuery] = useState<string>(() => getPersistedState('contactsSearchQuery', ''));
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>(searchQuery);
 
-  // Erreurs backend (formulaire)
-  const [backendErrors, setBackendErrors] = useState<BackendValidationErrors>({});
-
   useEffect(() => { persistState('contactsPerPage', perPage); }, [perPage]);
   useEffect(() => { persistState('contactsSearchQuery', searchQuery); }, [searchQuery]);
 
-  // Debounce recherche
+  // Search debouncing
   const debouncedSetSearchAndPage = useCallback(
     debounce((value: string) => {
       setDebouncedSearchQuery(value);
@@ -119,16 +110,20 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
     debouncedSetSearchAndPage(value);
   };
 
-  // Modales
+  // Contact CRUD modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
-  // Suppression groupée
+  // Delete confirmation states
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDetailsDeleteConfirmOpen, setIsDetailsDeleteConfirmOpen] = useState(false);
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
+  const [detailsContactToDelete, setDetailsContactToDelete] = useState<number | null>(null);
 
-  // Form import CSV
+  // CSV import form
   const {
     data: importFormData,
     setData: setImportFormData,
@@ -140,7 +135,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
     csv_file: null as File | null,
   });
 
-  // Récupération des contacts (RTK Query)
+  // Fetch contacts (RTK Query)
   const {
     data: apiResponse,
     isLoading,
@@ -155,15 +150,103 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
   });
 
   const contacts = useMemo(() => apiResponse?.data || [], [apiResponse]);
-  const totalContacts = apiResponse?.total || 0;
-  const lastPage = apiResponse?.last_page || 1;
+  const totalContacts = (apiResponse as any)?.meta?.total || 0;
+  const lastPage = (apiResponse as any)?.meta?.last_page || 1;
 
-  // Mutations CRUD
+  // CRUD mutations - Using optimized generic hooks
   const [addContact, { isLoading: isAdding }] = useAddContactMutation();
   const [updateContact, { isLoading: isUpdating }] = useUpdateContactMutation();
   const [deleteContact, { isLoading: isDeleting }] = useDeleteContactMutation();
 
-  // Colonnes DataTable
+  // Quick detail modal (contact)
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsContactId, setDetailsContactId] = useState<number | null>(null);
+
+  // Lazy search hooks (RTK) for modal usage
+  const [triggerCompanies] = useLazySearchCompaniesQuery();
+  const [triggerContacts] = useLazySearchContactsQuery();
+
+  const searchCompanies = useCallback(async (q: string) => {
+    if (!q || q.trim().length < 2) return [];
+    try {
+      const res: any = await triggerCompanies(q).unwrap();
+      return Array.isArray(res) ? res : [];
+    } catch {
+      return [];
+    }
+  }, [triggerCompanies]);
+
+  const searchContacts = useCallback(async (q: string) => {
+    if (!q || q.trim().length < 2) return [];
+    try {
+      const res: any = await triggerContacts(q).unwrap();
+      return Array.isArray(res) ? res : [];
+    } catch {
+      return [];
+    }
+  }, [triggerContacts]);
+
+  // RTK hooks for company-contact relations
+  const [attachCompanyContact] = useAttachCompanyContactMutation();
+  const [detachCompanyContact] = useDetachCompanyContactMutation();
+  const [uploadDocument] = useUploadDocumentMutation();
+  const [unlinkDocumentFromContact] = useUnlinkDocumentFromContactMutation();
+
+  // Wrappers passed to modal - Corrected fetchContact function
+  const fetchContact = async (id: number) => {
+    try {
+      const resp = await fetch(`/api/contacts/${id}?include=company,documents`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      if (!resp.ok) return null;
+      const result = await resp.json();
+
+      // Extract .data if present (Laravel Resource structure)
+      const contact = result.data || result;
+      console.log('Contact chargé:', contact);
+
+      return contact;
+    } catch (error) {
+      console.error('Erreur lors du chargement du contact:', error);
+      return null;
+    }
+  };
+
+  const fetchDocument = async (id: number) => {
+    try {
+      const resp = await fetch(`/api/documents/${id}`, { credentials: 'include', headers: { Accept: 'application/json' } });
+      if (!resp.ok) return null;
+      const result = await resp.json();
+      return result.data || result;
+    } catch {
+      return null;
+    }
+  };
+
+  // Company-contact relations handling with existing routes
+  const linkCompany = async (contactId: number, companyId: number) => {
+    await attachCompanyContact({ companyId, contactId }).unwrap();
+  };
+
+  const unlinkCompany = async (contactId: number, companyId: number) => {
+    await detachCompanyContact({ companyId, contactId }).unwrap();
+  };
+
+  const unlinkDocument = async (docId: number, contactId: number) => {
+    await unlinkDocumentFromContact({ id: docId, contactId }).unwrap();
+  };
+
+  const uploadDocumentDirect = async (form: FormData) => {
+    return await uploadDocument(form).unwrap();
+  };
+
+  // Navigate to show page (instead of modal)
+  const handleRowClick = (contact: Contact) => {
+    router.visit(`/contacts/${contact.id}`);
+  };
+
+  // DataTable columns
   const columnHelper = createColumnHelper<Contact>();
   const columns: ColumnDef<Contact>[] = useMemo(
     () => [
@@ -175,25 +258,11 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
       }),
       columnHelper.accessor('address', {
         header: 'Adresse',
-        cell: ({ row }) => {
-          if (row.original.address && row.original.latitude && row.original.longitude) {
-            return (
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${row.original.latitude},${row.original.longitude}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                {row.original.address}
-              </a>
-            );
-          }
-          return row.original.address || 'N/A';
-        },
+        cell: ({ row }) => row.original.address || 'N/A',
       }),
       columnHelper.accessor('created_at', {
         header: 'Créé le',
-        cell: (info) => (info.getValue() ? new Date(info.getValue()).toLocaleDateString() : 'N/A'),
+        cell: (info) => (info.getValue() ? new Date(info.getValue() as any).toLocaleDateString() : 'N/A'),
       }),
       columnHelper.display({
         id: 'actions',
@@ -201,19 +270,38 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
         cell: ({ row }) => {
           const contact = row.original;
           return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
-                  <span className="sr-only">Open menu</span>
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleEdit(contact)}>Modifier</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleDelete(contact.id)}>Supprimer</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-1.5">
+              {/* Eye button for quick preview (modal) */}
+              <Button
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                title="Aperçu rapide"
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent propagation to row click
+                  setDetailsContactId(contact.id);
+                  setDetailsOpen(true);
+                }}
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={(e) => e.stopPropagation()} // Prevent propagation
+                  >
+                    <span className="sr-only">Open menu</span>
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => handleEdit(contact)}>Modifier</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => askDeleteContact(contact)}>Supprimer</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           );
         },
       }),
@@ -221,21 +309,41 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
     []
   );
 
-  // Pagination DataTable
+  // DataTable pagination
   const handlePageChange = (newPage: number) => { setCurrentPage(newPage); };
   const handlePerPageChange = (newSize: string) => { setPerPage(Number(newSize)); setCurrentPage(1); };
 
-  // Submit du formulaire (add/edit)
+  // Form submission (add/edit) - Coordinate normalization
+  const [backendErrors, setBackendErrors] = useState<BackendValidationErrors>({});
+
+  // Helper to normalize data before sending
+  const normalizeContactPayload = (values: any) => {
+    const toNumericOrNull = (v: any) => {
+      if (v === '' || v === undefined || v === null) return null;
+      const num = parseFloat(v);
+      return isNaN(num) ? null : num;
+    };
+
+    return {
+      ...values,
+      latitude: toNumericOrNull(values.latitude),
+      longitude: toNumericOrNull(values.longitude),
+    };
+  };
+
   const handleFormSubmit = async (
     values: Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'user'>
   ) => {
     setBackendErrors({});
     try {
+      // Normalize data before sending
+      const payload = normalizeContactPayload(values);
+
       if (selectedContact) {
-        await updateContact({ id: selectedContact.id, ...values }).unwrap();
+        await updateContact({ id: selectedContact.id, ...payload }).unwrap();
         toast.success('Contact mis à jour avec succès.');
       } else {
-        await addContact(values).unwrap();
+        await addContact(payload).unwrap();
         toast.success('Contact ajouté avec succès.');
       }
       setIsModalOpen(false);
@@ -251,24 +359,60 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
     }
   };
 
-  // Handlers CRUD
+  // CRUD handlers with confirmation
   const handleCreateNew = () => { setSelectedContact(null); setBackendErrors({}); setIsModalOpen(true); };
   const handleEdit = (contact: Contact) => { setSelectedContact(contact); setBackendErrors({}); setIsModalOpen(true); };
-  const handleDelete = async (id: number) => {
+
+  // Request deletion confirmation (table)
+  const askDeleteContact = (contact: Contact) => {
+    setContactToDelete(contact);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  // Confirm deletion (table)
+  const confirmDeleteContact = async () => {
+    if (!contactToDelete) return;
     try {
-      await deleteContact(id).unwrap();
+      await deleteContact(contactToDelete.id).unwrap();
       toast.success('Contact supprimé avec succès.');
       refetch();
     } catch {
       toast.error('Échec de la suppression du contact.');
+    } finally {
+      setIsDeleteConfirmOpen(false);
+      setContactToDelete(null);
     }
   };
 
-  // Suppression groupée
+  // Request deletion confirmation (detail modal)
+  const askDeleteContactFromDetails = (id: number) => {
+    setDetailsContactToDelete(id);
+    setIsDetailsDeleteConfirmOpen(true);
+  };
+
+  // Confirm deletion (detail modal)
+  const confirmDeleteContactFromDetails = async () => {
+    if (!detailsContactToDelete) return;
+    try {
+      await deleteContact(detailsContactToDelete).unwrap();
+      toast.success('Contact supprimé.');
+      setDetailsOpen(false);
+      setDetailsContactId(null);
+      refetch();
+    } catch {
+      toast.error('Échec de la suppression.');
+    } finally {
+      setIsDetailsDeleteConfirmOpen(false);
+      setDetailsContactToDelete(null);
+    }
+  };
+
+  // Bulk deletion
   const handleBulkDelete = async (ids: string[]) => {
     setSelectedContactIds(ids);
     setIsBulkDeleteConfirmOpen(true);
   };
+
   const confirmBulkDelete = async () => {
     try {
       for (const id of selectedContactIds) {
@@ -283,7 +427,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
     }
   };
 
-  // Import CSV
+  // CSV Import
   const handleImportSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (importFormData.csv_file) {
@@ -311,7 +455,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
     }
   };
 
-  // Erreur chargement
+  // Loading error
   if (isError) {
     return (
       <AuthenticatedLayout user={auth.user} header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">Contacts</h2>}>
@@ -353,7 +497,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
               </div>
             </div>
 
-            {/* DataTable */}
+            {/* DataTable with row click navigation to show page */}
             {contacts && (contacts.length > 0 || isLoading) ? (
               <DataTable
                 columns={columns}
@@ -361,6 +505,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                 isLoading={isLoading}
                 onBulkDelete={handleBulkDelete}
                 idAccessorKey="id"
+                onRowClick={handleRowClick} // Navigate to /contacts/{id}
                 pagination={{
                   currentPage: currentPage,
                   perPage: perPage,
@@ -382,7 +527,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
               </div>
             )}
 
-            {/* Modale Ajouter/Modifier un contact */}
+            {/* Add/Edit contact modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
               <DialogContent
                 className="sm:max-w-[600px] p-0"
@@ -418,7 +563,7 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
               </DialogContent>
             </Dialog>
 
-            {/* Modale Import CSV */}
+            {/* CSV Import modal */}
             <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
               <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
@@ -449,7 +594,30 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
               </DialogContent>
             </Dialog>
 
-            {/* Confirmation suppression groupée */}
+            {/* Individual deletion confirmation (table) */}
+            <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {contactToDelete
+                      ? `Voulez-vous vraiment supprimer le contact "${contactToDelete.name}" ? Cette action est irréversible.`
+                      : 'Voulez-vous vraiment supprimer ce contact ?'}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={confirmDeleteContact}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Supprimer
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Bulk deletion confirmation */}
             <AlertDialog open={isBulkDeleteConfirmOpen} onOpenChange={setIsBulkDeleteConfirmOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -469,6 +637,59 @@ export default function Index({ auth, errors, canCreateContact }: PageProps<{ ca
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+
+            {/* Deletion confirmation from detail modal */}
+            <AlertDialog open={isDetailsDeleteConfirmOpen} onOpenChange={setIsDetailsDeleteConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {detailsContactToDelete && contacts.find(c => c.id === detailsContactToDelete)
+                      ? `Voulez-vous vraiment supprimer le contact "${contacts.find(c => c.id === detailsContactToDelete)?.name}" ? Cette action est irréversible.`
+                      : 'Voulez-vous vraiment supprimer ce contact ? Cette action est irréversible.'}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={confirmDeleteContactFromDetails}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Supprimer
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Quick contact detail modal (accessible via Eye button) */}
+            <ContactDetailsModal
+              open={detailsOpen}
+              onOpenChange={setDetailsOpen}
+              contactId={detailsContactId}
+              // Data loaders
+              fetchContact={fetchContact}
+              fetchDocument={fetchDocument}
+              // Link/detach company with existing routes
+              linkCompany={linkCompany}
+              unlinkCompany={unlinkCompany}
+              // Unlink document
+              unlinkDocument={unlinkDocument}
+              // Search providers
+              searchCompanies={searchCompanies}
+              searchContacts={searchContacts}
+              // Upload
+              uploadDocument={uploadDocumentDirect}
+              // Contact-level actions
+              onEdit={(id) => {
+                const c = contacts.find(c => c.id === id);
+                if (c) { setSelectedContact(c); setIsModalOpen(true); }
+              }}
+              // Deletion with confirmation from detail modal
+              onDelete={(id) => askDeleteContactFromDetails(id)}
+              onAfterChange={() => {
+                refetch();
+              }}
+            />
           </div>
         </div>
       </div>

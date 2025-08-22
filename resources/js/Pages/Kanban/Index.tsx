@@ -10,7 +10,7 @@ import {
   useUpdateContactStatusMutation,
   useGetContactStatusOptionsQuery,
 } from '@/services/api';
-import { Contact } from '@/types/Contact';
+import type { Contact } from '@/types/Contact';
 import ContactForm from '@/Components/ContactForm';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/Components/ui/dialog';

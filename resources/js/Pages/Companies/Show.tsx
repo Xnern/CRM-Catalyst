@@ -5,11 +5,11 @@ import {
   useGetCompanyQuery,
   useDeleteCompanyMutation,
   useUpdateCompanyMutation,
-  // Contacts list/CRUD
+  // Contacts list/CRUD - Using optimized generic hooks
   useGetCompanyContactsQuery,
-  useCreateCompanyContactMutation,
-  useUpdateCompanyContactMutation,
-  useDeleteCompanyContactMutation,
+  useAddContactMutation, // Instead of useCreateCompanyContactMutation
+  useUpdateContactMutation, // Instead of useUpdateCompanyContactMutation
+  useDeleteContactMutation, // Instead of useDeleteCompanyContactMutation
   // Unassigned list + attach existing
   useGetUnassignedContactsQuery,
   useAttachCompanyContactMutation,
@@ -19,9 +19,8 @@ import {
   useGetContactStatusOptionsQuery,
   // Documents
   useLazyGetCompanyDocumentsQuery,
-  useLinkDocumentMutation,
   useUnlinkDocumentMutation,
-  useUploadDocumentMutation, // used by UploadModal upload callback
+  useUploadDocumentMutation,
 } from '@/services/api';
 
 import { Button } from '@/Components/ui/button';
@@ -53,7 +52,7 @@ import { UploadModal } from '@/Components/Documents/UploadModal';
 type Props = { auth: any; id: number };
 type ApiErrors = Record<string, string[] | string> | undefined;
 
-// Badge helpers
+// Badge styling
 const companyBadgeClasses = (status?: string) => {
   switch (status) {
     case 'Client':
@@ -65,7 +64,6 @@ const companyBadgeClasses = (status?: string) => {
       return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
   }
 };
-
 const contactBadgeClasses = (raw?: string) => {
   if (!raw) return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
   const s = raw
@@ -79,28 +77,22 @@ const contactBadgeClasses = (raw?: string) => {
     .replace(/ô/g, 'o')
     .replace(/û|ü/g, 'u')
     .replace(/ç/g, 'c');
-
   switch (s) {
-    case 'nouveau':
-      return 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200';
-    case 'qualification':
-      return 'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-200';
-    case 'proposition_envoyee':
-      return 'bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-200';
-    case 'negociation':
-      return 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200';
-    case 'converti':
-      return 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200';
-    case 'perdu':
-      return 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200';
-    default:
-      return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
+    case 'nouveau': return 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200';
+    case 'qualification': return 'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-200';
+    case 'proposition_envoyee': return 'bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-200';
+    case 'negociation': return 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200';
+    case 'converti': return 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200';
+    case 'perdu': return 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200';
+    default: return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
   }
 };
 
 export default function CompanyShow({ auth, id }: Props) {
-  // Base company data
-  const { data, isLoading } = useGetCompanyQuery(id);
+  // Company detail: API returns { data: Company }
+  const { data: companyApi, isLoading, refetch: refetchCompany } = useGetCompanyQuery(id);
+  const company: Company | null = (companyApi as any)?.data ?? null;
+
   const [deleteCompany] = useDeleteCompanyMutation();
   const [updateCompany] = useUpdateCompanyMutation();
 
@@ -155,29 +147,29 @@ export default function CompanyShow({ auth, id }: Props) {
     [contactStatusesRes?.data]
   );
 
-  // Hydrate form when data loads
-  useMemo(() => {
-    if (data) {
+  // Hydrate form when company changes
+  useEffect(() => {
+    if (company) {
       setForm({
-        id: data.id,
-        name: data.name,
-        domain: data.domain ?? '',
-        industry: data.industry ?? '',
-        size: data.size ?? '',
-        status: data.status,
-        address: data.address ?? '',
-        city: data.city ?? '',
-        zipcode: data.zipcode ?? '',
-        country: data.country ?? '',
-        notes: data.notes ?? '',
-        latitude: (data as any).latitude ?? null,
-        longitude: (data as any).longitude ?? null
+        id: company.id,
+        name: company.name,
+        domain: company.domain ?? '',
+        industry: company.industry ?? '',
+        size: company.size ?? '',
+        status: company.status,
+        address: company.address ?? '',
+        city: company.city ?? '',
+        zipcode: company.zipcode ?? '',
+        country: company.country ?? '',
+        notes: company.notes ?? '',
+        latitude: (company as any).latitude ?? null,
+        longitude: (company as any).longitude ?? null
       });
       setCompanyErrors(undefined);
     }
-  }, [data]);
+  }, [company]);
 
-  // Delete company flow
+  // Delete company
   const demanderSuppression = () => setIsDeleteDialogOpen(true);
   const confirmerSuppression = async () => {
     try {
@@ -203,6 +195,7 @@ export default function CompanyShow({ auth, id }: Props) {
       await updateCompany({ id, ...form }).unwrap();
       toast.success('Entreprise mise à jour.');
       setIsEditOpen(false);
+      refetchCompany();
     } catch (err: any) {
       const apiErrors: ApiErrors = err?.data?.errors;
       if (apiErrors) setCompanyErrors(apiErrors);
@@ -215,36 +208,31 @@ export default function CompanyShow({ auth, id }: Props) {
   const [contactPerPage] = useState(10);
   const [contactSearch, setContactSearch] = useState('');
 
-  const { data: contactData, isFetching: isFetchingContacts } = useGetCompanyContactsQuery({
+  const { data: contactData, isFetching: isFetchingContacts, refetch: refetchContacts } = useGetCompanyContactsQuery({
     companyId: id, page: contactPage, per_page: contactPerPage, search: contactSearch
   });
 
   const contacts = (contactData as any)?.data ?? [];
-  const contactsTotal = (contactData as any)?.total ?? contacts.length;
-  const contactsLastPage = (contactData as any)?.last_page ?? 1;
-  const contactsCurrentPage = (contactData as any)?.current_page ?? contactPage;
+  const contactsTotal = (contactData as any)?.total ?? (contactData as any)?.meta?.total ?? contacts.length;
+  const contactsLastPage = (contactData as any)?.last_page ?? (contactData as any)?.meta?.last_page ?? 1;
+  const contactsCurrentPage = (contactData as any)?.current_page ?? (contactData as any)?.meta?.current_page ?? contactPage;
 
-  // Contacts mutations
-  const [createContact, { isLoading: isCreatingContact }] = useCreateCompanyContactMutation();
-  const [updateContact, { isLoading: isUpdatingContact }] = useUpdateCompanyContactMutation();
-  const [deleteCompanyContact, { isLoading: isDeletingContact }] = useDeleteCompanyContactMutation();
+  // Contacts mutations - Using generic hooks
+  const [createContact, { isLoading: isCreatingContact }] = useAddContactMutation();
+  const [updateContact, { isLoading: isUpdatingContact }] = useUpdateContactMutation();
+  const [deleteContact, { isLoading: isDeletingContact }] = useDeleteContactMutation();
   const [detachCompanyContact, { isLoading: isDetaching }] = useDetachCompanyContactMutation();
 
-  // Modal state (contacts)
+  // Contact modal state
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<any | null>(null);
   const [contactErrors, setContactErrors] = useState<ApiErrors>(undefined);
-
-  // Contact delete confirm
-  const [isContactDeleteDialogOpen, setIsContactDeleteDialogOpen] = useState(false);
-  const [contactToDelete, setContactToDelete] = useState<any | null>(null);
 
   const openCreateContact = () => {
     setEditingContact(null);
     setContactErrors(undefined);
     setIsContactModalOpen(true);
   };
-
   const openEditContact = (c: any) => {
     setEditingContact(c);
     setContactErrors(undefined);
@@ -256,29 +244,34 @@ export default function CompanyShow({ auth, id }: Props) {
     setIsContactDeleteDialogOpen(true);
   };
 
+  // Contact delete confirmation
+  const [isContactDeleteDialogOpen, setIsContactDeleteDialogOpen] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState<any | null>(null);
+
   const handleDetachOnly = async () => {
     if (!contactToDelete) return;
     try {
       await detachCompanyContact({ companyId: id, contactId: contactToDelete.id }).unwrap();
-      toast.success('Contact détaché de l’entreprise.');
-    } catch {
-      toast.error('Échec du détachement.');
-    } finally {
+      toast.success('Contact détaché de l\'entreprise.');
       setIsContactDeleteDialogOpen(false);
       setContactToDelete(null);
+      refetchContacts();
+    } catch {
+      toast.error('Échec du détachement.');
     }
   };
 
+  // Permanent deletion - Using generic hook
   const handleDeleteFully = async () => {
     if (!contactToDelete) return;
     try {
-      await deleteCompanyContact({ companyId: id, contactId: contactToDelete.id }).unwrap();
+      await deleteContact(contactToDelete.id).unwrap();
       toast.success('Contact supprimé définitivement.');
-    } catch {
-      toast.error('Échec de la suppression du contact.');
-    } finally {
       setIsContactDeleteDialogOpen(false);
       setContactToDelete(null);
+      refetchContacts();
+    } catch {
+      toast.error('Échec de la suppression du contact.');
     }
   };
 
@@ -294,9 +287,9 @@ export default function CompanyShow({ auth, id }: Props) {
   });
 
   const unassigned = (unassignedData as any)?.data ?? [];
-  const unassignedTotal = (unassignedData as any)?.total ?? unassigned.length;
-  const unassignedLastPage = (unassignedData as any)?.last_page ?? 1;
-  const unassignedCurrentPage = (unassignedData as any)?.current_page ?? attachPage;
+  const unassignedTotal = (unassignedData as any)?.total ?? (unassignedData as any)?.meta?.total ?? unassigned.length;
+  const unassignedLastPage = (unassignedData as any)?.last_page ?? (unassignedData as any)?.meta?.last_page ?? 1;
+  const unassignedCurrentPage = (unassignedData as any)?.current_page ?? (unassignedData as any)?.meta?.current_page ?? attachPage;
 
   const [attachCompanyContact, { isLoading: isAttaching }] = useAttachCompanyContactMutation();
 
@@ -305,12 +298,12 @@ export default function CompanyShow({ auth, id }: Props) {
     setAttachPage(1);
     setIsAttachModalOpen(true);
   };
-
   const doAttach = async (contactId: number) => {
     try {
       await attachCompanyContact({ companyId: id, contactId }).unwrap();
-    toast.success('Contact associé à l’entreprise.');
+      toast.success('Contact associé à l\'entreprise.');
       setIsAttachModalOpen(false);
+      refetchContacts();
     } catch (err: any) {
       const apiErrors: ApiErrors = err?.data?.errors;
       if (apiErrors) {
@@ -328,7 +321,6 @@ export default function CompanyShow({ auth, id }: Props) {
 
   const [fetchDocuments] = useLazyGetCompanyDocumentsQuery();
   const [unlinkDocument] = useUnlinkDocumentMutation();
-  const [linkDocument] = useLinkDocumentMutation();
 
   const loadDocuments = async () => {
     setDocumentsLoading(true);
@@ -341,34 +333,49 @@ export default function CompanyShow({ auth, id }: Props) {
       setDocumentsLoading(false);
     }
   };
+  useEffect(() => { if (id) loadDocuments(); }, [id]);
 
-  useEffect(() => {
-    if (id) loadDocuments();
-  }, [id]);
-
-  // Document details modal
+  // Document details modal (+ versions)
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [detailsDoc, setDetailsDoc] = useState<Document | null>(null);
+  const [detailsDoc, setDetailsDoc] = useState<any | null>(null);
+  const [docVersions, setDocVersions] = useState<any[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
 
-  const openDetailsFromList = async (doc: Document) => {
+  const fetchDocumentFull = async (docId: number) => {
     try {
-      const resp = await fetch(`/api/documents/${doc.id}`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (resp.ok) {
-        const full = await resp.json();
-        setDetailsDoc(full as Document);
-      } else {
-        setDetailsDoc(doc);
-      }
+      const resp = await fetch(`/api/documents/${docId}`, { credentials: 'include', headers: { Accept: 'application/json' } });
+      if (!resp.ok) return null;
+      return await resp.json(); // { data: {...} }
+    } catch { return null; }
+  };
+  const fetchDocumentVersions = async (docId: number) => {
+    setVersionsLoading(true);
+    try {
+      // Adapt URL if needed, e.g. /api/documents/{id}/versions
+      const resp = await fetch(`/api/documents/${docId}/versions`, { credentials: 'include', headers: { Accept: 'application/json' } });
+      if (!resp.ok) { setDocVersions([]); return; }
+      const payload = await resp.json();
+      const arr = Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload) ? payload : []);
+      setDocVersions(arr);
     } catch {
-      setDetailsDoc(doc);
+      setDocVersions([]);
+    } finally {
+      setVersionsLoading(false);
     }
-    setDetailsOpen(true);
   };
 
-  // Row-level document delete/detach confirmation
+  const openDetailsFromList = async (doc: Document) => {
+    // Open immediately with minimal doc
+    setDetailsDoc(doc);
+    setDetailsOpen(true);
+    // Load full doc (wrapped {data:...})
+    const full = await fetchDocumentFull(doc.id);
+    if (full?.data) setDetailsDoc(full);
+    // Load versions if endpoint available
+    fetchDocumentVersions(doc.id);
+  };
+
+  // Doc delete/detach confirmation
   const [isDocDeleteDialogOpen, setIsDocDeleteDialogOpen] = useState(false);
   const [docDeleteTarget, setDocDeleteTarget] = useState<Document | null>(null);
   const [deleteMode, setDeleteMode] = useState<'detach' | 'delete'>('detach');
@@ -378,7 +385,7 @@ export default function CompanyShow({ auth, id }: Props) {
     try {
       if (deleteMode === 'detach') {
         await unlinkDocument({ id: docDeleteTarget.id, payload: { type: 'company', id } }).unwrap();
-        toast.success('Document détaché de l’entreprise.');
+        toast.success('Document détaché de l\'entreprise.');
       } else {
         const resp = await fetch(`/api/documents/${docDeleteTarget.id}`, {
           method: 'DELETE',
@@ -387,7 +394,7 @@ export default function CompanyShow({ auth, id }: Props) {
         });
         if (!resp.ok) throw new Error();
         toast.success('Document supprimé définitivement.');
-        if (detailsDoc?.id === docDeleteTarget.id) {
+        if ((detailsDoc?.data?.id ?? detailsDoc?.id) === docDeleteTarget.id) {
           setDetailsOpen(false);
           setDetailsDoc(null);
         }
@@ -400,26 +407,18 @@ export default function CompanyShow({ auth, id }: Props) {
     }
   };
 
-  // Search providers for LinkPicker (used in details modal and upload modal)
+  // Search providers used by modals
   const searchCompanies = async (q: string) => {
     try {
       if (!q || q.trim().length < 2) return [];
-      const resp = await fetch(`/api/companies/search?q=${encodeURIComponent(q)}`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
+      const resp = await fetch(`/api/companies/search?q=${encodeURIComponent(q)}`, { credentials: 'include', headers: { Accept: 'application/json' } });
       if (!resp.ok) return [];
       const arr = await resp.json();
       return Array.isArray(arr)
-        ? arr
-            .map((x: any) => ({ id: x.id, name: x.name ?? x.label ?? x.title ?? String(x.id) }))
-            .filter((x: any) => x.id && x.name)
+        ? arr.map((x: any) => ({ id: x.id, name: x.name ?? x.label ?? x.title ?? String(x.id) }))
         : [];
-    } catch {
-      return [];
-    }
+    } catch { return []; }
   };
-
   const searchContacts = async (q: string) => {
     try {
       if (!q || q.trim().length < 2) return [];
@@ -429,43 +428,55 @@ export default function CompanyShow({ auth, id }: Props) {
       return Array.isArray(arr)
         ? arr.map((x: any) => ({ id: x.id, name: x.name ?? (`${x.first_name ?? ''} ${x.last_name ?? ''}`.trim() || String(x.id)) }))
         : [];
-    } catch {
-      return [];
-    }
+    } catch { return []; }
   };
 
-  // Upload modal state and upload logic
+  // Upload modal
   const [openUpload, setOpenUpload] = useState(false);
   const [uploadDocument] = useUploadDocumentMutation();
-
-  // Control initial links for UploadModal (pre-link current company)
   const [uploadLinks, setUploadLinks] = useState<Array<{ type:'company'|'contact'; id:number; name:string; role?:string }>>([]);
-
   const ouvrirUpload = () => {
-    // Pre-fill with current company link (type: company, id, name)
-    setUploadLinks([
-      { type: 'company', id, name: (data?.name ?? 'Entreprise') as string }
-    ]);
+    setUploadLinks([{ type: 'company', id, name: (company?.name ?? 'Entreprise') as string }]);
     setOpenUpload(true);
   };
-
   const fermerUpload = () => setOpenUpload(false);
-
-  // Since links are sent in the upload (StoreRequest), no need to relink after upload
-  const onUploaded = async (_created: any) => {
+  const onUploaded = async () => {
     toast.success('Document téléversé.');
     fermerUpload();
     loadDocuments();
   };
 
+  // Helpers to normalize Contact payload (avoid undefined -> null + handle coordinates)
+  const normalizeContactPayload = (vals: any) => {
+    const toNull = (v: any) => (v === '' || v === undefined ? null : v);
+
+    // Function to convert to number or null
+    const toNumericOrNull = (v: any) => {
+      if (v === '' || v === undefined || v === null) return null;
+      const num = parseFloat(v);
+      return isNaN(num) ? null : num;
+    };
+
+    return {
+      name: vals.name,
+      email: toNull(vals.email),
+      phone: toNull(vals.phone),
+      address: toNull(vals.address),
+      status: toNull(vals.status),
+      // Add coordinates handling
+      latitude: toNumericOrNull(vals.latitude),
+      longitude: toNumericOrNull(vals.longitude),
+      // add other fields if your ContactForm provides them (city, zipcode, etc.)
+    };
+  };
+
   return (
     <AuthenticatedLayout user={auth.user} header={<h2 className="font-semibold text-xl">Entreprise</h2>}>
       <Head title="Entreprise" />
-
       <div className="p-6 space-y-6">
         {isLoading && <div className="text-gray-500">Chargement…</div>}
 
-        {!isLoading && data && (
+        {!isLoading && company && (
           <>
             {/* Header */}
             <Card>
@@ -475,8 +486,8 @@ export default function CompanyShow({ auth, id }: Props) {
                     <Building2 className="h-6 w-6 text-blue-700" />
                   </div>
                   <div>
-                    <div className="text-2xl font-semibold text-gray-900">{data.name}</div>
-                    <div className="text-sm text-gray-600">{data.domain ?? 'Domaine non renseigné'}</div>
+                    <div className="text-2xl font-semibold text-gray-900">{company.name}</div>
+                    <div className="text-sm text-gray-600">{company.domain ?? 'Domaine non renseigné'}</div>
                   </div>
                 </div>
 
@@ -514,38 +525,27 @@ export default function CompanyShow({ auth, id }: Props) {
               <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <div className="text-xs text-gray-500">Secteur</div>
-                  <div className="text-sm">{data.industry ?? '-'}</div>
+                  <div className="text-sm">{company.industry ?? '-'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500">Taille</div>
-                  <div className="text-sm">{data.size ?? '-'}</div>
+                  <div className="text-sm">{company.size ?? '-'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500">Créé par</div>
-                  <div className="text-sm">
-                    {data.owner?.name ?? (data as any).owner_name ?? (data as any).owner_id ?? '-'}
-                  </div>
+                  <div className="text-sm">{company.owner?.name ?? '-'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500">Statut</div>
                   <div className="text-sm">
-                    <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', companyBadgeClasses(data.status)].join(' ')}>
-                      {data.status}
+                    <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', companyBadgeClasses(company.status)].join(' ')}>
+                      {company.status}
                     </span>
                   </div>
                 </div>
                 <div className="lg:col-span-4">
                   <div className="text-xs text-gray-500">Contacts liés</div>
-                  <div className="text-sm">
-                    {typeof (data as any).contacts_count === 'number'
-                      ? (data as any).contacts_count
-                      : (isFetchingContacts ? (
-                        <span className="inline-flex items-center gap-2 text-gray-500">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          Chargement…
-                        </span>
-                      ) : (contactsTotal ?? 0))}
-                  </div>
+                  <div className="text-sm">{typeof company.contacts_count === 'number' ? company.contacts_count : contactsTotal}</div>
                 </div>
               </CardContent>
             </Card>
@@ -556,24 +556,24 @@ export default function CompanyShow({ auth, id }: Props) {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <div className="text-xs text-gray-500">Adresse</div>
-                    <div className="text-sm">{data.address ?? '-'}</div>
+                    <div className="text-sm">{company.address ?? '-'}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500">Ville</div>
-                    <div className="text-sm">{data.city ?? '-'}</div>
+                    <div className="text-sm">{company.city ?? '-'}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500">Code postal</div>
-                    <div className="text-sm">{data.zipcode ?? '-'}</div>
+                    <div className="text-sm">{company.zipcode ?? '-'}</div>
                   </div>
                   <div className="md:col-span-3">
                     <div className="text-xs text-gray-500">Pays</div>
-                    <div className="text-sm">{data.country ?? '-'}</div>
+                    <div className="text-sm">{company.country ?? '-'}</div>
                   </div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500">Notes</div>
-                  <div className="text-sm whitespace-pre-wrap">{data.notes ?? '—'}</div>
+                  <div className="text-sm whitespace-pre-wrap">{company.notes ?? '—'}</div>
                 </div>
               </CardContent>
             </Card>
@@ -582,7 +582,7 @@ export default function CompanyShow({ auth, id }: Props) {
             <Card id="company-contacts-section">
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2">
-                  <div className="text-lg font-semibold">Contacts de l’entreprise</div>
+                  <div className="text-lg font-semibold">Contacts de l'entreprise</div>
                   <div className="text-xs text-gray-500">(total: {contactsTotal})</div>
                   <div className="flex-1" />
                   <Input
@@ -651,12 +651,7 @@ export default function CompanyShow({ auth, id }: Props) {
                             <td className="px-4 py-2 text-gray-700">{c.email}</td>
                             <td className="px-4 py-2 text-gray-700">{c.phone ?? '-'}</td>
                             <td className="px-4 py-2">
-                              <span
-                                className={[
-                                  'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                                  contactBadgeClasses(normalized),
-                                ].join(' ')}
-                              >
+                              <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', contactBadgeClasses(normalized)].join(' ')}>
                                 {label}
                               </span>
                             </td>
@@ -717,14 +712,11 @@ export default function CompanyShow({ auth, id }: Props) {
               </CardContent>
             </Card>
 
-            {/* Documents liés */}
+            {/* Linked documents */}
             <Card>
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="text-lg font-semibold">Documents liés</div>
-                  <Button className="gap-2" onClick={ouvrirUpload}>
-                    <Plus className="h-4 w-4" /> Téléverser un document
-                  </Button>
                 </div>
 
                 {documentsLoading ? (
@@ -764,9 +756,8 @@ export default function CompanyShow({ auth, id }: Props) {
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
-
                                 <Button
-                                  title="Supprimer"
+                                  title="Détacher"
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-red-600 opacity-80 hover:opacity-100"
@@ -787,15 +778,12 @@ export default function CompanyShow({ auth, id }: Props) {
 
             {/* Company edit modal */}
             <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-              <DialogContent
-                className="sm:max-w-[700px] p-0 [&>button[type='button']]:z-30"
-                style={{ overflow: 'hidden' }}
-              >
+              <DialogContent className="sm:max-w-[700px] p-0 [&>button[type='button']]:z-30" style={{ overflow: 'hidden' }}>
                 <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 6rem)', minHeight: 300 }}>
                   <div className="px-6 py-4">
                     <DialogHeader className="p-0">
-                      <DialogTitle>Modifier l’entreprise</DialogTitle>
-                      <DialogDescription>Mettre à jour les informations et l’adresse.</DialogDescription>
+                      <DialogTitle>Modifier l'entreprise</DialogTitle>
+                      <DialogDescription>Mettre à jour les informations et l'adresse.</DialogDescription>
                     </DialogHeader>
                   </div>
 
@@ -804,22 +792,13 @@ export default function CompanyShow({ auth, id }: Props) {
                       <div className="flex flex-col space-y-1">
                         <div className="flex items-center justify-between">
                           <label className="text-sm text-gray-700">Statut</label>
-                          <span
-                            className={[
-                              'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                              companyBadgeClasses(form.status as string),
-                            ].join(' ')}
-                          >
-                            {form.status ?? '—'}
-                          </span>
+                          <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', companyBadgeClasses(form.status as string)].join(' ')}>{form.status ?? '—'}</span>
                         </div>
                         <Select
                           value={(form.status as string) ?? (companyStatusOptions[0]?.value ?? 'Prospect')}
                           onValueChange={(v) => setForm((f) => ({ ...f, status: v as Company['status'] }))}
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un statut" />
-                          </SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Sélectionner un statut" /></SelectTrigger>
                           <SelectContent>
                             {companyStatusOptions.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                           </SelectContent>
@@ -831,7 +810,7 @@ export default function CompanyShow({ auth, id }: Props) {
                         <div className="flex flex-col gap-1">
                           <label className="text-sm text-gray-700">Nom</label>
                           <Input value={form.name ?? ''} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-                          {companyErrors?.name && <p className="text-red-500 text-sm mt-1">{Array.isArray(companyErrors.name) ? companyErrors.name[0] : companyErrors.name}</p>}
+                          {companyErrors?.name && <p className="text-red-500 text-sm mt-1">{Array.isArray(companyErrors.name) ? companyErrors.name : companyErrors.name}</p>}
                         </div>
                         <div className="flex flex-col gap-1">
                           <label className="text-sm text-gray-700">Domaine</label>
@@ -876,12 +855,8 @@ export default function CompanyShow({ auth, id }: Props) {
 
                   <div className="px-6 py-3" style={{ flex: '0 0 auto', background: 'white', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
                     <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
-                        Annuler
-                      </Button>
-                      <Button type="submit" form="company-edit-form">
-                        Enregistrer
-                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>Annuler</Button>
+                      <Button type="submit" form="company-edit-form">Enregistrer</Button>
                     </div>
                   </div>
                 </div>
@@ -890,15 +865,12 @@ export default function CompanyShow({ auth, id }: Props) {
 
             {/* Add existing contact modal */}
             <Dialog open={isAttachModalOpen} onOpenChange={setIsAttachModalOpen}>
-              <DialogContent
-                className="sm:max-w-[700px] p-0 [&>button[type='button']]:z-30"
-                style={{ overflow: 'hidden' }}
-              >
+              <DialogContent className="sm:max-w-[700px] p-0 [&>button[type='button']]:z-30" style={{ overflow: 'hidden' }}>
                 <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 6rem)' }}>
                   <div className="px-6 py-4">
                     <DialogHeader className="p-0">
                       <DialogTitle>Ajouter un contact existant</DialogTitle>
-                      <DialogDescription>Sélectionnez un contact à associer à l’entreprise.</DialogDescription>
+                      <DialogDescription>Sélectionnez un contact à associer à l'entreprise.</DialogDescription>
                     </DialogHeader>
                   </div>
 
@@ -936,9 +908,7 @@ export default function CompanyShow({ auth, id }: Props) {
 
                           {!isFetchingUnassigned && unassigned.length === 0 && (
                             <tr>
-                              <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                                Aucun contact à afficher.
-                              </td>
+                              <td colSpan={4} className="px-4 py-8 text-center text-gray-400">Aucun contact à afficher.</td>
                             </tr>
                           )}
 
@@ -949,14 +919,7 @@ export default function CompanyShow({ auth, id }: Props) {
                               <td className="px-4 py-2 text-gray-700">{c.phone ?? '-'}</td>
                               <td className="px-4 py-2">
                                 <div className="flex items-center gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={isAttaching}
-                                    onClick={() => doAttach(c.id)}
-                                  >
-                                    Associer
-                                  </Button>
+                                  <Button size="sm" variant="outline" disabled={isAttaching} onClick={() => doAttach(c.id)}>Associer</Button>
                                 </div>
                               </td>
                             </tr>
@@ -968,21 +931,11 @@ export default function CompanyShow({ auth, id }: Props) {
                     <div className="mt-4 flex items-center justify-between">
                       <div className="text-sm text-gray-600">Résultats: {unassignedTotal}</div>
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={unassignedCurrentPage <= 1 || isFetchingUnassigned}
-                          onClick={() => setAttachPage((p) => Math.max(1, p - 1))}
-                        >
+                        <Button variant="outline" size="sm" disabled={unassignedCurrentPage <= 1 || isFetchingUnassigned} onClick={() => setAttachPage((p) => Math.max(1, p - 1))}>
                           <ChevronLeft className="h-4 w-4" /> Précédent
                         </Button>
                         <div className="px-2 py-1 text-sm">Page {unassignedCurrentPage} / {unassignedLastPage}</div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={unassignedCurrentPage >= unassignedLastPage || isFetchingUnassigned}
-                          onClick={() => setAttachPage((p) => Math.min(unassignedLastPage, p + 1))}
-                        >
+                        <Button variant="outline" size="sm" disabled={unassignedCurrentPage >= unassignedLastPage || isFetchingUnassigned} onClick={() => setAttachPage((p) => Math.min(unassignedLastPage, p + 1))}>
                           Suivant <ChevronRight className="h-4 w-4" />
                         </Button>
                       </div>
@@ -998,17 +951,13 @@ export default function CompanyShow({ auth, id }: Props) {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Supprimer le contact ?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Choisir une action: détacher le contact de l’entreprise (le contact restera accessible ailleurs), ou le supprimer définitivement.
+                    Choisir une action: détacher le contact de l'entreprise (le contact restera accessible ailleurs), ou le supprimer définitivement.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
                   <AlertDialogCancel>Annuler</AlertDialogCancel>
-                  <Button variant="outline" onClick={handleDetachOnly} disabled={isDetaching}>
-                    Détacher de l’entreprise
-                  </Button>
-                  <AlertDialogAction onClick={handleDeleteFully} className="bg-red-600 hover:bg-red-700" disabled={isDeletingContact}>
-                    Supprimer définitivement
-                  </AlertDialogAction>
+                  <Button variant="outline" onClick={handleDetachOnly} disabled={isDetaching}>Détacher de l'entreprise</Button>
+                  <AlertDialogAction onClick={handleDeleteFully} className="bg-red-600 hover:bg-red-700" disabled={isDeletingContact}>Supprimer définitivement</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -1018,15 +967,11 @@ export default function CompanyShow({ auth, id }: Props) {
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Voulez-vous vraiment supprimer l’entreprise “{data.name}” ? Cette action est irréversible.
-                  </AlertDialogDescription>
+                  <AlertDialogDescription>Voulez-vous vraiment supprimer l'entreprise "{company.name}" ? Cette action est irréversible.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Annuler</AlertDialogCancel>
-                  <AlertDialogAction onClick={confirmerSuppression} className="bg-red-600 hover:bg-red-700">
-                    Supprimer
-                  </AlertDialogAction>
+                  <AlertDialogAction onClick={confirmerSuppression} className="bg-red-600 hover:bg-red-700">Supprimer</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -1036,40 +981,31 @@ export default function CompanyShow({ auth, id }: Props) {
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Que faire avec ce document ?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Choisir une action: détacher le document de l’entreprise (le document restera disponible ailleurs), ou le supprimer définitivement.
-                  </AlertDialogDescription>
+                  <AlertDialogDescription>Choisir une action: détacher le document de l'entreprise (le document restera disponible ailleurs), ou le supprimer définitivement.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
                   <AlertDialogCancel>Annuler</AlertDialogCancel>
-                  <Button
-                    variant="outline"
-                    onClick={() => { setDeleteMode('detach'); confirmDocAction(); }}
-                  >
-                    Détacher de l’entreprise
-                  </Button>
-                  <AlertDialogAction
-                    onClick={() => { setDeleteMode('delete'); confirmDocAction(); }}
-                    className="bg-red-600 hover:bg-red-700"
-                  >
-                    Supprimer définitivement
-                  </AlertDialogAction>
+                  <Button variant="outline" onClick={() => { setDeleteMode('detach'); confirmDocAction(); }}>Détacher de l'entreprise</Button>
+                  <AlertDialogAction onClick={() => { setDeleteMode('delete'); confirmDocAction(); }} className="bg-red-600 hover:bg-red-700">Supprimer définitivement</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
 
-            {/* Document details modal (with company and contact search enabled) */}
+            {/* Document details modal - simple opening + enrichment + versions loaded separately */}
             <DocumentDetailsModal
-              open={detailsOpen && !!detailsDoc}
+              open={detailsOpen}
               onOpenChange={(o) => setDetailsOpen(o)}
-              document={detailsDoc as any}
-              currentCompanyId={id}
+              document={(detailsDoc && (detailsDoc.data ?? detailsDoc)) as any}
               onAfterChange={loadDocuments}
               searchCompanies={searchCompanies}
               searchContacts={searchContacts}
+              // If your component accepts a prop for versions, pass it:
+              extraVersions={docVersions}
+              loadingVersions={versionsLoading}
+              currentCompanyId={id}
             />
 
-            {/* Upload modal with prefilled links and active company search */}
+            {/* Upload modal */}
             <UploadModal
               isOpen={openUpload}
               onClose={fermerUpload}
@@ -1083,6 +1019,54 @@ export default function CompanyShow({ auth, id }: Props) {
                 return await uploadDocument(form).unwrap();
               }}
             />
+
+            {/* Contact create/edit modal - Modified logic to use generic hooks */}
+            <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
+              <DialogContent className="sm:max-w-[600px] p-0" style={{ overflow: 'hidden' }}>
+                <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 6rem)', minHeight: 300 }}>
+                  <div className="px-6 py-4">
+                    <DialogHeader className="p-0">
+                      <DialogTitle>{editingContact ? 'Modifier un contact' : 'Créer un contact'}</DialogTitle>
+                      <DialogDescription>
+                        {editingContact ? 'Mettre à jour les informations du contact.' : 'Renseignez les informations du nouveau contact.'}
+                      </DialogDescription>
+                    </DialogHeader>
+                  </div>
+                  <div className="px-6 pb-4" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
+                    <ContactForm
+                      initialData={editingContact ?? undefined}
+                      onSubmit={async (values) => {
+                        try {
+                          const payload = normalizeContactPayload(values);
+                          if (editingContact) {
+                            // Use generic route for update
+                            await updateContact({ id: editingContact.id, ...payload }).unwrap();
+                            toast.success('Contact mis à jour.');
+                          } else {
+                            // For creation, add company_id to payload
+                            await createContact({ ...payload, company_id: id }).unwrap();
+                            toast.success('Contact créé et associé.');
+                          }
+                          setIsContactModalOpen(false);
+                          setEditingContact(null);
+                          refetchContacts();
+                        } catch (err: any) {
+                          const apiErrors: ApiErrors = err?.data?.errors;
+                          if (apiErrors) {
+                            setContactErrors(apiErrors);
+                            toast.error('Veuillez corriger les erreurs du formulaire.');
+                          } else {
+                            toast.error("Échec de l'enregistrement du contact.");
+                          }
+                        }
+                      }}
+                      isLoading={isCreatingContact || isUpdatingContact}
+                      errors={contactErrors as any}
+                    />
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </>
         )}
       </div>

@@ -1,13 +1,17 @@
 import { createApi, fetchBaseQuery, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query/react';
-import { BaseQueryFn, FetchBaseQueryMeta } from '@reduxjs/toolkit/query/react';
+import type { BaseQueryFn, FetchBaseQueryMeta } from '@reduxjs/toolkit/query/react';
 
-// --- Domain Models ---
-import { Contact } from '@/types/Contact';
-import { GoogleCalendarEvent, CreateCalendarEventPayload } from '@/types/GoogleCalendarEvent';
-import { LocalCalendarEvent, LocalEventPayload, UpdateLocalEventPayload } from '@/types/LocalCalendarEvent';
-import { Company, CompanyStatusOptionsResponse } from '@/types/Company';
+// --- Domain Models (types only) ---
+import type { Contact } from '@/types/Contact';
+import type { Company, CompanyStatusOptionsResponse } from '@/types/Company';
+import type { Document as DocumentModel } from '@/types/Document';
+import type { PaginatedApiResponse } from '@/types/PaginatedApiResponse';
 
-// --- Types & Interfaces ---
+// Éventuels types d'autres domaines (laisse comme avant si tu as ces fichiers)
+import type { GoogleCalendarEvent, CreateCalendarEventPayload } from '@/types/GoogleCalendarEvent';
+import type { LocalCalendarEvent, LocalEventPayload, UpdateLocalEventPayload } from '@/types/LocalCalendarEvent';
+
+// --- Local Types & Interfaces (propres à ce fichier uniquement) ---
 
 export interface UpdateCalendarEventPayload extends CreateCalendarEventPayload {
   eventId: string;
@@ -26,59 +30,13 @@ export interface GetContactsQueryParams {
   cursor?: string;
 }
 
-export interface PaginatedApiResponse<T> {
-  data: T[];
-  links: {
-    first: string;
-    last: string;
-    prev: string | null;
-    next: string | null;
-  };
-  meta: {
-    current_page: number;
-    from: number;
-    last_page: number;
-    links: Array<{
-      url: string | null;
-      label: string;
-      active: boolean;
-    }>;
-    path: string;
-    per_page: number;
-    to: number;
-    total: number;
-  };
-  next_cursor?: string;
-}
-
-// Documents types (minimal)
+// Documents link payloads (spécifiques aux endpoints)
 export type DocumentLinkType = 'company' | 'contact';
 
 export interface DocumentLinkPayload {
   type: DocumentLinkType;
   id: number;
   role?: string;
-}
-
-export interface DocumentModel {
-  id: number;
-  uuid: string;
-  name: string;
-  original_filename: string;
-  mime_type: string;
-  extension?: string | null;
-  size_bytes: number;
-  size_human?: string;
-  storage_disk: string;
-  storage_path: string;
-  visibility: 'private' | 'team' | 'company';
-  description?: string | null;
-  tags?: string[];
-  owner?: { id: number; name: string } | null;
-  companies?: { id: number; name: string; role?: string | null }[];
-  contacts?: { id: number; name: string; role?: string | null }[];
-  created_at?: string;
-  updated_at?: string;
 }
 
 export interface DocumentVersion {
@@ -145,7 +103,7 @@ export const api = createApi({
   // Endpoints
   endpoints: (builder) => ({
     /**
-     * Contacts
+     * Contacts - Routes génériques CRUD (à utiliser partout)
      */
     getContacts: builder.query<PaginatedApiResponse<Contact>, GetContactsQueryParams>({
       query: ({ page = 1, per_page = 15, search = '', sort = '', include = '' }) => {
@@ -178,7 +136,7 @@ export const api = createApi({
           params: params,
         };
       },
-      providesTags: (result, error, { status }) =>
+      providesTags: (result, _error, { status }) =>
         result
           ? [
               ...result.data.map(({ id }) => ({ type: 'Contact' as const, id })),
@@ -193,16 +151,35 @@ export const api = createApi({
         method: 'POST',
         body: newContact,
       }),
-      invalidatesTags: ['Contact'],
+      invalidatesTags: (result, _error, arg) => {
+        const tags = [
+          { type: 'Contact' as const, id: 'LIST' },
+          { type: 'UnassignedContacts' as const, id: 'LIST' },
+        ];
+        if (arg.company_id) {
+          tags.push({ type: 'CompanyContacts' as const, id: arg.company_id });
+        }
+        return tags;
+      },
     }),
 
-    updateContact: builder.mutation<Contact, Partial<Contact>>({
+    updateContact: builder.mutation<Contact, Partial<Contact> & { id: number }>({
       query: ({ id, ...patch }) => ({
         url: `/contacts/${id}`,
         method: 'PUT',
         body: patch,
       }),
-      invalidatesTags: (result, error, { id }) => [{ type: 'Contact', id }, { type: 'Contact', id: 'LIST' }],
+      invalidatesTags: (result, _error, { id, company_id }) => {
+        const tags = [
+          { type: 'Contact' as const, id },
+          { type: 'Contact' as const, id: 'LIST' },
+          { type: 'UnassignedContacts' as const, id: 'LIST' },
+        ];
+        if (company_id) {
+          tags.push({ type: 'CompanyContacts' as const, id: company_id });
+        }
+        return tags;
+      },
     }),
 
     deleteContact: builder.mutation<void, number>({
@@ -210,7 +187,10 @@ export const api = createApi({
         url: `/contacts/${id}`,
         method: 'DELETE',
       }),
-      invalidatesTags: ['Contact'],
+      invalidatesTags: [
+        { type: 'Contact', id: 'LIST' },
+        { type: 'UnassignedContacts', id: 'LIST' },
+      ],
     }),
 
     updateContactStatus: builder.mutation<Contact, { id: number; status: Contact['status'] }>({
@@ -219,7 +199,10 @@ export const api = createApi({
         method: 'PUT',
         body: { status },
       }),
-      invalidatesTags: (result, error, { id }) => [{ type: 'Contact', id }, { type: 'Contact', id: 'LIST' }],
+      invalidatesTags: (_result, _error, { id }) => [
+        { type: 'Contact', id },
+        { type: 'Contact', id: 'LIST' },
+      ],
     }),
 
     getContactStatusOptions: builder.query<any, void>({
@@ -231,6 +214,12 @@ export const api = createApi({
 
     searchContacts: builder.query<{ id: number; name: string }[], string>({
       query: (q) => ({ url: '/contacts/search', params: { q } }),
+    }),
+
+    // CONTACTS - get a single contact
+    getContact: builder.query<Contact, number>({
+      query: (id) => ({ url: `/contacts/${id}` }),
+      providesTags: (_res, _err, id) => [{ type: 'Contact', id }],
     }),
 
     /**
@@ -346,7 +335,7 @@ export const api = createApi({
 
     updateCompany: builder.mutation<Company, Partial<Company> & { id: number }>({
       query: ({ id, ...patch }) => ({ url: `/companies/${id}`, method: 'PUT', body: patch }),
-      invalidatesTags: (result, error, { id }) => [
+      invalidatesTags: (_result, _error, { id }) => [
         { type: 'Company', id },
         { type: 'Company', id: 'LIST' },
       ],
@@ -369,36 +358,17 @@ export const api = createApi({
       }),
     }),
 
+    searchCompanies: builder.query<{ id: number; name: string }[], string>({
+      query: (q) => ({ url: '/companies/search', params: { q } }),
+    }),
+
+    /**
+     * Company-Contact Relations (seulement les opérations spécifiques aux relations)
+     */
     getCompanyContacts: builder.query<any, { companyId: number; page?: number; per_page?: number; search?: string }>({
       query: ({ companyId, page = 1, per_page = 10, search = '' }) =>
         `/companies/${companyId}/contacts?page=${page}&per_page=${per_page}&search=${encodeURIComponent(search)}`,
-      providesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
-    }),
-
-    createCompanyContact: builder.mutation<any, { companyId: number; body: any }>({
-      query: ({ companyId, body }) => ({
-        url: `/companies/${companyId}/contacts`,
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
-    }),
-
-    updateCompanyContact: builder.mutation<any, { companyId: number; contactId: number; body: any }>({
-      query: ({ companyId, contactId, body }) => ({
-        url: `/companies/${companyId}/contacts/${contactId}`,
-        method: 'PUT',
-        body,
-      }),
-      invalidatesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
-    }),
-
-    deleteCompanyContact: builder.mutation<any, { companyId: number; contactId: number }>({
-      query: ({ companyId, contactId }) => ({
-        url: `/companies/${companyId}/contacts/${contactId}`,
-        method: 'DELETE',
-      }),
-      invalidatesTags: (res, err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
+      providesTags: (_res, _err, arg) => [{ type: 'CompanyContacts', id: arg.companyId }],
     }),
 
     getUnassignedContacts: builder.query<
@@ -425,10 +395,12 @@ export const api = createApi({
         method: 'POST',
         body: { contact_id: contactId },
       }),
-      invalidatesTags: (result, error, arg) => [
+      invalidatesTags: (result, _error, arg) => [
         { type: 'CompanyContacts', id: arg.companyId },
         { type: 'UnassignedContacts', id: 'LIST' },
         { type: 'Company', id: arg.companyId },
+        { type: 'Contact', id: arg.contactId },
+        { type: 'Contact', id: 'LIST' },
       ],
     }),
 
@@ -440,39 +412,13 @@ export const api = createApi({
         url: `/companies/${companyId}/contacts/${contactId}/detach`,
         method: 'POST',
       }),
-      invalidatesTags: (result, error, arg) => [
+      invalidatesTags: (result, _error, arg) => [
         { type: 'CompanyContacts', id: arg.companyId },
         { type: 'UnassignedContacts', id: 'LIST' },
         { type: 'Company', id: arg.companyId },
+        { type: 'Contact', id: arg.contactId },
+        { type: 'Contact', id: 'LIST' },
       ],
-    }),
-
-    searchCompanies: builder.query<{ id: number; name: string }[], string>({
-        query: (q) => ({ url: '/companies/search', params: { q } }),
-      }),
-
-    getCompanyDocuments: builder.query<
-      PaginatedApiResponse<DocumentModel>,
-      { company_id: number; page?: number; per_page?: number; search?: string; tag?: string; type?: string; sort?: string }
-    >({
-      query: ({ company_id, page = 1, per_page = 15, search, tag, type, sort = '-created_at' }) => {
-        const params = new URLSearchParams();
-        params.append('company_id', String(company_id));
-        params.append('page', String(page));
-        params.append('per_page', String(per_page));
-        if (search) params.append('search', search);
-        if (tag) params.append('tag', tag);
-        if (type) params.append('type', type);
-        if (sort) params.append('sort', sort);
-        return { url: '/documents', params };
-      },
-      providesTags: (result) =>
-        result?.data
-          ? [
-              ...result.data.map(d => ({ type: 'Document' as const, id: d.id })),
-              { type: 'Document', id: 'LIST' },
-            ]
-          : [{ type: 'Document', id: 'LIST' }],
     }),
 
     /**
@@ -525,6 +471,30 @@ export const api = createApi({
               { type: 'Document' as const, id: 'LIST' },
             ]
           : [{ type: 'Document' as const, id: 'LIST' }],
+    }),
+
+    getCompanyDocuments: builder.query<
+      PaginatedApiResponse<DocumentModel>,
+      { company_id: number; page?: number; per_page?: number; search?: string; tag?: string; type?: string; sort?: string }
+    >({
+      query: ({ company_id, page = 1, per_page = 15, search, tag, type, sort = '-created_at' }) => {
+        const params = new URLSearchParams();
+        params.append('company_id', String(company_id));
+        params.append('page', String(page));
+        params.append('per_page', String(per_page));
+        if (search) params.append('search', search);
+        if (tag) params.append('tag', tag);
+        if (type) params.append('type', type);
+        if (sort) params.append('sort', sort);
+        return { url: '/documents', params };
+      },
+      providesTags: (result) =>
+        result?.data
+          ? [
+              ...result.data.map((d) => ({ type: 'Document' as const, id: d.id })),
+              { type: 'Document', id: 'LIST' },
+            ]
+          : [{ type: 'Document', id: 'LIST' }],
     }),
 
     getDocument: builder.query<DocumentModel, number>({
@@ -601,12 +571,50 @@ export const api = createApi({
       },
       invalidatesTags: (_res, _err, { id }) => [{ type: 'Document', id }, { type: 'Document', id: 'LIST' }],
     }),
+
+    // DOCUMENTS - list by contact_id
+    getContactDocuments: builder.query<
+      PaginatedApiResponse<DocumentModel>,
+      { contact_id: number; page?: number; per_page?: number; search?: string; tag?: string; type?: string; sort?: string }
+    >({
+      query: ({ contact_id, page = 1, per_page = 15, search, tag, type, sort = '-created_at' }) => {
+        const params = new URLSearchParams();
+        params.append('contact_id', String(contact_id));
+        params.append('page', String(page));
+        params.append('per_page', String(per_page));
+        if (search) params.append('search', search);
+        if (tag) params.append('tag', tag);
+        if (type) params.append('type', type);
+        if (sort) params.append('sort', sort);
+        return { url: '/documents', params };
+      },
+      providesTags: (result) =>
+        result?.data
+          ? [
+              ...result.data.map((d) => ({ type: 'Document' as const, id: d.id })),
+              { type: 'Document' as const, id: 'LIST' },
+            ]
+          : [{ type: 'Document' as const, id: 'LIST' }],
+    }),
+
+    // DOCUMENTS - unlink document from contact
+    unlinkDocumentFromContact: builder.mutation<
+      DocumentModel,
+      { id: number; contactId: number }
+    >({
+      query: ({ id, contactId }) => ({
+        url: `/documents/${id}/unlinks`,
+        method: 'DELETE',
+        body: { type: 'contact', id: contactId } as any,
+      }),
+      invalidatesTags: (_res, _err, { id }) => [{ type: 'Document', id }, { type: 'Document', id: 'LIST' }],
+    }),
   }),
 });
 
 // --- Export generated RTK Query hooks for usage in components ---
 export const {
-  // Contacts
+  // Contacts - Routes génériques (à utiliser partout)
   useGetContactsQuery,
   useGetContactsByStatusQuery,
   useLazyGetContactsQuery,
@@ -615,6 +623,7 @@ export const {
   useDeleteContactMutation,
   useUpdateContactStatusMutation,
   useGetContactStatusOptionsQuery,
+  useGetContactQuery,
 
   // Google Calendar
   useGetGoogleAuthUrlQuery,
@@ -637,11 +646,11 @@ export const {
   useUpdateCompanyMutation,
   useDeleteCompanyMutation,
   useGetCompanyStatusOptionsQuery,
+  useSearchCompaniesQuery,
+  useLazySearchCompaniesQuery,
 
+  // Company-Contact Relations (seulement les opérations spécifiques)
   useGetCompanyContactsQuery,
-  useCreateCompanyContactMutation,
-  useUpdateCompanyContactMutation,
-  useDeleteCompanyContactMutation,
   useGetUnassignedContactsQuery,
   useAttachCompanyContactMutation,
   useDetachCompanyContactMutation,
@@ -659,9 +668,10 @@ export const {
   useUnlinkDocumentMutation,
   useListDocumentVersionsQuery,
   useUploadDocumentVersionMutation,
+  useGetContactDocumentsQuery,
+  useUnlinkDocumentFromContactMutation,
 
-  useSearchCompaniesQuery,
-  useLazySearchCompaniesQuery,
+  // Search
   useSearchContactsQuery,
   useLazySearchContactsQuery,
 } = api;

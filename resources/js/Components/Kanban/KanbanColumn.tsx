@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
-import { Contact } from '@/types/Contact';
+import type { Contact } from '@/types/Contact';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/ui/card';
 import { Badge } from '@/Components/ui/badge';
 import { ArrowLeft, MoreVertical, Edit, Trash } from 'lucide-react';
@@ -40,7 +40,6 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
     collect: monitor => ({ isOver: monitor.isOver() })
   }), [statusValue, onDropContact]);
 
-  // Palette basée sur la value (slug)
   const palette = useMemo(() => {
     switch (statusValue) {
       case 'nouveau': return { headerBg: 'bg-blue-50', headerText: 'text-blue-800', bodyBg: 'bg-blue-50/40', border: 'border-blue-200', stripe: 'border-l-blue-400' };
@@ -63,7 +62,6 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   });
 
   useEffect(() => {
-    // reset quand on change de colonne (théorique si dynamique)
     setCursor(null);
     setItems([]);
   }, [statusValue]);

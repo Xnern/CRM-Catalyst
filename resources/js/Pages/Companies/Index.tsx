@@ -32,7 +32,7 @@ import CompanyAddressMapSplit from '@/Components/Companies/CompanyAddressMapSpli
 
 type Props = { auth: any };
 
-// Badges status company
+// Badge styling for company status
 const badgeClassesForStatus = (status?: string) => {
   switch (status) {
     case 'Client':
@@ -61,7 +61,7 @@ export default function CompaniesIndex({ auth }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  // Fallback meta statuts
+  // Fallback status metadata
   const fallbackCompanyStatuses = useMemo(
     () => [
       { value: 'Prospect', label: 'Prospect' },
@@ -71,7 +71,7 @@ export default function CompaniesIndex({ auth }: Props) {
     []
   );
 
-  // Meta statuts dynamic
+  // Dynamic status metadata
   const { data: companyStatusesRes } = useGetCompanyStatusOptionsQuery?.() ?? { data: undefined as any };
   const companyStatuses: { value: string; label: string }[] = useMemo(() => {
     const remote = companyStatusesRes?.data ?? [];
@@ -79,18 +79,23 @@ export default function CompaniesIndex({ auth }: Props) {
     return fallbackCompanyStatuses;
   }, [companyStatusesRes?.data, fallbackCompanyStatuses]);
 
-  // Form update/store
-  const [form, setForm] = useState<Partial<Company> & { latitude?: number | null; longitude?: number | null }>({
+  // Form update/store: respect Company type (no undefined)
+  const [form, setForm] = useState<Company & { latitude?: number | null; longitude?: number | null }>({
+    id: 0,
     name: '',
-    domain: '',
-    industry: '',
-    size: '',
+    domain: null,
+    industry: null,
+    size: null,
     status: 'Prospect',
-    address: '',
-    city: '',
-    zipcode: '',
-    country: '',
-    notes: '',
+    owner: null,
+    address: null,
+    city: null,
+    zipcode: null,
+    country: null,
+    notes: null,
+    contacts_count: 0,
+    created_at: undefined,
+    updated_at: undefined,
     latitude: null,
     longitude: null,
   });
@@ -100,62 +105,81 @@ export default function CompaniesIndex({ auth }: Props) {
     [page, perPage, recherche, statut, tri]
   );
 
-  const { data, isLoading, isFetching } = useGetCompaniesQuery(queryParams);
-  const currentPage = (data as any)?.current_page ?? page;
-  const items = (data as any)?.data ?? [];
-  const total = (data as any)?.total ?? items.length;
-  const lastPage = (data as any)?.last_page ?? 1;
+  // Companies list
+  const { data, isLoading, isFetching, refetch } = useGetCompaniesQuery(queryParams);
 
+  // Adapt to your response format: { data: Company[], meta: {...} }
+  const items: Company[] = (data as any)?.data ?? [];
+  const meta = (data as any)?.meta ?? {};
+  const currentPage = meta.current_page ?? page;
+  const total = meta.total ?? items.length;
+  const lastPage = meta.last_page ?? 1;
+
+  // Company details: { data: Company }
   const { data: detailsApi, isFetching: isFetchingDetails } = useGetCompanyQuery(selection?.id ?? 0, { skip: !selection });
+  const detailsCompany: Company | null = (detailsApi as any)?.data ?? null;
 
+  // Mutations
   const [creerEntreprise] = useCreateCompanyMutation();
   const [mettreAJourEntreprise] = useUpdateCompanyMutation();
   const [supprimerEntreprise] = useDeleteCompanyMutation();
 
   const estEnChargement = isLoading || isFetching;
 
+  const resetForm = (defaults?: Partial<Company> & { latitude?: number | null; longitude?: number | null }) => {
+    setForm({
+      id: defaults?.id ?? 0,
+      name: defaults?.name ?? '',
+      domain: defaults?.domain ?? null,
+      industry: defaults?.industry ?? null,
+      size: defaults?.size ?? null,
+      status: (defaults?.status as Company['status']) ?? 'Prospect',
+      owner: defaults?.owner ?? null,
+      address: defaults?.address ?? null,
+      city: defaults?.city ?? null,
+      zipcode: defaults?.zipcode ?? null,
+      country: defaults?.country ?? null,
+      notes: defaults?.notes ?? null,
+      created_at: defaults?.created_at,
+      updated_at: defaults?.updated_at,
+      contacts_count: defaults?.contacts_count ?? 0,
+      latitude: (defaults as any)?.latitude ?? null,
+      longitude: (defaults as any)?.longitude ?? null,
+    });
+  };
+
   const ouvrirCreation = () => {
     setEdition(null);
-    setForm({
-      name: '',
-      domain: '',
-      industry: '',
-      size: '',
-      status: companyStatuses[0]?.value ?? 'Prospect',
-      address: '',
-      city: '',
-      zipcode: '',
-      country: '',
-      notes: '',
-      latitude: null,
-      longitude: null,
+    resetForm({
+      status: (companyStatuses[0]?.value as Company['status']) ?? 'Prospect',
     });
     setIsModalEditionOuverte(true);
   };
 
   const ouvrirEdition = (c: Company) => {
     setEdition(c);
-    setForm({
-      id: c.id,
-      name: c.name,
-      domain: c.domain ?? '',
-      industry: c.industry ?? '',
-      size: c.size ?? '',
-      status: c.status,
-      address: c.address ?? '',
-      city: c.city ?? '',
-      zipcode: c.zipcode ?? '',
-      country: c.country ?? '',
-      notes: c.notes ?? '',
-      latitude: (c as any).latitude ?? null,
-      longitude: (c as any).longitude ?? null,
-    });
+    resetForm(c);
     setIsModalEditionOuverte(true);
   };
 
+  const ouvrirEditionDepuisDetails = () => {
+    const companyForEdit = detailsCompany ?? selection;
+    if (!companyForEdit) return;
+    setEdition(companyForEdit);
+    resetForm(companyForEdit);
+    setIsModalDetailsOuverte(false);
+    setIsModalEditionOuverte(true);
+  };
+
+  // Function to open detail modal (used by Eye button)
   const ouvrirDetails = (c: Company) => {
     setSelection(c);
     setIsModalDetailsOuverte(true);
+  };
+
+  // Function to navigate to show page (used by row click)
+  const navigateToShow = (c: Company) => {
+    window.location.href = `/entreprises/${c.id}`;
   };
 
   const fermerEdition = () => setIsModalEditionOuverte(false);
@@ -168,10 +192,13 @@ export default function CompaniesIndex({ auth }: Props) {
         await mettreAJourEntreprise({ id: edition.id, ...form }).unwrap();
         toast.success('Entreprise mise à jour.');
       } else {
-        await creerEntreprise(form).unwrap();
+        const payload = { ...form };
+        delete (payload as any).id; // avoid sending id=0 for creation
+        await creerEntreprise(payload as any).unwrap();
         toast.success('Entreprise créée.');
       }
       setIsModalEditionOuverte(false);
+      refetch?.();
     } catch {
       toast.error("Échec de l'enregistrement.");
     }
@@ -185,6 +212,7 @@ export default function CompaniesIndex({ auth }: Props) {
       await supprimerEntreprise(deleteTarget.id).unwrap();
       toast.success('Entreprise supprimée.');
       if (selection?.id === deleteTarget.id) { setIsModalDetailsOuverte(false); setSelection(null); }
+      refetch?.();
     } catch {
       toast.error('Échec de la suppression.');
     } finally {
@@ -216,7 +244,7 @@ export default function CompaniesIndex({ auth }: Props) {
                   />
                 </div>
 
-                {/* Filter status */}
+                {/* Status filter */}
                 <Select value={statut || 'tous'} onValueChange={(v) => { setStatut(v === 'tous' ? '' : v); setPage(1); }}>
                   <SelectTrigger className="w-40"><SelectValue placeholder="Statut" /></SelectTrigger>
                   <SelectContent>
@@ -264,7 +292,7 @@ export default function CompaniesIndex({ auth }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {estEnChargement && (
+                  {(isLoading || isFetching) && (
                     <tr>
                       <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                         <div className="inline-flex items-center gap-2">
@@ -274,7 +302,7 @@ export default function CompaniesIndex({ auth }: Props) {
                       </td>
                     </tr>
                   )}
-                  {!estEnChargement && items.length === 0 && (
+                  {!isLoading && !isFetching && items.length === 0 && (
                     <tr>
                       <td colSpan={7} className="px-4 py-10 text-center text-gray-400">
                         Aucune entreprise trouvée. Ajustez vos filtres ou créez une nouvelle entreprise.
@@ -285,8 +313,8 @@ export default function CompaniesIndex({ auth }: Props) {
                     <tr
                       key={c.id}
                       className="border-t hover:bg-gray-50/60 transition-colors cursor-pointer"
-                      onClick={() => ouvrirDetails(c)}
-                      title="Cliquer pour voir les détails"
+                      onClick={() => navigateToShow(c)} // Navigation to show page
+                      title="Cliquer pour voir la page complète"
                     >
                       <td className="px-4 py-2 font-medium text-gray-900">{c.name}</td>
                       <td className="px-4 py-2 text-gray-700">{c.domain ?? '-'}</td>
@@ -296,21 +324,22 @@ export default function CompaniesIndex({ auth }: Props) {
                         <span
                           className={[
                             'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                            badgeClassesForStatus(c.status),
+                            badgeClassesForStatus(c.status as string),
                           ].join(' ')}
                         >
-                          {c.status}
+                          {c.status ?? '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-2">{(c as any).contacts_count ?? 0}</td>
+                      <td className="px-4 py-2">{c.contacts_count ?? 0}</td>
                       <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5">
+                          {/* Eye button for quick preview (modal) */}
                           <Button
-                            title="Détails"
+                            title="Aperçu rapide"
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 opacity-80 hover:opacity-100 transition-opacity"
-                            onClick={() => (window.location.href = `/entreprises/${c.id}`)}
+                            onClick={() => ouvrirDetails(c)}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -359,7 +388,7 @@ export default function CompaniesIndex({ auth }: Props) {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={currentPage <= 1 || estEnChargement}
+                  disabled={currentPage <= 1 || isLoading || isFetching}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   className="gap-1"
                 >
@@ -372,7 +401,7 @@ export default function CompaniesIndex({ auth }: Props) {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={currentPage >= lastPage || estEnChargement}
+                  disabled={currentPage >= lastPage || isLoading || isFetching}
                   onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
                   className="gap-1"
                 >
@@ -384,7 +413,7 @@ export default function CompaniesIndex({ auth }: Props) {
           </CardContent>
         </Card>
 
-        {/* Modale Détails */}
+        {/* Details Modal (accessible via Eye button) */}
         <Dialog open={!!selection && isModalDetailsOuverte} onOpenChange={setIsModalDetailsOuverte}>
           <DialogContent className="sm:max-w-[720px] p-0 [&>button[type='button']]:z-30" style={{ overflow: 'hidden' }}>
             <div className="flex flex-col" style={{ maxHeight: 'calc(100vh - 6rem)' }}>
@@ -392,7 +421,7 @@ export default function CompaniesIndex({ auth }: Props) {
                 <DialogHeader className="p-0">
                   <DialogTitle className="flex items-center gap-2">
                     <Building2 className="h-5 w-5 text-gray-700" />
-                    Détails de l’entreprise
+                    Aperçu de l'entreprise
                   </DialogTitle>
                   <DialogDescription>Informations principales et coordonnées</DialogDescription>
                 </DialogHeader>
@@ -408,17 +437,27 @@ export default function CompaniesIndex({ auth }: Props) {
                     <div className="rounded-md border p-4 bg-white">
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <div className="text-xl font-semibold text-gray-900">{detailsApi?.name ?? selection.name}</div>
+                          <div className="text-xl font-semibold text-gray-900">{detailsCompany?.name ?? selection.name}</div>
                           <div className="text-sm text-gray-600">
-                            {detailsApi?.domain || selection.domain || 'Domaine non renseigné'}
+                            {detailsCompany?.domain ?? selection.domain ?? 'Domaine non renseigné'}
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm" className="gap-1" onClick={() => ouvrirEdition((detailsApi ?? selection) as Company)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={ouvrirEditionDepuisDetails}
+                          >
                             <Pencil className="h-4 w-4" />
                             Modifier
                           </Button>
-                          <Button variant="destructive" size="sm" className="gap-1" onClick={() => demanderSuppression((detailsApi ?? selection) as Company)}>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => demanderSuppression((detailsCompany ?? selection) as Company)}
+                          >
                             <Trash2 className="h-4 w-4" />
                             Supprimer
                           </Button>
@@ -428,17 +467,17 @@ export default function CompaniesIndex({ auth }: Props) {
                       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                           <div className="text-xs text-gray-500">Secteur</div>
-                          <div className="text-sm">{detailsApi?.industry ?? selection.industry ?? '-'}</div>
+                          <div className="text-sm">{detailsCompany?.industry ?? selection.industry ?? '-'}</div>
                         </div>
                         <div>
                           <div className="text-xs text-gray-500">Taille</div>
-                          <div className="text-sm">{detailsApi?.size ?? selection.size ?? '-'}</div>
+                          <div className="text-sm">{detailsCompany?.size ?? selection.size ?? '-'}</div>
                         </div>
                         <div>
                           <div className="text-xs text-gray-500">Statut</div>
                           <div className="text-sm">
-                            <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', badgeClassesForStatus(detailsApi?.status ?? selection.status)].join(' ')}>
-                              {detailsApi?.status ?? selection.status}
+                            <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', badgeClassesForStatus((detailsCompany?.status ?? selection.status) as string)].join(' ')}>
+                              {detailsCompany?.status ?? selection.status ?? '—'}
                             </span>
                           </div>
                         </div>
@@ -447,41 +486,41 @@ export default function CompaniesIndex({ auth }: Props) {
                       <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
                           <div className="text-xs text-gray-500">Adresse</div>
-                          <div className="text-sm">{detailsApi?.address ?? selection.address ?? '-'}</div>
+                          <div className="text-sm">{detailsCompany?.address ?? selection.address ?? '-'}</div>
                         </div>
                         <div>
                           <div className="text-xs text-gray-500">Ville</div>
-                          <div className="text-sm">{detailsApi?.city ?? selection.city ?? '-'}</div>
+                          <div className="text-sm">{detailsCompany?.city ?? selection.city ?? '-'}</div>
                         </div>
                         <div>
                           <div className="text-xs text-gray-500">Code postal</div>
-                          <div className="text-sm">{detailsApi?.zipcode ?? selection.zipcode ?? '-'}</div>
+                          <div className="text-sm">{detailsCompany?.zipcode ?? selection.zipcode ?? '-'}</div>
                         </div>
                         <div className="md:col-span-3">
                           <div className="text-xs text-gray-500">Pays</div>
-                          <div className="text-sm">{detailsApi?.country ?? selection.country ?? '-'}</div>
+                          <div className="text-sm">{detailsCompany?.country ?? selection.country ?? '-'}</div>
                         </div>
                       </div>
 
                       <div className="mt-4">
                         <div className="text-xs text-gray-500">Notes</div>
                         <div className="text-sm whitespace-pre-wrap">
-                          {detailsApi?.notes ?? selection.notes ?? '—'}
+                          {detailsCompany?.notes ?? selection.notes ?? '—'}
                         </div>
                       </div>
                     </div>
 
                     <div className="rounded-md border p-4 bg-white mt-4">
                       <div className="text-sm text-gray-700">
-                        Besoin de plus de détails ? Ouvrir la page dédiée (Show).
+                        Ceci est un aperçu rapide. Pour plus de détails, ouvrez la page dédiée.
                       </div>
                       <div className="mt-2">
                         <a
-                          href={`/entreprises/${(detailsApi ?? selection).id}`}
+                          href={`/entreprises/${(detailsCompany ?? selection)?.id ?? ''}`}
                           className="inline-flex items-center gap-2 text-blue-600 hover:underline"
                         >
                           <LinkIcon className="h-4 w-4" />
-                          Aller à la page de l’entreprise
+                          Aller à la page complète
                         </a>
                       </div>
                     </div>
@@ -492,7 +531,7 @@ export default function CompaniesIndex({ auth }: Props) {
           </DialogContent>
         </Dialog>
 
-        {/* Modal Create/Update */}
+        {/* Create/Update Modal */}
         <Dialog open={isModalEditionOuverte} onOpenChange={setIsModalEditionOuverte}>
           <DialogContent
             className="sm:max-w-[640px] p-0 [&>button[type='button']]:z-30"
@@ -514,44 +553,43 @@ export default function CompaniesIndex({ auth }: Props) {
                 style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}
               >
                 <form id="company-edit-form" onSubmit={soumettre} className="space-y-4">
-                  {/* Statut + badge */}
+                  {/* Status + badge */}
                   <div className="flex flex-col space-y-1">
-
                     <div className="flex items-center justify-between">
-                        <label className="text-sm text-gray-700">Statut</label>
-                        <span
+                      <label className="text-sm text-gray-700">Statut</label>
+                      <span
                         className={[
-                            'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                            badgeClassesForStatus(form.status as string),
+                          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                          badgeClassesForStatus(form.status),
                         ].join(' ')}
-                        >
+                      >
                         {form.status ?? '—'}
-                        </span>
+                      </span>
                     </div>
-                    <Select value={(form.status as string) ?? (companyStatuses[0]?.value ?? 'Prospect')} onValueChange={(v) => setForm((f) => ({ ...f, status: v as Company['status'] }))}>
-                        <SelectTrigger><SelectValue placeholder="Sélectionner un statut" /></SelectTrigger>
-                        <SelectContent>
+                    <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v as Company['status'] }))}>
+                      <SelectTrigger><SelectValue placeholder="Sélectionner un statut" /></SelectTrigger>
+                      <SelectContent>
                         {companyStatuses.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                        </SelectContent>
+                      </SelectContent>
                     </Select>
-                    </div>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="text-sm text-gray-700">Nom</label>
-                      <Input value={form.name ?? ''} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+                      <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
                     </div>
                     <div>
                       <label className="text-sm text-gray-700">Domaine</label>
-                      <Input value={form.domain ?? ''} onChange={(e) => setForm((f) => ({ ...f, domain: e.target.value }))} placeholder="ex: exemple.com" />
+                      <Input value={form.domain ?? ''} onChange={(e) => setForm((f) => ({ ...f, domain: e.target.value || null }))} placeholder="ex: exemple.com" />
                     </div>
                     <div>
                       <label className="text-sm text-gray-700">Secteur</label>
-                      <Input value={form.industry ?? ''} onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))} placeholder="ex: SaaS, Retail, ..." />
+                      <Input value={form.industry ?? ''} onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value || null }))} placeholder="ex: SaaS, Retail, ..." />
                     </div>
                     <div>
                       <label className="text-sm text-gray-700">Taille</label>
-                      <Input value={form.size ?? ''} onChange={(e) => setForm((f) => ({ ...f, size: e.target.value }))} placeholder="ex: 11-50" />
+                      <Input value={form.size ?? ''} onChange={(e) => setForm((f) => ({ ...f, size: e.target.value || null }))} placeholder="ex: 11-50" />
                     </div>
                   </div>
 
@@ -560,9 +598,17 @@ export default function CompaniesIndex({ auth }: Props) {
                     city={form.city ?? ''}
                     zipcode={form.zipcode ?? ''}
                     country={form.country ?? ''}
-                    latitude={form.latitude ?? null}
-                    longitude={form.longitude ?? null}
-                    onChange={(vals) => setForm((f) => ({ ...f, ...vals }))}
+                    latitude={(form as any).latitude ?? null}
+                    longitude={(form as any).longitude ?? null}
+                    onChange={(vals) => setForm((f) => ({
+                      ...f,
+                      address: vals.address ?? null,
+                      city: vals.city ?? null,
+                      zipcode: vals.zipcode ?? null,
+                      country: vals.country ?? null,
+                      latitude: vals.latitude ?? null,
+                      longitude: vals.longitude ?? null,
+                    }))}
                     mapHeightClass="h-56"
                   />
 
@@ -572,7 +618,7 @@ export default function CompaniesIndex({ auth }: Props) {
                       className="w-full border rounded-md p-2 text-sm"
                       rows={4}
                       value={form.notes ?? ''}
-                      onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value || null }))}
                     />
                   </div>
                 </form>
@@ -591,14 +637,14 @@ export default function CompaniesIndex({ auth }: Props) {
           </DialogContent>
         </Dialog>
 
-        {/* Modal confirm delete */}
+        {/* Delete confirmation modal */}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
               <AlertDialogDescription>
                 {deleteTarget
-                  ? `Voulez-vous vraiment supprimer l’entreprise “${deleteTarget.name}” ? Cette action est irréversible.`
+                  ? `Voulez-vous vraiment supprimer l'entreprise "${deleteTarget.name}" ? Cette action est irréversible.`
                   : 'Voulez-vous vraiment supprimer cette entreprise ?'}
               </AlertDialogDescription>
             </AlertDialogHeader>

@@ -100,7 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
     })->name('user.me');
 
     /**
-     * Contacts
+     * Contacts - Routes CRUD génériques (à utiliser partout)
      * IMPORTANT: Declare "search" BEFORE any parameterized routes to avoid collisions.
      */
     Route::get('/contacts/search', [ContactController::class, 'search']); // ?q=
@@ -171,30 +171,12 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('companies.destroy');
 
     /**
-     * Company-scoped contacts (no collisions; all routes named for Ziggy)
+     * Company-Contact Relations (seulement les opérations spécifiques aux relations)
      */
+    // List contacts of a company
     Route::get('/companies/{company}/contacts', [CompanyContactController::class, 'index'])
         ->whereNumber('company')
         ->name('companies.contacts.index');
-
-    Route::post('/companies/{company}/contacts', [CompanyContactController::class, 'store'])
-        ->whereNumber('company')
-        ->name('companies.contacts.store');
-
-    Route::get('/companies/{company}/contacts/{contact}', [CompanyContactController::class, 'show'])
-        ->whereNumber('company')
-        ->whereNumber('contact')
-        ->name('companies.contacts.show');
-
-    Route::put('/companies/{company}/contacts/{contact}', [CompanyContactController::class, 'update'])
-        ->whereNumber('company')
-        ->whereNumber('contact')
-        ->name('companies.contacts.update');
-
-    Route::delete('/companies/{company}/contacts/{contact}', [CompanyContactController::class, 'destroy'])
-        ->whereNumber('company')
-        ->whereNumber('contact')
-        ->name('companies.contacts.destroy');
 
     // Attach existing contact to company (body: { contact_id })
     Route::post('/companies/{company}/contacts/attach', [CompanyContactController::class, 'attach'])

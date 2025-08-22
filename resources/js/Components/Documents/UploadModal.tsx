@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FileDropzone } from './FileDropzone';
 import { TagInput } from './TagInput';
 import { LinkPicker } from './LinkPicker';
@@ -16,11 +16,18 @@ type Props = {
   searchCompanies: (q: string) => Promise<{ id: number; name: string }[]>;
   searchContacts: (q: string) => Promise<{ id: number; name: string }[]>;
   upload: (form: FormData) => Promise<any>;
-  // NEW: prefilled links (e.g., current company)
+  // Prefilled links (e.g., current company)
   initialLinks?: Link[];
-  // NEW: notify parent when links change (optional)
+  // Notify parent when links change (optional)
   onLinksChange?: (links: Link[]) => void;
 };
+
+const computeLinksSignature = (links: Link[] = []) =>
+  JSON.stringify(
+    [...links]
+      .map(l => ({ type: l.type, id: l.id, name: l.name, role: l.role ?? null }))
+      .sort((a, b) => (a.type === b.type ? a.id - b.id : a.type < b.type ? -1 : 1))
+  );
 
 export const UploadModal: React.FC<Props> = ({
   isOpen,
@@ -38,27 +45,21 @@ export const UploadModal: React.FC<Props> = ({
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<'private'|'team'|'company'>('private');
   const [tags, setTags] = useState<string[]>([]);
-  const [links, setLinks] = useState<Link[]>(initialLinks);
+  const [links, setLinks] = useState<Link[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // Keep local links in sync if initialLinks changes while open (safety)
-  useEffect(() => {
-    setLinks(initialLinks);
-  }, [initialLinks]);
+  // Keep a stable signature of initialLinks to compare content (not reference)
+  const initialLinksSig = useMemo(() => computeLinksSignature(initialLinks), [initialLinks]);
+  const prevInitialLinksSigRef = useRef<string>(initialLinksSig);
+  const prevIsOpenRef = useRef<boolean>(isOpen);
 
   // Extended allow-list for CRM-typical files
   const allowedMemo = [
-    // Documents (PDF, Word/OpenDocument/RTF)
     '.pdf', '.doc', '.docx', '.rtf', '.odt',
-    // Spreadsheets (Excel/OpenDocument/CSV)
     '.xls', '.xlsx', '.xlsm', '.ods', '.csv',
-    // Presentations (PowerPoint/OpenDocument)
     '.ppt', '.pptx', '.odp',
-    // Text notes / plain text
     '.txt', '.md',
-    // Images (raster + vector)
     '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp', '.svg',
-    // Simple archives (optional)
     '.zip',
   ];
   const allowed = useMemo(() => allowedMemo, []);
@@ -70,9 +71,36 @@ export const UploadModal: React.FC<Props> = ({
     setDescription('');
     setVisibility('private');
     setTags([]);
-    setLinks(initialLinks);
+    // Important: on close, we don't reset to initialLinks to avoid loops;
+    // the next open will sync if needed.
+    setLinks([]);
     setSubmitting(false);
   };
+
+  // Sync links from initialLinks only:
+  // - when modal opens (isOpen becomes true)
+  // - AND if content signature has changed vs previous time
+  useEffect(() => {
+    const justOpened = !prevIsOpenRef.current && isOpen;
+    const contentChanged = prevInitialLinksSigRef.current !== initialLinksSig;
+
+    if (justOpened) {
+      // On open, if content different from current state, sync
+      if (contentChanged) {
+        setLinks(initialLinks);
+        prevInitialLinksSigRef.current = initialLinksSig;
+      } else {
+        // If content identical, don't touch existing links (leave empty by default)
+        // setLinks(links); // no-op
+      }
+    } else if (isOpen && contentChanged) {
+      // Modal already open and content actually changed (rare): sync
+      setLinks(initialLinks);
+      prevInitialLinksSigRef.current = initialLinksSig;
+    }
+
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, initialLinksSig, initialLinks]);
 
   const handleClose = () => {
     resetForm();
@@ -97,17 +125,13 @@ export const UploadModal: React.FC<Props> = ({
         if (l.role) form.append(`links[${i}][role]`, l.role);
       });
 
-      // Perform upload via injected callback
       const created = await upload(form);
-
-      // Notify parent with created document object (if any)
       onUploaded(created);
 
-      // Reset before closing to start clean on next open
       resetForm();
       onClose();
     } catch {
-      // Keep the modal open to let user retry; do not reset file/name
+      // Keep open to retry
     } finally {
       setSubmitting(false);
     }
@@ -125,8 +149,7 @@ export const UploadModal: React.FC<Props> = ({
           <FileDropzone
             onFileSelected={(f) => { setFile(f); setName(f.name.replace(/\.[^/.]+$/, '')); }}
             accept={allowed.join(',')}
-            maxSizeBytes={25 * 1024 * 1024} // 25MB
-            className="bg-white"
+            maxSizeBytes={25 * 1024 * 1024}
           />
 
           {/* Name + Visibility */}

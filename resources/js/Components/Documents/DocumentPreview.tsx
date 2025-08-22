@@ -1,41 +1,76 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/Components/ui/button';
+import type { Document } from '@/types/Document';
 
-type Doc = {
-  id: number;
-  name: string;
-  original_filename: string;
-  mime_type: string;
-  extension?: string | null;
-  size_bytes: number;
-};
-type Props = { document: Doc };
+type Props = { document: Document | null };
+
+// If your backend doesn't actually expose /preview, set this flag to false
+const USE_PREVIEW_ENDPOINT = true;
 
 export const DocumentPreview: React.FC<Props> = ({ document }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [imgError, setImgError] = useState<boolean>(false);
 
-  // Guess PDF and image formats
-  const isPDF = () =>
-    (document.extension || '').toLowerCase() === 'pdf' ||
-    document.mime_type === 'application/pdf';
+  // Guard: don't attempt anything until we have a document with an id
+  const docId = document?.id;
+  const ext = (document?.extension || '').toLowerCase();
+  const mime = document?.mime_type || '';
 
-  const isImage = () =>
-    ['png','jpg','jpeg','gif','webp'].includes((document.extension || '').toLowerCase()) ||
-    document.mime_type.startsWith('image/');
+  const isPDF = useMemo(
+    () => ext === 'pdf' || mime === 'application/pdf',
+    [ext, mime]
+  );
 
-  // Fetch preview URL (signed S3 url or direct stream endpoint)
+  const isImage = useMemo(
+    () =>
+      ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext) ||
+      (typeof mime === 'string' && mime.startsWith('image/')),
+    [ext, mime]
+  );
+
+  // Base URL (no call) according to flag
+  const basePreviewPath = useMemo(() => {
+    if (!docId) return null;
+    const base = USE_PREVIEW_ENDPOINT
+      ? `/api/documents/${docId}/preview`
+      : `/api/documents/${docId}/download`;
+    // cache-buster on updated_at to refresh preview
+    const v = document?.updated_at ? `?v=${encodeURIComponent(document.updated_at)}` : '';
+    return `${base}${v}`;
+  }, [docId, document?.updated_at]);
+
+  // Get preview URL (signed S3 URL JSON or direct stream)
   useEffect(() => {
     let active = true;
+
+    // Without id, don't attempt anything
+    if (!docId) {
+      setPreviewUrl(null);
+      setLoading(false);
+      setImgError(false);
+      return;
+    }
+
     setLoading(true);
     setImgError(false);
+    setPreviewUrl(null);
 
     (async () => {
       try {
-        const resp = await fetch(`/api/documents/${document.id}/preview`, { credentials: 'include' });
+        // If not using /preview endpoint, we can directly use basePreviewPath
+        if (!USE_PREVIEW_ENDPOINT && basePreviewPath) {
+          if (active) {
+            setPreviewUrl(basePreviewPath);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // Otherwise, call /preview (which can return JSON {url} or direct stream)
+        const resp = await fetch(`/api/documents/${docId}/preview`, { credentials: 'include' });
         const ct = resp.headers.get('content-type') || '';
-        // S3: returns JSON with a url, local: direct streaming endpoint
+
         if (ct.includes('application/json')) {
           const json = await resp.json();
           if (json?.url && active) {
@@ -44,8 +79,12 @@ export const DocumentPreview: React.FC<Props> = ({ document }) => {
             return;
           }
         }
+
+        // Direct stream: reuse the same local route
         if (active) {
-            setPreviewUrl(`/api/documents/${document.id}/preview?t=${Date.now()}`);
+          // Add cache-buster if updated_at exists
+          const updated = document?.updated_at ? `?v=${encodeURIComponent(document.updated_at)}` : '';
+          setPreviewUrl(`/api/documents/${docId}/preview${updated}`);
           setLoading(false);
         }
       } catch {
@@ -56,28 +95,30 @@ export const DocumentPreview: React.FC<Props> = ({ document }) => {
       }
     })();
 
-    return () => { active = false; };
-  }, [document.id]);
+    return () => {
+      active = false;
+    };
+  }, [docId, document?.updated_at, basePreviewPath]);
 
-  // Loading state
+  // Loading
   if (loading) {
     return (
       <div className="h-[420px] flex items-center justify-center text-sm text-gray-500">
-        Chargement de l’aperçu…
+        Chargement de l'aperçu…
       </div>
     );
   }
 
-  // Failed to get preview
-  if (!previewUrl) {
+  // No id => no preview
+  if (!docId) {
     return (
       <div className="h-[420px] flex flex-col items-center justify-center text-sm text-gray-500 gap-2">
-        Impossible d’afficher l’aperçu.
+        Aucun aperçu disponible.
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.open(`/api/documents/${document.id}/preview`, '_blank')}>
+          <Button variant="outline" size="sm" disabled>
             Ouvrir
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.open(`/api/documents/${document.id}/download`, '_blank')}>
+          <Button variant="outline" size="sm" disabled>
             Télécharger
           </Button>
         </div>
@@ -85,13 +126,38 @@ export const DocumentPreview: React.FC<Props> = ({ document }) => {
     );
   }
 
-  // Render PDF preview
-  if (isPDF()) {
+  // Failed (no URL)
+  if (!previewUrl) {
+    return (
+      <div className="h-[420px] flex flex-col items-center justify-center text-sm text-gray-500 gap-2">
+        Impossible d'afficher l'aperçu.
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(`/api/documents/${docId}/preview`, '_blank')}
+          >
+            Ouvrir
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(`/api/documents/${docId}/download`, '_blank')}
+          >
+            Télécharger
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // PDF
+  if (isPDF) {
     return (
       <div className="w-full h-[420px] border rounded overflow-hidden bg-gray-50">
         <iframe
           src={previewUrl}
-          title={document.name}
+          title={document?.name || 'aperçu'}
           className="w-full h-full"
           style={{ border: 'none', background: '#f9f9f9' }}
         />
@@ -99,20 +165,20 @@ export const DocumentPreview: React.FC<Props> = ({ document }) => {
     );
   }
 
-  // Render image preview (with fallback on error)
-  if (isImage()) {
+  // Image (with fallback)
+  if (isImage) {
     return (
       <div className="w-full h-[420px] flex items-center justify-center bg-gray-50 overflow-hidden rounded">
         {!imgError ? (
           <img
             src={previewUrl}
             className="object-contain max-h-[420px] w-auto"
-            alt={document.original_filename}
+            alt={document?.original_filename || document?.name || 'image'}
             onError={() => setImgError(true)}
           />
         ) : (
           <div className="flex flex-col items-center justify-center w-full h-full text-gray-500 gap-2">
-            Impossible d’afficher l’image.
+            Impossible d'afficher l'image.
             <Button variant="outline" size="sm" onClick={() => window.open(previewUrl, '_blank')}>
               Ouvrir dans un onglet
             </Button>
@@ -122,18 +188,26 @@ export const DocumentPreview: React.FC<Props> = ({ document }) => {
     );
   }
 
-  // Other files, just show filename and download/open
+  // Other files
   return (
     <div className="h-[420px] flex flex-col items-center justify-center text-sm text-gray-600 gap-3">
       <div className="text-center">
         Aucun aperçu disponible pour ce type de fichier.
-        <div className="text-xs text-gray-500 mt-1">{document.original_filename}</div>
+        <div className="text-xs text-gray-500 mt-1">{document?.original_filename}</div>
       </div>
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => window.open(previewUrl, '_blank')}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open(previewUrl || `/api/documents/${docId}/preview`, '_blank')}
+        >
           Ouvrir
         </Button>
-        <Button variant="outline" size="sm" onClick={() => window.open(`/api/documents/${document.id}/download`, '_blank')}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open(`/api/documents/${docId}/download`, '_blank')}
+        >
           Télécharger
         </Button>
       </div>
