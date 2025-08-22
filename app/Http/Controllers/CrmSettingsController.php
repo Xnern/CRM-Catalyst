@@ -1,14 +1,14 @@
 <?php
-// app/Http/Controllers/CrmSettingsController.php
 
 namespace App\Http\Controllers;
 
 use App\Models\CrmSetting;
-use Illuminate\Http\Request;
+use App\Services\SettingsService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 /**
  * CRM Settings Controller
@@ -16,12 +16,11 @@ use Illuminate\Support\Facades\Log;
  */
 class CrmSettingsController extends Controller
 {
-
     public function indexInertia()
     {
         return inertia('Settings/Index', [
             'settings' => CrmSetting::getAllGrouped(),
-            'publicSettings' => CrmSetting::getPublicSettings()
+            'publicSettings' => CrmSetting::getPublicSettings(),
         ]);
     }
 
@@ -36,15 +35,15 @@ class CrmSettingsController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $settings
+                'data' => $settings,
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to fetch CRM settings: ' . $e->getMessage());
+            Log::error('Failed to fetch CRM settings: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch settings',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }
@@ -60,15 +59,15 @@ class CrmSettingsController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $settings
+                'data' => $settings,
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to fetch public CRM settings: ' . $e->getMessage());
+            Log::error('Failed to fetch public CRM settings: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch public settings',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }
@@ -86,7 +85,7 @@ class CrmSettingsController extends Controller
             if (empty($settings)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No settings provided'
+                    'message' => 'No settings provided',
                 ], 400);
             }
 
@@ -94,7 +93,7 @@ class CrmSettingsController extends Controller
 
             // Process each category of settings
             foreach ($settings as $category => $categorySettings) {
-                if (!is_array($categorySettings)) {
+                if (! is_array($categorySettings)) {
                     continue;
                 }
 
@@ -102,7 +101,7 @@ class CrmSettingsController extends Controller
                     // Validate the setting exists and user has permission to update it
                     $existingSetting = CrmSetting::where('key', $key)->first();
 
-                    if (!$existingSetting) {
+                    if (! $existingSetting) {
                         // Skip unknown settings to prevent injection
                         continue;
                     }
@@ -117,29 +116,32 @@ class CrmSettingsController extends Controller
 
             DB::commit();
 
+            // Clear settings cache to ensure fresh data
+            SettingsService::getInstance()->clearCache();
+
             // Return updated settings
             $updatedSettings = CrmSetting::getAllGrouped();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Settings updated successfully',
-                'data' => $updatedSettings
+                'data' => $updatedSettings,
             ]);
 
         } catch (\Exception $e) {
             DB::rollback();
 
             // Log detailed error information for debugging
-            Log::error('CRM Settings update error: ' . $e->getMessage(), [
+            Log::error('CRM Settings update error: '.$e->getMessage(), [
                 'request_data' => $request->all(),
                 'user_id' => auth()->id(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update settings',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }
@@ -153,14 +155,14 @@ class CrmSettingsController extends Controller
         $validator = Validator::make($request->all(), [
             'key' => 'required|string|max:100',
             'value' => 'nullable', // ✅ Allow null but clean it before saving
-            'category' => 'string|in:general,email,sales,system,branding'
+            'category' => 'string|in:general,email,sales,system,branding',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -171,14 +173,17 @@ class CrmSettingsController extends Controller
 
             // Verify the setting exists before updating
             $existingSetting = CrmSetting::where('key', $key)->first();
-            if (!$existingSetting) {
+            if (! $existingSetting) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Setting not found'
+                    'message' => 'Setting not found',
                 ], 404);
             }
 
             CrmSetting::setValue($key, $value, $category);
+
+            // Clear settings cache
+            SettingsService::getInstance()->clearCache();
 
             return response()->json([
                 'success' => true,
@@ -186,21 +191,21 @@ class CrmSettingsController extends Controller
                 'data' => [
                     'key' => $key,
                     'value' => $value,
-                    'category' => $category
-                ]
+                    'category' => $category,
+                ],
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Single CRM setting update error: ' . $e->getMessage(), [
+            Log::error('Single CRM setting update error: '.$e->getMessage(), [
                 'key' => $request->input('key'),
                 'value' => $request->input('value'),
-                'user_id' => auth()->id()
+                'user_id' => auth()->id(),
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update setting',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }
@@ -219,7 +224,7 @@ class CrmSettingsController extends Controller
 
             Log::info('CRM Settings reset initiated', [
                 'user_id' => auth()->id(),
-                'current_settings_backup' => $currentSettings
+                'current_settings_backup' => $currentSettings,
             ]);
 
             // Reset to default values - you could implement more sophisticated logic here
@@ -235,21 +240,21 @@ class CrmSettingsController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Settings reset successfully',
-                'data' => $settings
+                'data' => $settings,
             ]);
 
         } catch (\Exception $e) {
             DB::rollback();
 
-            Log::error('CRM Settings reset error: ' . $e->getMessage(), [
+            Log::error('CRM Settings reset error: '.$e->getMessage(), [
                 'user_id' => auth()->id(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to reset settings',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }
@@ -258,7 +263,7 @@ class CrmSettingsController extends Controller
      * ✅ Clean and validate setting values to prevent null/invalid data
      * This method ensures data integrity and prevents database constraint violations
      *
-     * @param mixed $value The raw value to be cleaned
+     * @param  mixed  $value  The raw value to be cleaned
      * @return mixed The cleaned value safe for database storage
      */
     private function cleanSettingValue($value)
@@ -309,10 +314,10 @@ class CrmSettingsController extends Controller
         try {
             $setting = CrmSetting::where('key', $key)->first();
 
-            if (!$setting) {
+            if (! $setting) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Setting not found'
+                    'message' => 'Setting not found',
                 ], 404);
             }
 
@@ -323,19 +328,19 @@ class CrmSettingsController extends Controller
                     'value' => $setting->value,
                     'category' => $setting->category,
                     'description' => $setting->description,
-                    'is_public' => $setting->is_public
-                ]
+                    'is_public' => $setting->is_public,
+                ],
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Failed to fetch CRM setting: ' . $e->getMessage(), [
-                'key' => $key
+            Log::error('Failed to fetch CRM setting: '.$e->getMessage(), [
+                'key' => $key,
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch setting',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }
@@ -348,10 +353,10 @@ class CrmSettingsController extends Controller
     {
         $validCategories = ['general', 'email', 'sales', 'system', 'branding'];
 
-        if (!in_array($category, $validCategories)) {
+        if (! in_array($category, $validCategories)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid category'
+                'message' => 'Invalid category',
             ], 400);
         }
 
@@ -364,18 +369,18 @@ class CrmSettingsController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $settings
+                'data' => $settings,
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Failed to fetch CRM settings by category: ' . $e->getMessage(), [
-                'category' => $category
+            Log::error('Failed to fetch CRM settings by category: '.$e->getMessage(), [
+                'category' => $category,
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch settings for category',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }
@@ -391,8 +396,9 @@ class CrmSettingsController extends Controller
                 'general' => ['company_name', 'company_email', 'default_currency', 'timezone', 'language'],
                 'email' => ['smtp_host', 'smtp_port', 'email_from_name', 'email_from_address'],
                 'sales' => ['default_pipeline', 'lead_sources', 'opportunity_stages'],
-                'system' => ['data_retention_days', 'max_file_size_mb', 'allowed_file_types'],
-                'branding' => ['company_logo_url', 'primary_color', 'secondary_color']
+                'system' => ['data_retention_days'],
+                'upload' => ['upload_allowed_extensions', 'upload_max_file_size'],
+                'branding' => ['company_logo_url', 'primary_color', 'secondary_color'],
             ];
 
             $missing = [];
@@ -402,7 +408,7 @@ class CrmSettingsController extends Controller
                 foreach ($keys as $key) {
                     $setting = CrmSetting::where('key', $key)->first();
 
-                    if (!$setting) {
+                    if (! $setting) {
                         $missing[] = "{$category}.{$key}";
                     } elseif ($setting->value === null) {
                         $invalid[] = "{$category}.{$key} (null value)";
@@ -418,17 +424,17 @@ class CrmSettingsController extends Controller
                     'is_valid' => $isValid,
                     'missing_settings' => $missing,
                     'invalid_settings' => $invalid,
-                    'message' => $isValid ? 'All settings are valid' : 'Some settings need attention'
-                ]
+                    'message' => $isValid ? 'All settings are valid' : 'Some settings need attention',
+                ],
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Settings validation error: ' . $e->getMessage());
+            Log::error('Settings validation error: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to validate settings',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }

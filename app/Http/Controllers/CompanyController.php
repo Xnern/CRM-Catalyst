@@ -182,7 +182,7 @@ class CompanyController extends Controller
             ->limit(15)
             ->get(['id', 'name']);
 
-        return response()->json($res, 200);
+        return response()->json(['data' => $res], 200);
     }
 
     /**

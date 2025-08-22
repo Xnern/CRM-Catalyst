@@ -16,7 +16,6 @@ import {
   useDetachCompanyContactMutation,
   // Meta
   useGetCompanyStatusOptionsQuery,
-  useGetContactStatusOptionsQuery,
   // Documents
   useLazyGetCompanyDocumentsQuery,
   useUnlinkDocumentMutation,
@@ -64,29 +63,6 @@ const companyBadgeClasses = (status?: string) => {
       return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
   }
 };
-const contactBadgeClasses = (raw?: string) => {
-  if (!raw) return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
-  const s = raw
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/é|è|ê/g, 'e')
-    .replace(/à|â/g, 'a')
-    .replace(/î|ï/g, 'i')
-    .replace(/ô/g, 'o')
-    .replace(/û|ü/g, 'u')
-    .replace(/ç/g, 'c');
-  switch (s) {
-    case 'nouveau': return 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200';
-    case 'qualification': return 'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-200';
-    case 'proposition_envoyee': return 'bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-200';
-    case 'negociation': return 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200';
-    case 'converti': return 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200';
-    case 'perdu': return 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200';
-    default: return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
-  }
-};
 
 export default function CompanyShow({ auth, id }: Props) {
   // Company detail: API returns { data: Company }
@@ -131,21 +107,6 @@ export default function CompanyShow({ auth, id }: Props) {
     [companyStatusesRes?.data]
   );
 
-  const { data: contactStatusesRes } = useGetContactStatusOptionsQuery();
-  const contactStatusOptions = useMemo(
-    () =>
-      (contactStatusesRes?.data && Array.isArray(contactStatusesRes.data) && contactStatusesRes.data.length > 0)
-        ? contactStatusesRes.data
-        : [
-            { value: 'nouveau', label: 'Nouveau' },
-            { value: 'qualification', label: 'Qualification' },
-            { value: 'proposition_envoyee', label: 'Proposition envoyée' },
-            { value: 'negociation', label: 'Négociation' },
-            { value: 'converti', label: 'Converti' },
-            { value: 'perdu', label: 'Perdu' },
-          ],
-    [contactStatusesRes?.data]
-  );
 
   // Hydrate form when company changes
   useEffect(() => {
@@ -606,14 +567,13 @@ export default function CompanyShow({ auth, id }: Props) {
                         <th className="px-4 py-2">Nom</th>
                         <th className="px-4 py-2">Email</th>
                         <th className="px-4 py-2">Téléphone</th>
-                        <th className="px-4 py-2">Statut</th>
                         <th className="px-4 py-2 w-[160px]">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {isFetchingContacts && (
                         <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                          <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
                             <div className="inline-flex items-center gap-2">
                               <Loader2 className="h-4 w-4 animate-spin" />
                               Chargement...
@@ -624,37 +584,17 @@ export default function CompanyShow({ auth, id }: Props) {
 
                       {!isFetchingContacts && contacts.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                          <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
                             Aucun contact trouvé.
                           </td>
                         </tr>
                       )}
 
-                      {contacts.map((c: any) => {
-                        const normalized = (c.status ?? '')
-                          .toString()
-                          .trim()
-                          .toLowerCase()
-                          .replace(/\s+/g, '_')
-                          .replace(/é|è|ê/g, 'e')
-                          .replace(/à|â/g, 'a')
-                          .replace(/î|ï/g, 'i')
-                          .replace(/ô/g, 'o')
-                          .replace(/û|ü/g, 'u')
-                          .replace(/ç/g, 'c');
-
-                        const label = (contactStatusOptions.find(o => o.value === normalized)?.label) ?? c.status;
-
-                        return (
+                      {contacts.map((c: any) => (
                           <tr key={c.id} className="border-t hover:bg-gray-50/60 transition-colors">
                             <td className="px-4 py-2 font-medium text-gray-900">{c.name}</td>
                             <td className="px-4 py-2 text-gray-700">{c.email}</td>
                             <td className="px-4 py-2 text-gray-700">{c.phone ?? '-'}</td>
-                            <td className="px-4 py-2">
-                              <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', contactBadgeClasses(normalized)].join(' ')}>
-                                {label}
-                              </span>
-                            </td>
                             <td className="px-4 py-2">
                               <div className="flex items-center gap-1.5">
                                 <Button
@@ -679,8 +619,7 @@ export default function CompanyShow({ auth, id }: Props) {
                               </div>
                             </td>
                           </tr>
-                        );
-                      })}
+                      ))}
                     </tbody>
                   </table>
                 </div>

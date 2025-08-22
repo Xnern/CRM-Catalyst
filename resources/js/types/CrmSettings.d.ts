@@ -31,8 +31,6 @@ export interface GeneralSettings {
 
   export interface SystemSettings {
     data_retention_days: string;
-    max_file_size_mb: string;
-    allowed_file_types: string[];
   }
 
   export interface BrandingSettings {
@@ -42,12 +40,42 @@ export interface GeneralSettings {
   }
 
   // Main CRM Settings interface
+  export interface UploadSettings {
+    upload_allowed_extensions: string[];
+    upload_max_file_size: string;
+    upload_storage_path: string;
+  }
+
+  export interface IdentitySettings {
+    company_name: string;
+    company_logo: string;
+    company_email: string;
+    company_phone: string;
+    company_address: string;
+    company_city: string;
+    company_postal_code: string;
+    company_country: string;
+  }
+
+  export interface SecuritySettings {
+    session_lifetime: string;
+    password_min_length: string;
+    password_require_uppercase: boolean;
+    password_require_lowercase: boolean;
+    password_require_numbers: boolean;
+    password_require_special_chars: boolean;
+    two_factor_enabled: boolean;
+  }
+
   export interface CrmSettings {
     general: GeneralSettings;
     email: EmailSettings;
     sales: SalesSettings;
     system: SystemSettings;
     branding: BrandingSettings;
+    upload: UploadSettings;
+    identity: IdentitySettings;
+    security: SecuritySettings;
   }
 
   // Individual setting record (database model)
@@ -55,7 +83,7 @@ export interface GeneralSettings {
     id: number;
     key: string;
     value: any; // JSON value
-    category: 'general' | 'email' | 'sales' | 'system' | 'branding';
+    category: 'general' | 'email' | 'sales' | 'system' | 'branding' | 'upload' | 'identity' | 'security';
     description?: string;
     is_public: boolean;
     created_at: string;
@@ -78,7 +106,7 @@ export interface GeneralSettings {
   export interface CrmSettingUpdatePayload {
     key: string;
     value: any;
-    category?: 'general' | 'email' | 'sales' | 'system' | 'branding';
+    category?: 'general' | 'email' | 'sales' | 'system' | 'branding' | 'upload' | 'identity' | 'security';
   }
 
   export interface PublicCrmSettingsResponse {
@@ -108,8 +136,10 @@ export interface GeneralSettings {
     };
     system: {
       data_retention_days: { required: boolean; min: number; max: number };
-      max_file_size_mb: { required: boolean; min: number; max: number };
-      allowed_file_types: { required: boolean; minItems: number };
+    };
+    upload: {
+      upload_allowed_extensions: { required: boolean; minItems: number };
+      upload_max_file_size: { required: boolean; min: number; max: number };
     };
   }
 

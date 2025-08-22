@@ -10,6 +10,7 @@ import { Provider } from 'react-redux';
 import { store } from './app/store';
 
 import { Toaster } from 'sonner';
+import { ThemeProvider } from './Components/ThemeProvider';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 

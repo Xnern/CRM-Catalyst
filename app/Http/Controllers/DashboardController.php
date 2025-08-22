@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Document;
 use App\Models\ActivityLog;
+use App\Models\Opportunity;
 use App\Enums\CompanyStatus;
 use App\Enums\ContactStatus;
 use Illuminate\Http\Request;
@@ -44,6 +45,22 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
+        // Opportunités stats
+        $openOpportunities = Opportunity::where('user_id', $user->id)
+            ->whereNotIn('stage', ['converti', 'perdu'])
+            ->get();
+        
+        $pipelineValue = $openOpportunities->sum('amount');
+        $weightedPipeline = $openOpportunities->sum(function($opp) {
+            return $opp->amount * $opp->probability / 100;
+        });
+        
+        $wonThisMonth = Opportunity::where('user_id', $user->id)
+            ->where('stage', 'converti')
+            ->whereMonth('updated_at', Carbon::now()->month)
+            ->whereYear('updated_at', Carbon::now()->year)
+            ->sum('amount');
+
         $stats = [
             'total_contacts' => Contact::where('user_id', $user->id)->count(),
             'total_companies' => Company::where('owner_id', $user->id)->count(),
@@ -54,6 +71,16 @@ class DashboardController extends Controller
                 ->whereYear('created_at', Carbon::now()->year)
                 ->count(),
             'companies_this_month' => Company::where('owner_id', $user->id)
+                ->whereMonth('created_at', Carbon::now()->month)
+                ->whereYear('created_at', Carbon::now()->year)
+                ->count(),
+            // Nouvelles stats d'opportunités
+            'total_opportunities' => Opportunity::where('user_id', $user->id)->count(),
+            'open_opportunities' => $openOpportunities->count(),
+            'pipeline_value' => $pipelineValue,
+            'weighted_pipeline' => $weightedPipeline,
+            'won_this_month' => $wonThisMonth,
+            'opportunities_this_month' => Opportunity::where('user_id', $user->id)
                 ->whereMonth('created_at', Carbon::now()->month)
                 ->whereYear('created_at', Carbon::now()->year)
                 ->count(),
@@ -148,6 +175,40 @@ class DashboardController extends Controller
         return response()->json(['data' => $timeline]);
     }
 
+    public function getOpportunitiesByStage(Request $request)
+    {
+        $user = $request->user();
+
+        $opportunitiesByStage = Opportunity::where('user_id', $user->id)
+            ->select('stage', DB::raw('count(*) as count'), DB::raw('sum(amount) as total_amount'))
+            ->groupBy('stage')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $this->getOpportunityStageLabel($item->stage),
+                    'count' => $item->count,
+                    'amount' => $item->total_amount ?? 0,
+                    'stage' => $item->stage,
+                ];
+            });
+
+        return response()->json(['data' => $opportunitiesByStage]);
+    }
+
+    private function getOpportunityStageLabel($stage)
+    {
+        $labels = [
+            'nouveau' => 'Nouveau',
+            'qualification' => 'Qualification',
+            'proposition' => 'Proposition',
+            'négociation' => 'Négociation',
+            'converti' => 'Converti',
+            'perdu' => 'Perdu',
+        ];
+
+        return $labels[$stage] ?? ucfirst(str_replace('_', ' ', $stage));
+    }
+
     public function getRecentActivities(Request $request)
     {
         $user = $request->user();
@@ -200,6 +261,22 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
+        // Opportunités stats
+        $openOpportunities = Opportunity::where('user_id', $user->id)
+            ->whereNotIn('stage', ['converti', 'perdu'])
+            ->get();
+        
+        $pipelineValue = $openOpportunities->sum('amount');
+        $weightedPipeline = $openOpportunities->sum(function($opp) {
+            return $opp->amount * $opp->probability / 100;
+        });
+        
+        $wonThisMonth = Opportunity::where('user_id', $user->id)
+            ->where('stage', 'converti')
+            ->whereMonth('updated_at', Carbon::now()->month)
+            ->whereYear('updated_at', Carbon::now()->year)
+            ->sum('amount');
+
         $stats = [
             'total_contacts' => Contact::where('user_id', $user->id)->count(),
             'total_companies' => Company::where('owner_id', $user->id)->count(),
@@ -210,6 +287,16 @@ class DashboardController extends Controller
                 ->whereYear('created_at', Carbon::now()->year)
                 ->count(),
             'companies_this_month' => Company::where('owner_id', $user->id)
+                ->whereMonth('created_at', Carbon::now()->month)
+                ->whereYear('created_at', Carbon::now()->year)
+                ->count(),
+            // Nouvelles stats d'opportunités
+            'total_opportunities' => Opportunity::where('user_id', $user->id)->count(),
+            'open_opportunities' => $openOpportunities->count(),
+            'pipeline_value' => $pipelineValue,
+            'weighted_pipeline' => $weightedPipeline,
+            'won_this_month' => $wonThisMonth,
+            'opportunities_this_month' => Opportunity::where('user_id', $user->id)
                 ->whereMonth('created_at', Carbon::now()->month)
                 ->whereYear('created_at', Carbon::now()->year)
                 ->count(),
@@ -271,6 +358,19 @@ class DashboardController extends Controller
                 ];
             });
 
+        $opportunitiesByStage = Opportunity::where('user_id', $user->id)
+            ->select('stage', DB::raw('count(*) as count'), DB::raw('sum(amount) as total_amount'))
+            ->groupBy('stage')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $this->getOpportunityStageLabel($item->stage),
+                    'count' => $item->count,
+                    'amount' => $item->total_amount ?? 0,
+                    'stage' => $item->stage,
+                ];
+            });
+
         $recentActivities = ActivityLog::forUser($user->id)
             ->recent(10)
             ->with(['subject'])
@@ -288,6 +388,7 @@ class DashboardController extends Controller
             'stats' => $stats,
             'contactsByStatus' => $contactsByStatus,
             'companiesByStatus' => $companiesByStatus,
+            'opportunitiesByStage' => $opportunitiesByStage,
             'contactsTimeline' => $contactsTimeline,
             'documentsTimeline' => $documentsTimeline,
             'recentActivities' => $recentActivities,

@@ -21,7 +21,9 @@ import {
   Save,
   RotateCcw,
   Loader2,
-  CheckCircle
+  CheckCircle,
+  Upload,
+  Shield
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -147,6 +149,10 @@ export default function SettingsIndex({ auth }: Props) {
       await updateSettings(settings).unwrap();
       toast.success('Paramètres sauvegardés avec succès !');
       setHasChanges(false);
+      // Reload the page to refresh all components with new settings
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error) {
       console.error('Failed to save settings:', error);
       toast.error('Échec de la sauvegarde. Veuillez réessayer.');
@@ -223,7 +229,7 @@ export default function SettingsIndex({ auth }: Props) {
             <Button
             onClick={handleSave}
             disabled={!hasChanges || isUpdating}
-            className="bg-teal-600 hover:bg-teal-700"
+            className="bg-primary-600 hover:bg-primary-700"
             >
             {isUpdating ? (
                 <>
@@ -242,7 +248,7 @@ export default function SettingsIndex({ auth }: Props) {
 
         {/* Settings Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="general" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
               Général
@@ -262,6 +268,14 @@ export default function SettingsIndex({ auth }: Props) {
             <TabsTrigger value="branding" className="flex items-center gap-2">
               <Palette className="h-4 w-4" />
               Identité
+            </TabsTrigger>
+            <TabsTrigger value="upload" className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              Upload
+            </TabsTrigger>
+            <TabsTrigger value="security" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Sécurité
             </TabsTrigger>
           </TabsList>
 
@@ -441,6 +455,34 @@ export default function SettingsIndex({ auth }: Props) {
                       />
                     </div>
                   </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="smtp_encryption">Chiffrement</Label>
+                      <Select
+                        value={settings.email.smtp_encryption || 'tls'}
+                        onValueChange={(value) => handleSettingChange('email', 'smtp_encryption', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="tls">TLS</SelectItem>
+                          <SelectItem value="ssl">SSL</SelectItem>
+                          <SelectItem value="none">Aucun</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Configuration Mailtrap</Label>
+                      <div className="text-sm text-gray-500">
+                        Pour utiliser Mailtrap, utilisez : <br />
+                        Host: sandbox.smtp.mailtrap.io <br />
+                        Port: 2525, 465 ou 587 <br />
+                        Chiffrement: TLS
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -590,50 +632,6 @@ export default function SettingsIndex({ auth }: Props) {
                       placeholder="365"
                     />
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="max_file_size_mb">Taille max fichier (Mo)</Label>
-                    <Input
-                      id="max_file_size_mb"
-                      type="number"
-                      value={settings.system.max_file_size_mb}
-                      onChange={(e) => handleSettingChange('system', 'max_file_size_mb', e.target.value)}
-                      placeholder="10"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Types de fichiers autorisés</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => addArrayItem('system', 'allowed_file_types')}
-                    >
-                      Ajouter un type
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {settings.system.allowed_file_types.map((type, index) => (
-                      <div key={index} className="flex gap-1">
-                        <Input
-                          value={type}
-                          onChange={(e) => handleArraySettingChange('system', 'allowed_file_types', index, e.target.value)}
-                          placeholder="pdf"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeArrayItem('system', 'allowed_file_types', index)}
-                        >
-                          ×
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -712,6 +710,164 @@ export default function SettingsIndex({ auth }: Props) {
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Upload Settings */}
+          <TabsContent value="upload">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5" />
+                  Configuration des uploads
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="upload_max_file_size">Taille max fichier (Mo)</Label>
+                    <Input
+                      id="upload_max_file_size"
+                      type="number"
+                      value={settings.upload?.upload_max_file_size || ''}
+                      onChange={(e) => handleSettingChange('upload', 'upload_max_file_size', e.target.value)}
+                      placeholder="10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="upload_storage_path">Chemin de stockage</Label>
+                    <Input
+                      id="upload_storage_path"
+                      value={settings.upload?.upload_storage_path || ''}
+                      onChange={(e) => handleSettingChange('upload', 'upload_storage_path', e.target.value)}
+                      placeholder="documents"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Extensions de fichiers autorisées</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addArrayItem('upload', 'upload_allowed_extensions')}
+                    >
+                      Ajouter une extension
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {(settings.upload?.upload_allowed_extensions || []).map((ext: string, index: number) => (
+                      <div key={index} className="flex gap-1">
+                        <Input
+                          value={ext}
+                          onChange={(e) => handleArraySettingChange('upload', 'upload_allowed_extensions', index, e.target.value)}
+                          placeholder="pdf"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeArrayItem('upload', 'upload_allowed_extensions', index)}
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Security Settings */}
+          <TabsContent value="security">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Configuration de sécurité
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="session_lifetime">Durée de session (minutes)</Label>
+                    <Input
+                      id="session_lifetime"
+                      type="number"
+                      value={settings.security?.session_lifetime || ''}
+                      onChange={(e) => handleSettingChange('security', 'session_lifetime', e.target.value)}
+                      placeholder="120"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password_min_length">Longueur min. mot de passe</Label>
+                    <Input
+                      id="password_min_length"
+                      type="number"
+                      value={settings.security?.password_min_length || ''}
+                      onChange={(e) => handleSettingChange('security', 'password_min_length', e.target.value)}
+                      placeholder="8"
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium">Exigences de mot de passe</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password_require_uppercase">Exiger des majuscules</Label>
+                      <Switch
+                        id="password_require_uppercase"
+                        checked={settings.security?.password_require_uppercase || false}
+                        onCheckedChange={(checked) => handleSettingChange('security', 'password_require_uppercase', checked)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password_require_lowercase">Exiger des minuscules</Label>
+                      <Switch
+                        id="password_require_lowercase"
+                        checked={settings.security?.password_require_lowercase || false}
+                        onCheckedChange={(checked) => handleSettingChange('security', 'password_require_lowercase', checked)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password_require_numbers">Exiger des chiffres</Label>
+                      <Switch
+                        id="password_require_numbers"
+                        checked={settings.security?.password_require_numbers || false}
+                        onCheckedChange={(checked) => handleSettingChange('security', 'password_require_numbers', checked)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password_require_special_chars">Exiger des caractères spéciaux</Label>
+                      <Switch
+                        id="password_require_special_chars"
+                        checked={settings.security?.password_require_special_chars || false}
+                        onCheckedChange={(checked) => handleSettingChange('security', 'password_require_special_chars', checked)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="two_factor_enabled">Authentification à deux facteurs</Label>
+                    <p className="text-sm text-gray-500">Activer 2FA pour tous les utilisateurs</p>
+                  </div>
+                  <Switch
+                    id="two_factor_enabled"
+                    checked={settings.security?.two_factor_enabled || false}
+                    onCheckedChange={(checked) => handleSettingChange('security', 'two_factor_enabled', checked)}
+                  />
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

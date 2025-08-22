@@ -192,11 +192,6 @@ export const api = createApi({
       providesTags: ['Dashboard'],
     }),
 
-    getContactsByStatusApi: builder.query<{ data: StatusData[] }, void>({
-      query: () => '/dashboard/contacts-by-status',
-      providesTags: ['Dashboard'],
-    }),
-
     getCompaniesByStatusApi: builder.query<{ data: StatusData[] }, void>({
       query: () => '/dashboard/companies-by-status',
       providesTags: ['Dashboard'],
@@ -217,6 +212,11 @@ export const api = createApi({
       providesTags: ['Dashboard'],
     }),
 
+    getOpportunitiesByStageApi: builder.query<{ data: Array<{ name: string; count: number; amount: number; stage: string }> }, void>({
+      query: () => '/dashboard/opportunities-by-stage',
+      providesTags: ['Dashboard'],
+    }),
+
     /**
      * Contacts - Routes génériques CRUD (à utiliser partout)
      */
@@ -234,30 +234,6 @@ export const api = createApi({
         result
           ? [...result.data.map(({ id }) => ({ type: 'Contact' as const, id })), { type: 'Contact', id: 'LIST' }]
           : [{ type: 'Contact', id: 'LIST' }],
-    }),
-
-    getContactsByStatus: builder.query<
-      PaginatedApiResponse<Contact>,
-      { status: Contact['status']; per_page?: number; cursor?: string }
-    >({
-      query: ({ status, per_page = 15, cursor }) => {
-        const params = new URLSearchParams();
-        params.append('per_page', per_page.toString());
-        if (cursor) {
-          params.append('cursor', cursor);
-        }
-        return {
-          url: `/contacts/by-status/${status}`,
-          params: params,
-        };
-      },
-      providesTags: (result, _error, { status }) =>
-        result
-          ? [
-              ...result.data.map(({ id }) => ({ type: 'Contact' as const, id })),
-              { type: 'Contact', id: 'LIST', status },
-            ]
-          : [{ type: 'Contact', id: 'LIST', status }],
     }),
 
     addContact: builder.mutation<Contact, Partial<Contact>>({
@@ -309,26 +285,6 @@ export const api = createApi({
         { type: 'UnassignedContacts', id: 'LIST' },
         { type: 'Dashboard' },
       ],
-    }),
-
-    updateContactStatus: builder.mutation<Contact, { id: number; status: Contact['status'] }>({
-      query: ({ id, status }) => ({
-        url: `/contacts/${id}/status`,
-        method: 'PUT',
-        body: { status },
-      }),
-      invalidatesTags: (_result, _error, { id }) => [
-        { type: 'Contact', id },
-        { type: 'Contact', id: 'LIST' },
-        { type: 'Dashboard' },
-      ],
-    }),
-
-    getContactStatusOptions: builder.query<any, void>({
-      query: () => ({
-        url: '/meta/contact-statuses',
-        method: 'GET',
-      }),
     }),
 
     searchContacts: builder.query<{ id: number; name: string }[], string>({
@@ -764,21 +720,18 @@ export const {
 
   // Dashboard
   useGetDashboardStatsQuery,
-  useGetContactsByStatusApiQuery,
   useGetCompaniesByStatusApiQuery,
   useGetContactsTimelineApiQuery,
   useGetDocumentsTimelineApiQuery,
   useGetRecentActivitiesApiQuery,
+  useGetOpportunitiesByStageApiQuery,
 
   // Contacts - Routes génériques (à utiliser partout)
   useGetContactsQuery,
-  useGetContactsByStatusQuery,
   useLazyGetContactsQuery,
   useAddContactMutation,
   useUpdateContactMutation,
   useDeleteContactMutation,
-  useUpdateContactStatusMutation,
-  useGetContactStatusOptionsQuery,
   useGetContactQuery,
 
   // Google Calendar

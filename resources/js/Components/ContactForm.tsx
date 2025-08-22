@@ -31,9 +31,6 @@ interface FormErrors {
   [key: string]: string[];
 }
 
-// Status option type
-type StatusOption = { value: string; label: string };
-
 interface ContactFormProps {
   initialData?: Contact | null;
   onSubmit: (
@@ -41,43 +38,7 @@ interface ContactFormProps {
   ) => void;
   isLoading?: boolean;
   errors?: FormErrors;
-  statusOptions?: StatusOption[]; // Nouveau: options de statut passées par le parent
 }
-
-// Badge classes for contact status (slugs)
-const contactBadgeClasses = (raw?: string) => {
-    if (!raw) return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
-    // Normaliser: toLowerCase + remplacer espaces et accents de base
-    const s = raw
-      .toString()
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '_')
-      .replace(/é|è|ê/g, 'e')
-      .replace(/à|â/g, 'a')
-      .replace(/î|ï/g, 'i')
-      .replace(/ô/g, 'o')
-      .replace(/û|ü/g, 'u')
-      .replace(/ç/g, 'c');
-  
-    switch (s) {
-      case 'nouveau':
-        return 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200';
-      case 'qualification':
-        return 'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-200';
-      case 'proposition_envoyee':
-        return 'bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-200';
-      case 'negociation':
-        return 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200';
-      case 'converti':
-        return 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200';
-      case 'perdu':
-        return 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200';
-      default:
-        return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
-    }
-};
-  
 
 // Format phone number for display
 const formatPhoneNumberForDisplay = (phoneNumber: string | null | undefined): string => {
@@ -118,29 +79,12 @@ export default function ContactForm({
   onSubmit,
   isLoading = false,
   errors,
-  statusOptions,
 }: ContactFormProps) {
-  // Fallback status options if none provided
-  const fallbackStatusOptions: StatusOption[] = useMemo(
-    () => [
-      { value: 'nouveau', label: 'Nouveau' },
-      { value: 'qualification', label: 'Qualification' },
-      { value: 'proposition_envoyee', label: 'Proposition envoyée' },
-      { value: 'negociation', label: 'Négociation' },
-      { value: 'converti', label: 'Converti' },
-      { value: 'perdu', label: 'Perdu' },
-    ],
-    []
-  );
-  const statusOpts = statusOptions && statusOptions.length > 0 ? statusOptions : fallbackStatusOptions;
-  const defaultStatus = statusOpts[0]?.value ?? 'nouveau';
-
   // Form state
   const [name, setName] = useState(initialData?.name || '');
   const [email, setEmail] = useState(initialData?.email || '');
   const [phone, setPhone] = useState(formatPhoneNumberForDisplay(initialData?.phone));
   const [address, setAddress] = useState(initialData?.address || '');
-  const [status, setStatus] = useState<string>(initialData?.status || defaultStatus);
 
   // Map state
   const [markerPosition, setMarkerPosition] = useState<[number, number] | null>(
@@ -206,7 +150,6 @@ export default function ContactForm({
     setEmail(initialData?.email || '');
     setPhone(formatPhoneNumberForDisplay(initialData?.phone));
     setAddress(initialData?.address || '');
-    setStatus(initialData?.status || defaultStatus);
     setMarkerPosition(
       initialData?.latitude && initialData?.longitude ? [initialData.latitude, initialData.longitude] : null
     );
@@ -236,7 +179,6 @@ export default function ContactForm({
       email,
       phone,
       address,
-      status,
       latitude: markerPosition ? markerPosition[0] : null,
       longitude: markerPosition ? markerPosition[1] : null,
     } as any);
@@ -268,7 +210,7 @@ export default function ContactForm({
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className={`!focus:border-1 focus:border-teal-600 ${errors?.email ? 'border-red-500' : ''}`}
+          className={`!focus:border-1 focus:border-primary-600 ${errors?.email ? 'border-red-500' : ''}`}
           disabled={isLoading}
         />
         {errors?.email && <p className="text-red-500 text-sm mt-1">{firstError('email')}</p>}
@@ -285,34 +227,6 @@ export default function ContactForm({
           disabled={isLoading}
         />
         {errors?.phone && <p className="text-red-500 text-sm mt-1">{firstError('phone')}</p>}
-      </div>
-
-      {/* Status */}
-      <div className="flex flex-col space-y-1">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="status">Statut</Label>
-          <span
-            className={[
-              'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-              contactBadgeClasses(status),
-            ].join(' ')}
-          >
-            {statusOpts.find((s) => s.value === status)?.label ?? status}
-          </span>
-        </div>
-        <Select value={status} onValueChange={(v) => setStatus(v)} disabled={isLoading}>
-          <SelectTrigger id="status">
-            <SelectValue placeholder="Sélectionner un statut" />
-          </SelectTrigger>
-          <SelectContent>
-            {statusOpts.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors?.status && <p className="text-red-500 text-sm mt-1">{firstError('status')}</p>}
       </div>
 
       {/* Address */}

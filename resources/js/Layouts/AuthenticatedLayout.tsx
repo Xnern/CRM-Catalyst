@@ -10,8 +10,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  X
+  X,
+  TrendingUp
 } from 'lucide-react';
+import { ThemeProvider } from '@/Components/ThemeProvider';
 
 // --- MOCK COMPONENTS AND FUNCTIONS FOR STANDALONE DEMONSTRATION ---
 // IMPORTANT: Dans votre projet Laravel/Inertia.js, supprimez ces définitions de mock.
@@ -212,6 +214,7 @@ export default function Authenticated({
 
     const navLinks: NavLinkItem[] = [
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, route: 'dashboard' },
+        { id: 'sales', label: 'Ventes', icon: <TrendingUp size={20} />, route: 'opportunities.index' },
         { id: 'contacts', label: 'Contacts', icon: <Contact size={20} />, route: 'contacts.indexInertia' },
         { id: 'companies', label: 'Entreprises', icon: <Building2 size={20} />, route: 'companies.indexInertia' },
         { id: 'kanban', label: 'Kanban', icon: <Building2 size={20} />, route: 'kanban.indexInertia' },
@@ -221,7 +224,8 @@ export default function Authenticated({
     ];
 
     return (
-        <div className="min-h-screen bg-background text-foreground flex font-inter z-50">
+        <ThemeProvider>
+            <div className="min-h-screen bg-background text-foreground flex font-inter z-50">
             {/* Sidebar Desktop */}
             <div
                 className={`hidden md:flex flex-col h-screen fixed bg-card border-r border-border transition-all duration-300 ease-in-out ${
@@ -337,7 +341,7 @@ export default function Authenticated({
                     {/* Sidebar Collapse/Expand Button */}
                     <button
                         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                        className={`mt-4 flex items-center justify-center w-8 h-8 p-2 text-teal-600 hover:text-white rounded-lg bg-muted hover:bg-teal-600 transition-colors duration-200 text-foreground absolute bottom-32 -right-4 shadow-lg`}
+                        className={`mt-4 flex items-center justify-center w-8 h-8 p-2 text-primary-600 hover:text-white rounded-lg bg-muted hover:bg-primary-600 transition-colors duration-200 text-foreground absolute bottom-32 -right-4 shadow-lg`}
                     >
                         <ChevronLeft size={24} className={`${sidebarCollapsed ? 'rotate-180' : ''}`} />
                     </button>
@@ -518,5 +522,6 @@ export default function Authenticated({
                 <main className="flex-1 p-4 sm:p-6">{children}</main>
             </div>
         </div>
+        </ThemeProvider>
     );
 }

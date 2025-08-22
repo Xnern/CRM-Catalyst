@@ -5,9 +5,7 @@ namespace App\Models;
 use App\Models\User;
 use App\Models\Company;
 use App\Models\Document;
-use App\Enums\ContactStatus;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
@@ -19,7 +17,6 @@ class Contact extends Model
     protected $fillable = [
         'name',
         'company_id',
-        'status',
         'email',
         'phone',
         'address',
@@ -48,14 +45,8 @@ class Contact extends Model
             ->withTimestamps();
     }
 
-    protected function statusLabel(): Attribute
+    public function opportunities()
     {
-        return Attribute::get(function () {
-            try {
-                return ContactStatus::from($this->status)->label();
-            } catch (\ValueError) {
-                return ucfirst(str_replace('_', ' ', $this->status ?? ''));
-            }
-        });
+        return $this->hasMany(Opportunity::class);
     }
 }

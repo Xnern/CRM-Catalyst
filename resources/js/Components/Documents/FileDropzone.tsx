@@ -65,6 +65,7 @@ export const FileDropzone: React.FC<Props> = ({ onFileSelected, accept, maxSizeB
         className="hidden"
         onChange={onPick}
         accept={accept}
+        key={accept} // Force re-render when accept changes
       />
     </div>
   );

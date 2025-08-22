@@ -104,6 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stats', [DashboardController::class, 'getStats'])->name('stats');
         Route::get('/contacts-by-status', [DashboardController::class, 'getContactsByStatus'])->name('contacts-by-status');
         Route::get('/companies-by-status', [DashboardController::class, 'getCompaniesByStatus'])->name('companies-by-status');
+        Route::get('/opportunities-by-stage', [DashboardController::class, 'getOpportunitiesByStage'])->name('opportunities-by-stage');
         Route::get('/contacts-timeline', [DashboardController::class, 'getContactsTimeline'])->name('contacts-timeline');
         Route::get('/documents-timeline', [DashboardController::class, 'getDocumentsTimeline'])->name('documents-timeline');
         Route::get('/recent-activities', [DashboardController::class, 'getRecentActivities'])->name('recent-activities');
@@ -141,12 +142,6 @@ Route::middleware('auth:sanctum')->group(function () {
     ]);
 
     // Constrain parameterized routes to numeric IDs to avoid collisions with "search"
-    Route::put('/contacts/{contact}/status', [ContactController::class, 'updateStatus'])
-        ->whereNumber('contact')
-        ->name('contacts.update-status');
-
-    Route::get('/contacts/by-status/{status}', [ContactController::class, 'getContactsByStatus'])
-        ->name('contacts.by-status');
 
     Route::get('/companies/by-status/{status}', [CompanyController::class, 'getCompaniesByStatus'])
         ->name('companies.by-status');
@@ -221,7 +216,6 @@ Route::middleware('auth:sanctum')->group(function () {
     /**
      * Meta
      */
-    Route::get('/meta/contact-statuses', [MetaController::class, 'contactStatuses']);
     Route::get('/meta/company-statuses', [MetaController::class, 'companyStatuses']);
 
     /**
@@ -252,4 +246,29 @@ Route::middleware('auth:sanctum')->group(function () {
         ->whereNumber('document');
     Route::get('/documents/{document}/versions', [DocumentController::class, 'listVersions'])
         ->whereNumber('document');
+
+    /**
+     * Opportunities (Sales)
+     */
+    Route::get('/opportunities', [App\Http\Controllers\OpportunityController::class, 'index'])
+        ->name('opportunities.index');
+    Route::post('/opportunities', [App\Http\Controllers\OpportunityController::class, 'store'])
+        ->name('opportunities.store');
+    Route::get('/opportunities/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'show'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.show');
+    Route::put('/opportunities/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'update'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.update');
+    Route::delete('/opportunities/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'destroy'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.destroy');
+    
+    // Opportunity activities
+    Route::post('/opportunities/{opportunity}/activities', [App\Http\Controllers\OpportunityController::class, 'addActivity'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.activities.store');
+    Route::post('/opportunity-activities/{activity}/complete', [App\Http\Controllers\OpportunityController::class, 'completeActivity'])
+        ->whereNumber('activity')
+        ->name('opportunities.activities.complete');
 });

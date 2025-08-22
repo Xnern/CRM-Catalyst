@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\Notification;
 use App\Notifications\ImportFinishedNotification;
 use App\Http\Requests\Contacts\StoreContactRequest;
 use App\Http\Requests\Contacts\UpdateContactRequest;
-use App\Http\Requests\Contacts\UpdateContactStatusRequest;
 use Illuminate\Database\Eloquent\Builder; // For AllowedFilter::callback type hinting
 use App\Http\Resources\ContactResource;
 
@@ -122,56 +121,6 @@ class ContactController extends Controller
         $paginator = $contactsQuery->paginate($perPage);
 
         return ContactResource::collection($paginator)
-            ->response()
-            ->setStatusCode(200);
-    }
-
-    /**
-     * Fetch a cursor-paginated list of contacts filtered by status (optimized for Kanban).
-     * Returns a cursor paginator serialized with ContactResource.
-     */
-    public function getContactsByStatus(Request $request, string $status)
-    {
-        Gate::authorize('viewAny', Contact::class);
-
-        $perPage = (int) $request->input('per_page', 15);
-        $perPage = min(max($perPage, 1), 10000); // cursor pagination can support large windows
-
-        $baseQuery = Contact::query();
-
-        // RBAC: 'sales' can see only own contacts if policy allows
-        if ($request->user()->hasRole('sales') && $request->user()->can('view own contacts')) {
-            $baseQuery->where('user_id', $request->user()->id);
-        }
-
-        $contactsQuery = QueryBuilder::for($baseQuery)
-            ->where('status', $status)
-            ->allowedFilters([
-                AllowedFilter::partial('name'),
-                AllowedFilter::exact('email'),
-                AllowedFilter::exact('phone'),
-                AllowedFilter::exact('user_id'),
-                AllowedFilter::callback('search', function (Builder $query, $value) {
-                    $query->where(function ($q) use ($value) {
-                        $q->where('name', 'LIKE', "%{$value}%")
-                          ->orWhere('email', 'LIKE', "%{$value}%")
-                          ->orWhere('phone', 'LIKE', "%{$value}%");
-                    });
-                }),
-            ])
-            ->allowedIncludes([
-                AllowedInclude::relationship('user'),
-            ])
-            ->allowedSorts([
-                'name',
-                'email',
-                'created_at',
-            ])
-            ->with(['user:id,name,email']);
-
-        $cursorPaginator = $contactsQuery->cursorPaginate($perPage);
-
-        return ContactResource::collection($cursorPaginator)
             ->response()
             ->setStatusCode(200);
     }
@@ -341,24 +290,6 @@ class ContactController extends Controller
         }
     }
 
-    /**
-     * Update the specified contact's status.
-     * Returns the updated contact serialized with ContactResource.
-     */
-    public function updateStatus(UpdateContactStatusRequest $request, Contact $contact)
-    {
-        Gate::authorize('update', $contact);
-
-        $validatedData = $request->validated();
-        $contact->status = $validatedData['status'];
-        $contact->save();
-
-        $contact->loadMissing(['user:id,name,email', 'company:id,name', 'documents']);
-
-        return (new ContactResource($contact))
-            ->response()
-            ->setStatusCode(200);
-    }
 
     /**
      * Lightweight search endpoint for contacts (id + name).
@@ -367,10 +298,12 @@ class ContactController extends Controller
     {
         $q = trim((string) $request->get('q', ''));
         $res = \App\Models\Contact::query()
-            ->when($q, fn ($qq) => $qq->where('name', 'like', "%{$q}%"))
+            ->with('company:id,name')
+            ->when($q, fn ($qq) => $qq->where('name', 'like', "%{$q}%")
+                                      ->orWhere('email', 'like', "%{$q}%"))
             ->limit(15)
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'email', 'company_id']);
 
-        return response()->json($res, 200);
+        return response()->json(['data' => $res], 200);
     }
 }

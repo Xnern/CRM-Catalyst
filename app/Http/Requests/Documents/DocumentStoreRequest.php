@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Documents;
 
+use App\Rules\AllowedFileExtension;
+use App\Services\SettingsService;
 use Illuminate\Foundation\Http\FormRequest;
 
 class DocumentStoreRequest extends FormRequest
@@ -29,7 +31,7 @@ class DocumentStoreRequest extends FormRequest
             ]);
         }
 
-        if (!$this->has('links')) {
+        if (! $this->has('links')) {
             $this->merge([
                 'links' => [],
             ]);
@@ -51,12 +53,19 @@ class DocumentStoreRequest extends FormRequest
 
     public function rules(): array
     {
+        // Get upload settings
+        $settingsService = SettingsService::getInstance();
+        $uploadSettings = $settingsService->getUploadSettings();
+
+        // Convert MB to KB for Laravel validation
+        $maxFileSize = ($uploadSettings['max_file_size'] ?? 10) * 1024;
+
         return [
             'file' => [
                 'required',
                 'file',
-                'max:25600',
-                'mimes:pdf,doc,docx,rtf,odt,xls,xlsx,xlsm,ods,csv,ppt,pptx,odp,txt,md,png,jpg,jpeg,gif,bmp,tiff,webp,svg,zip'
+                'max:'.$maxFileSize,
+                new AllowedFileExtension,
             ],
 
             'name' => ['sometimes', 'string', 'max:255'],
@@ -79,11 +88,15 @@ class DocumentStoreRequest extends FormRequest
      */
     public function messages(): array
     {
+        // Get upload settings for custom messages
+        $settingsService = SettingsService::getInstance();
+        $uploadSettings = $settingsService->getUploadSettings();
+
         return [
             'file.required' => 'Un fichier est obligatoire.',
             'file.file' => 'Le fichier uploadé n\'est pas valide.',
-            'file.max' => 'Le fichier ne peut pas dépasser 25MB.',
-            'file.mimes' => 'Le type de fichier n\'est pas autorisé.',
+            'file.max' => 'Le fichier ne peut pas dépasser '.(($uploadSettings['max_file_size'] ?? 10)).'MB.',
+            'file.mimes' => 'Le type de fichier n\'est pas autorisé. Extensions acceptées : '.implode(', ', $uploadSettings['allowed_extensions'] ?? []),
 
             'name.string' => 'Le nom doit être une chaîne de caractères.',
             'name.max' => 'Le nom ne peut pas dépasser 255 caractères.',
@@ -136,7 +149,7 @@ class DocumentStoreRequest extends FormRequest
     {
         $links = $this->input('links', []);
 
-        if (!is_array($links)) {
+        if (! is_array($links)) {
             return [];
         }
 
@@ -150,7 +163,7 @@ class DocumentStoreRequest extends FormRequest
     {
         $tags = $this->input('tags', []);
 
-        if (!is_array($tags)) {
+        if (! is_array($tags)) {
             return [];
         }
 
