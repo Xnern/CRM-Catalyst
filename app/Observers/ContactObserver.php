@@ -15,7 +15,7 @@ class ContactObserver
     public function updated(Contact $contact): void
     {
         $changes = $contact->getChanges();
-        unset($changes['updated_at']); // Ne pas logger updated_at
+        unset($changes['updated_at']); 
 
         if (!empty($changes)) {
             ActivityLogger::contactUpdated($contact, $changes);

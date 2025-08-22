@@ -27,6 +27,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'indexInertia'])->name('dashboard');
 
+    Route::get('/dashboard/redirect-object/{type}/{id}', [DashboardController::class, 'redirectToObject'])
+        ->name('dashboard.redirect-object')
+        ->whereNumber('id');
+
     // Route pour la page des contacts
     Route::get('/contacts', [ContactController::class, 'indexInertia'])->name('contacts.indexInertia');
     Route::get('/contacts/{id}', [ContactController::class, 'showInertia'])

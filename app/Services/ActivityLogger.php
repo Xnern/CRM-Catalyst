@@ -29,7 +29,6 @@ class ActivityLogger
         ]);
     }
 
-    // Méthodes de convenance
     public static function contactCreated(Model $contact): ActivityLog
     {
         return self::log(
@@ -115,6 +114,17 @@ class ActivityLogger
             null,
             'document',
             ['action' => 'deleted', 'document_id' => $documentId]
+        );
+    }
+
+    public static function documentUpdated(Model $document, array $changes = []): ActivityLog
+    {
+        return self::log(
+            "Document '{$document->name}' modifié",
+            $document,
+            null,
+            'document',
+            ['action' => 'updated', 'changes' => $changes]
         );
     }
 }

@@ -19,6 +19,8 @@ class ActivityLog extends Model
 
     protected $casts = [
         'properties' => 'array',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     public $timestamps = false;

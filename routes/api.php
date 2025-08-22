@@ -106,7 +106,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/contacts-timeline', [DashboardController::class, 'getContactsTimeline'])->name('contacts-timeline');
         Route::get('/documents-timeline', [DashboardController::class, 'getDocumentsTimeline'])->name('documents-timeline');
         Route::get('/recent-activities', [DashboardController::class, 'getRecentActivities'])->name('recent-activities');
+
+        Route::get('/export-pdf', [DashboardController::class, 'exportPdf'])->name('export-pdf');
     });
+
 
     // Current user
     Route::get('/user', function (Request $request) {
