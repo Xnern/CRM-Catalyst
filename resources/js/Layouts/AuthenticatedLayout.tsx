@@ -217,7 +217,7 @@ export default function Authenticated({
         { id: 'kanban', label: 'Kanban', icon: <Building2 size={20} />, route: 'kanban.indexInertia' },
         { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'calendar.indexInertia' },
         { id: 'documents', label: 'Documents', icon: <FileText size={20} />, route: 'documents.indexInertia' },
-        { id: 'settings', label: 'Paramètres', icon: <Settings size={20} />, route: 'contacts.index' },
+        { id: 'settings', label: 'Paramètres', icon: <Settings size={20} />, route: 'settings.indexInertia' },
     ];
 
     return (

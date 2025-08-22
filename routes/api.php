@@ -14,6 +14,7 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GoogleAuthController;
 use Illuminate\Validation\ValidationException;
+use App\Http\Controllers\CrmSettingsController;
 use App\Http\Controllers\CompanyContactController;
 use App\Http\Controllers\LocalCalendarEventsController;
 
@@ -108,6 +109,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/recent-activities', [DashboardController::class, 'getRecentActivities'])->name('recent-activities');
 
         Route::get('/export-pdf', [DashboardController::class, 'exportPdf'])->name('export-pdf');
+    });
+
+    Route::prefix('settings')->group(function () {
+        Route::get('/', [CrmSettingsController::class, 'index']);
+        Route::get('/public', [CrmSettingsController::class, 'public']);
+        Route::post('/', [CrmSettingsController::class, 'update']);
+        Route::post('/single', [CrmSettingsController::class, 'updateSetting']);
+        Route::post('/reset', [CrmSettingsController::class, 'reset']);
     });
 
 

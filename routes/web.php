@@ -11,6 +11,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\CrmSettingsController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -30,6 +31,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard/redirect-object/{type}/{id}', [DashboardController::class, 'redirectToObject'])
         ->name('dashboard.redirect-object')
         ->whereNumber('id');
+
+    Route::get('/parametres', [CrmSettingsController::class, 'indexInertia'])->name('settings.indexInertia');
 
     // Route pour la page des contacts
     Route::get('/contacts', [ContactController::class, 'indexInertia'])->name('contacts.indexInertia');

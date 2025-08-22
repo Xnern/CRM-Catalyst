@@ -7,7 +7,16 @@ import type { Company, CompanyStatusOptionsResponse } from '@/types/Company';
 import type { Document as DocumentModel } from '@/types/Document';
 import type { PaginatedApiResponse } from '@/types/PaginatedApiResponse';
 
-// Éventuels types d'autres domaines (laisse comme avant si tu as ces fichiers)
+// CRM Settings types
+import type {
+  CrmSettings,
+  CrmSettingsResponse,
+  CrmSettingsUpdateResponse,
+  CrmSettingUpdatePayload,
+  PublicCrmSettingsResponse
+} from '@/types/CrmSettings';
+
+// Calendar events types
 import type { GoogleCalendarEvent, CreateCalendarEventPayload } from '@/types/GoogleCalendarEvent';
 import type { LocalCalendarEvent, LocalEventPayload, UpdateLocalEventPayload } from '@/types/LocalCalendarEvent';
 
@@ -128,10 +137,53 @@ export const api = createApi({
     'UnassignedContacts',
     'Document',
     'Dashboard',
+    'CrmSettings', // ✅ New tag for CRM Settings
   ],
 
   // Endpoints
   endpoints: (builder) => ({
+    /**
+     * ✅ CRM SETTINGS ENDPOINTS
+     */
+    getCrmSettings: builder.query<CrmSettingsResponse, void>({
+      query: () => '/settings',
+      providesTags: ['CrmSettings'],
+    }),
+
+    getPublicCrmSettings: builder.query<PublicCrmSettingsResponse, void>({
+      query: () => '/settings/public',
+      providesTags: ['CrmSettings'],
+    }),
+
+    updateCrmSettings: builder.mutation<CrmSettingsUpdateResponse, Partial<CrmSettings>>({
+      query: (settings) => ({
+        url: '/settings',
+        method: 'POST',
+        body: settings,
+      }),
+      invalidatesTags: ['CrmSettings'],
+    }),
+
+    updateSingleCrmSetting: builder.mutation<
+      { success: boolean; message: string; data: { key: string; value: any; category: string } },
+      CrmSettingUpdatePayload
+    >({
+      query: (setting) => ({
+        url: '/settings/single',
+        method: 'POST',
+        body: setting,
+      }),
+      invalidatesTags: ['CrmSettings'],
+    }),
+
+    resetCrmSettings: builder.mutation<CrmSettingsUpdateResponse, void>({
+      query: () => ({
+        url: '/settings/reset',
+        method: 'POST',
+      }),
+      invalidatesTags: ['CrmSettings'],
+    }),
+
     /**
      * Dashboard Analytics
      */
@@ -451,7 +503,6 @@ export const api = createApi({
             : [{ type: 'Company', id: 'LIST', status }],
         }),
 
-
     /**
      * Company-Contact Relations (seulement les opérations spécifiques aux relations)
      */
@@ -704,6 +755,13 @@ export const api = createApi({
 
 // --- Export generated RTK Query hooks for usage in components ---
 export const {
+  // ✅ CRM Settings hooks
+  useGetCrmSettingsQuery,
+  useGetPublicCrmSettingsQuery,
+  useUpdateCrmSettingsMutation,
+  useUpdateSingleCrmSettingMutation,
+  useResetCrmSettingsMutation,
+
   // Dashboard
   useGetDashboardStatsQuery,
   useGetContactsByStatusApiQuery,
@@ -748,7 +806,6 @@ export const {
   useLazySearchCompaniesQuery,
   useGetCompanyByStatusQuery,
 
-
   // Company-Contact Relations (seulement les opérations spécifiques)
   useGetCompanyContactsQuery,
   useGetUnassignedContactsQuery,
@@ -775,3 +832,4 @@ export const {
   useSearchContactsQuery,
   useLazySearchContactsQuery,
 } = api;
+
