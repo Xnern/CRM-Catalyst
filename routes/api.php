@@ -1,19 +1,20 @@
 <?php
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Validation\ValidationException;
-
-use App\Models\User;
 
 use App\Http\Controllers\MetaController;
+
 use App\Http\Controllers\GoogleController;
-use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\CompanyController;
-use App\Http\Controllers\CompanyContactController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GoogleAuthController;
+use Illuminate\Validation\ValidationException;
+use App\Http\Controllers\CompanyContactController;
 use App\Http\Controllers\LocalCalendarEventsController;
 
 /*
@@ -94,6 +95,19 @@ Route::post('/logout', function (Request $request) {
  * Protected API routes
  */
 Route::middleware('auth:sanctum')->group(function () {
+
+    /**
+     * Dashboard
+     */
+    Route::prefix('dashboard')->name('dashboard.')->group(function () {
+        Route::get('/stats', [DashboardController::class, 'getStats'])->name('stats');
+        Route::get('/contacts-by-status', [DashboardController::class, 'getContactsByStatus'])->name('contacts-by-status');
+        Route::get('/companies-by-status', [DashboardController::class, 'getCompaniesByStatus'])->name('companies-by-status');
+        Route::get('/contacts-timeline', [DashboardController::class, 'getContactsTimeline'])->name('contacts-timeline');
+        Route::get('/documents-timeline', [DashboardController::class, 'getDocumentsTimeline'])->name('documents-timeline');
+        Route::get('/recent-activities', [DashboardController::class, 'getRecentActivities'])->name('recent-activities');
+    });
+
     // Current user
     Route::get('/user', function (Request $request) {
         return response()->json($request->user());
@@ -121,6 +135,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/contacts/by-status/{status}', [ContactController::class, 'getContactsByStatus'])
         ->name('contacts.by-status');
+
+    Route::get('/companies/by-status/{status}', [CompanyController::class, 'getCompaniesByStatus'])
+        ->name('companies.by-status');
 
     /**
      * Google Calendar

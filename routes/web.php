@@ -9,6 +9,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GoogleAuthController;
 
 Route::get('/', function () {
@@ -23,6 +24,9 @@ Route::get('/', function () {
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])->name('google.callback');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+
+    Route::get('/dashboard', [DashboardController::class, 'indexInertia'])->name('dashboard');
+
     // Route pour la page des contacts
     Route::get('/contacts', [ContactController::class, 'indexInertia'])->name('contacts.indexInertia');
     Route::get('/contacts/{id}', [ContactController::class, 'showInertia'])
@@ -37,9 +41,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/documents', [DocumentController::class, 'indexInertia'])->name('documents.indexInertia');
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

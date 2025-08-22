@@ -51,6 +51,35 @@ export interface DocumentVersion {
   updated_at: string;
 }
 
+// Dashboard types
+export interface DashboardStats {
+  total_contacts: number;
+  total_companies: number;
+  total_documents: number;
+  total_events: number;
+  contacts_this_month: number;
+  companies_this_month: number;
+}
+
+export interface StatusData {
+  name: string;
+  value: number;
+  status: string;
+}
+
+export interface TimelineData {
+  month: string;
+  contacts?: number;
+  documents?: number;
+}
+
+export interface RecentActivity {
+  type: 'contact' | 'company' | 'document';
+  title: string;
+  date: string;
+  id: number;
+}
+
 // --- Utils ---
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') {
@@ -98,10 +127,44 @@ export const api = createApi({
     'CompanyContacts',
     'UnassignedContacts',
     'Document',
+    'Dashboard',
   ],
 
   // Endpoints
   endpoints: (builder) => ({
+    /**
+     * Dashboard Analytics
+     */
+    getDashboardStats: builder.query<{ data: DashboardStats }, void>({
+      query: () => '/dashboard/stats',
+      providesTags: ['Dashboard'],
+    }),
+
+    getContactsByStatusApi: builder.query<{ data: StatusData[] }, void>({
+      query: () => '/dashboard/contacts-by-status',
+      providesTags: ['Dashboard'],
+    }),
+
+    getCompaniesByStatusApi: builder.query<{ data: StatusData[] }, void>({
+      query: () => '/dashboard/companies-by-status',
+      providesTags: ['Dashboard'],
+    }),
+
+    getContactsTimelineApi: builder.query<{ data: TimelineData[] }, number>({
+      query: (months = 6) => `/dashboard/contacts-timeline?months=${months}`,
+      providesTags: ['Dashboard'],
+    }),
+
+    getDocumentsTimelineApi: builder.query<{ data: TimelineData[] }, number>({
+      query: (months = 6) => `/dashboard/documents-timeline?months=${months}`,
+      providesTags: ['Dashboard'],
+    }),
+
+    getRecentActivitiesApi: builder.query<{ data: RecentActivity[] }, number>({
+      query: (limit = 10) => `/dashboard/recent-activities?limit=${limit}`,
+      providesTags: ['Dashboard'],
+    }),
+
     /**
      * Contacts - Routes génériques CRUD (à utiliser partout)
      */
@@ -155,6 +218,7 @@ export const api = createApi({
         const tags = [
           { type: 'Contact' as const, id: 'LIST' },
           { type: 'UnassignedContacts' as const, id: 'LIST' },
+          { type: 'Dashboard' as const },
         ];
         if (arg.company_id) {
           tags.push({ type: 'CompanyContacts' as const, id: arg.company_id });
@@ -174,6 +238,7 @@ export const api = createApi({
           { type: 'Contact' as const, id },
           { type: 'Contact' as const, id: 'LIST' },
           { type: 'UnassignedContacts' as const, id: 'LIST' },
+          { type: 'Dashboard' as const },
         ];
         if (company_id) {
           tags.push({ type: 'CompanyContacts' as const, id: company_id });
@@ -190,6 +255,7 @@ export const api = createApi({
       invalidatesTags: [
         { type: 'Contact', id: 'LIST' },
         { type: 'UnassignedContacts', id: 'LIST' },
+        { type: 'Dashboard' },
       ],
     }),
 
@@ -202,6 +268,7 @@ export const api = createApi({
       invalidatesTags: (_result, _error, { id }) => [
         { type: 'Contact', id },
         { type: 'Contact', id: 'LIST' },
+        { type: 'Dashboard' },
       ],
     }),
 
@@ -330,7 +397,7 @@ export const api = createApi({
 
     createCompany: builder.mutation<Company, Partial<Company>>({
       query: (body) => ({ url: '/companies', method: 'POST', body }),
-      invalidatesTags: [{ type: 'Company', id: 'LIST' }],
+      invalidatesTags: [{ type: 'Company', id: 'LIST' }, { type: 'Dashboard' }],
     }),
 
     updateCompany: builder.mutation<Company, Partial<Company> & { id: number }>({
@@ -338,12 +405,13 @@ export const api = createApi({
       invalidatesTags: (_result, _error, { id }) => [
         { type: 'Company', id },
         { type: 'Company', id: 'LIST' },
+        { type: 'Dashboard' },
       ],
     }),
 
     deleteCompany: builder.mutation<void, number>({
       query: (id) => ({ url: `/companies/${id}`, method: 'DELETE' }),
-      invalidatesTags: [{ type: 'Company', id: 'LIST' }],
+      invalidatesTags: [{ type: 'Company', id: 'LIST' }, { type: 'Dashboard' }],
     }),
 
     getCompany: builder.query<Company, number>({
@@ -361,6 +429,28 @@ export const api = createApi({
     searchCompanies: builder.query<{ id: number; name: string }[], string>({
       query: (q) => ({ url: '/companies/search', params: { q } }),
     }),
+
+    getCompanyByStatus: builder.query<PaginatedApiResponse<Company>, { status: string; per_page?: number; cursor?: string }>({
+        query: ({ status, per_page = 15, cursor }) => {
+            const params = new URLSearchParams();
+            params.append('per_page', per_page.toString());
+            if (cursor) {
+            params.append('cursor', cursor);
+            }
+            return {
+            url: `/companies/by-status/${status}`,
+            params: params,
+            };
+        },
+        providesTags: (result, _error, { status }) =>
+            result
+            ? [
+                ...result.data.map(({ id }) => ({ type: 'Company' as const, id })),
+                { type: 'Company', id: 'LIST', status },
+                ]
+            : [{ type: 'Company', id: 'LIST', status }],
+        }),
+
 
     /**
      * Company-Contact Relations (seulement les opérations spécifiques aux relations)
@@ -508,7 +598,7 @@ export const api = createApi({
         method: 'POST',
         body: formData, // Do not set content-type; browser sets multipart boundary
       }),
-      invalidatesTags: [{ type: 'Document', id: 'LIST' }],
+      invalidatesTags: [{ type: 'Document', id: 'LIST' }, { type: 'Dashboard' }],
     }),
 
     updateDocument: builder.mutation<DocumentModel, { id: number; data: Partial<Pick<DocumentModel, 'name' | 'description' | 'visibility' | 'tags'>> }>({
@@ -526,7 +616,7 @@ export const api = createApi({
         method: 'DELETE',
         params: { hard_delete: hard ? 'true' : 'false' },
       }),
-      invalidatesTags: [{ type: 'Document', id: 'LIST' }],
+      invalidatesTags: [{ type: 'Document', id: 'LIST' }, { type: 'Dashboard' }],
     }),
 
     downloadDocument: builder.query<{ url?: string }, number>({
@@ -614,6 +704,14 @@ export const api = createApi({
 
 // --- Export generated RTK Query hooks for usage in components ---
 export const {
+  // Dashboard
+  useGetDashboardStatsQuery,
+  useGetContactsByStatusApiQuery,
+  useGetCompaniesByStatusApiQuery,
+  useGetContactsTimelineApiQuery,
+  useGetDocumentsTimelineApiQuery,
+  useGetRecentActivitiesApiQuery,
+
   // Contacts - Routes génériques (à utiliser partout)
   useGetContactsQuery,
   useGetContactsByStatusQuery,
@@ -648,6 +746,8 @@ export const {
   useGetCompanyStatusOptionsQuery,
   useSearchCompaniesQuery,
   useLazySearchCompaniesQuery,
+  useGetCompanyByStatusQuery,
+
 
   // Company-Contact Relations (seulement les opérations spécifiques)
   useGetCompanyContactsQuery,
