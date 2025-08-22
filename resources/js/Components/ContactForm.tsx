@@ -246,7 +246,7 @@ export default function ContactForm({
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-      {/* Nom */}
+      {/* Name */}
       <div className="flex flex-col space-y-1">
         <Label htmlFor="name">Nom</Label>
         <Input
@@ -274,7 +274,7 @@ export default function ContactForm({
         {errors?.email && <p className="text-red-500 text-sm mt-1">{firstError('email')}</p>}
       </div>
 
-      {/* Téléphone */}
+      {/* Phone */}
       <div className="flex flex-col space-y-1">
         <Label htmlFor="phone">Téléphone</Label>
         <Input
@@ -287,7 +287,7 @@ export default function ContactForm({
         {errors?.phone && <p className="text-red-500 text-sm mt-1">{firstError('phone')}</p>}
       </div>
 
-      {/* Statut */}
+      {/* Status */}
       <div className="flex flex-col space-y-1">
         <div className="flex items-center justify-between">
           <Label htmlFor="status">Statut</Label>
@@ -315,7 +315,7 @@ export default function ContactForm({
         {errors?.status && <p className="text-red-500 text-sm mt-1">{firstError('status')}</p>}
       </div>
 
-      {/* Adresse */}
+      {/* Address */}
       <div className="flex flex-col space-y-1">
         <Label htmlFor="address">Adresse</Label>
         <Input
@@ -329,7 +329,7 @@ export default function ContactForm({
         {errors?.address && <p className="text-red-500 text-sm mt-1">{firstError('address')}</p>}
       </div>
 
-      {/* Carte */}
+      {/* Card */}
       <div className="col-span-full mt-2 h-64 w-full rounded-md overflow-hidden border">
         <MapContainer center={mapCenter} zoom={13} scrollWheelZoom className="h-full w-full">
           <TileLayer

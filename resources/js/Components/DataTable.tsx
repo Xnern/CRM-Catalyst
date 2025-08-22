@@ -57,13 +57,14 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useMemo } from 'react';
 
-
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   isLoading?: boolean;
   onBulkDelete?: (selectedIds: string[]) => Promise<void>;
   idAccessorKey?: keyof TData;
+  // Row click navigation handler
+  onRowClick?: (row: TData) => void;
   pagination: {
     currentPage: number;
     perPage: number;
@@ -72,7 +73,6 @@ interface DataTableProps<TData, TValue> {
     onPageChange: (page: number) => void;
     onPerPageChange: (perPage: string) => void;
   };
-  // NEW PROP: Add search input props here
   searchInput?: {
     value: string;
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -161,7 +161,6 @@ function SortableHeader<TData>({ header, children }: SortableHeaderProps<TData>)
   );
 }
 
-
 // Utility functions for state persistence in localStorage
 const getPersistedState = <T,>(key: string, defaultValue: T): T => {
   try {
@@ -181,15 +180,15 @@ const persistState = <T,>(key: string, state: T): void => {
   }
 };
 
-
 export function DataTable<TData extends { id?: any }, TValue>({
   columns,
   data,
   isLoading = false,
   onBulkDelete,
   idAccessorKey = 'id' as keyof TData,
+  onRowClick,
   pagination,
-  searchInput, // Destructure the new prop here
+  searchInput,
 }: DataTableProps<TData, TValue>) {
 
   const selectColumn: ColumnDef<TData, TValue> = {
@@ -254,7 +253,6 @@ export function DataTable<TData extends { id?: any }, TValue>({
     };
   }, [columns, selectColumn, getColumnEffectiveId]);
 
-
   // Persisted state for TanStack Table properties (sorting, column filters, visibility, order)
   const [sorting, setSortingState] = React.useState<SortingState>(
     getPersistedState('dataTableSorting', [])
@@ -275,7 +273,6 @@ export function DataTable<TData extends { id?: any }, TValue>({
     const finalOrder = [...new Set([...validPersistedOrder, ...draggableColumnIdsInOriginalOrder])];
     return finalOrder;
   });
-
 
   // Synchronize state with localStorage
   React.useEffect(() => { persistState('dataTableSorting', sorting); }, [sorting]);
@@ -321,7 +318,6 @@ export function DataTable<TData extends { id?: any }, TValue>({
     ];
   }, [columnOrder, fixedStartColumn, fixedEndColumn, draggableColumnsMap]);
 
-
   // TanStack Table instance setup
   const table = useReactTable({
     data,
@@ -352,6 +348,17 @@ export function DataTable<TData extends { id?: any }, TValue>({
 
   const selectedRows = table.getFilteredSelectedRowModel().rows;
   const hasSelectedRows = selectedRows.length > 0;
+
+  // Row click handler - avoids clicking on interactive elements
+  const handleRowClick = React.useCallback((row: TData, event: React.MouseEvent) => {
+    // Avoid click if clicking on interactive elements (buttons, checkboxes, etc.)
+    const target = event.target as HTMLElement;
+    const isInteractiveElement = target.closest('button, input, select, textarea, a, [role="button"], [data-no-row-click]');
+
+    if (!isInteractiveElement && onRowClick) {
+      onRowClick(row);
+    }
+  }, [onRowClick]);
 
   // Handles bulk delete action
   const handleBulkDelete = async () => {
@@ -404,7 +411,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
   return (
     <div className="w-full">
       <div className="flex items-center py-4 gap-2">
-        {/* Search Input (NEW placement) */}
+        {/* Search Input */}
         {searchInput && (
           <Input
             placeholder={searchInput.placeholder}
@@ -415,7 +422,7 @@ export function DataTable<TData extends { id?: any }, TValue>({
         )}
 
         {/* Right side controls: Bulk Actions OR Column Visibility */}
-        <div className="flex items-center gap-2 ml-auto"> {/* Added ml-auto to push to right */}
+        <div className="flex items-center gap-2 ml-auto">
           {hasSelectedRows ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -532,6 +539,9 @@ export function DataTable<TData extends { id?: any }, TValue>({
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && 'selected'}
+                    onClick={(event) => handleRowClick(row.original, event)}
+                    className={onRowClick ? 'cursor-pointer hover:bg-gray-50/60 transition-colors' : ''}
+                    title={onRowClick ? 'Cliquer pour voir les détails' : undefined}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>

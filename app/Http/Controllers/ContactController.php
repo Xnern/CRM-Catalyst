@@ -11,7 +11,6 @@ use App\Jobs\ProcessContactImport;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Gate;
-use Spatie\QueryBuilder\AllowedSort;
 use Spatie\QueryBuilder\QueryBuilder;
 use Throwable; // For Batch callbacks
 use Spatie\QueryBuilder\AllowedFilter;
@@ -22,11 +21,12 @@ use App\Http\Requests\Contacts\StoreContactRequest;
 use App\Http\Requests\Contacts\UpdateContactRequest;
 use App\Http\Requests\Contacts\UpdateContactStatusRequest;
 use Illuminate\Database\Eloquent\Builder; // For AllowedFilter::callback type hinting
+use App\Http\Resources\ContactResource;
 
 class ContactController extends Controller
 {
     /**
-     * Display the contacts page via Inertia.
+     * Render the contacts page via Inertia.
      */
     public function indexInertia(Request $request)
     {
@@ -38,11 +38,25 @@ class ContactController extends Controller
     }
 
     /**
+     * Render the contact show page via Inertia.
+     */
+    public function showInertia(int $id)
+    {
+        return Inertia::render('Contacts/Show', [
+            'id' => $id,
+        ]);
+    }
+
+    /**
      * Fetch a paginated list of contacts for RTK Query.
+     * - Supports Spatie Query Builder filters/sorts/includes.
+     * - RBAC: restricts to own contacts for 'sales' when applicable.
+     * - Scope 'unassigned': only contacts with null company_id.
+     * Returns a paginator serialized with ContactResource.
      */
     public function index(Request $request)
     {
-        // Maps frontend search/filter parameters to Spatie Query Builder's 'filter' format.
+        // Map frontend params into Spatie's filter structure.
         $filterParams = [];
         $spatieCompatibleParams = ['search', 'name', 'email', 'phone', 'user_id'];
 
@@ -55,25 +69,22 @@ class ContactController extends Controller
         $existingFilters = $request->input('filter', []);
         $mergedFilters = array_merge($existingFilters, $filterParams);
 
-        $request->merge([
-            'filter' => $mergedFilters,
-        ]);
+        $request->merge(['filter' => $mergedFilters]);
 
         Gate::authorize('viewAny', Contact::class);
 
         $perPage = (int) $request->input('per_page', 15);
-        $perPage = min($perPage, 100); // Limit per_page to a reasonable maximum
+        $perPage = min(max($perPage, 1), 100); // reasonable max
 
         $baseQuery = Contact::query();
 
-        // Scope: limite aux non assignés si demandé
+        // Scope: limit to unassigned if requested
         $scope = (string) $request->input('scope', '');
         if ($scope === 'unassigned') {
             $baseQuery->whereNull('company_id');
         }
-        // si $scope === 'all' ou vide, pas de filtre ici
 
-        // RBAC sales: ne voir que ses propres contacts
+        // RBAC: 'sales' can see only own contacts if policy allows
         if ($request->user()->hasRole('sales') && $request->user()->can('view own contacts')) {
             $baseQuery->where('user_id', $request->user()->id);
         }
@@ -85,45 +96,50 @@ class ContactController extends Controller
                 AllowedFilter::exact('email'),
                 AllowedFilter::exact('phone'),
                 AllowedFilter::exact('user_id'),
-                // Optionnel: autoriser le filtrage explicite company_id=null depuis le front
+                // Optionally allow explicit filter company_id from frontend:
                 // AllowedFilter::exact('company_id'),
                 AllowedFilter::callback('search', function (Builder $query, $value) {
                     $query->where(function ($q) use ($value) {
                         $q->where('name', 'LIKE', "%{$value}%")
-                        ->orWhere('email', 'LIKE', "%{$value}%")
-                        ->orWhere('phone', 'LIKE', "%{$value}%");
+                          ->orWhere('email', 'LIKE', "%{$value}%")
+                          ->orWhere('phone', 'LIKE', "%{$value}%");
                     });
                 }),
             ])
             ->allowedIncludes([
-                AllowedInclude::relationship('user')
+                // Keep includes minimal; front usually needs user; company can be loaded via show
+                AllowedInclude::relationship('user'),
+                // AllowedInclude::relationship('company'),
             ])
             ->allowedSorts([
                 'name',
                 'email',
                 'created_at',
-            ]);
+            ])
+            // Eager-load minimal user for list consistency (optional)
+            ->with(['user:id,name,email']);
 
-        $contacts = $contactsQuery->paginate($perPage);
+        $paginator = $contactsQuery->paginate($perPage);
 
-        return response()->json($contacts);
+        return ContactResource::collection($paginator)
+            ->response()
+            ->setStatusCode(200);
     }
 
     /**
-     * Fetch a paginated list of contacts filtered by status for RTK Query.
-     * This is an optimized endpoint for the Kanban board.
+     * Fetch a cursor-paginated list of contacts filtered by status (optimized for Kanban).
+     * Returns a cursor paginator serialized with ContactResource.
      */
     public function getContactsByStatus(Request $request, string $status)
     {
         Gate::authorize('viewAny', Contact::class);
 
-        // Utilisez `cursor_page` au lieu de `per_page` pour la pagination par curseur
-        $perPage = $request->input('per_page', 15);
-        $perPage = min((int) $perPage, 10000);
+        $perPage = (int) $request->input('per_page', 15);
+        $perPage = min(max($perPage, 1), 10000); // cursor pagination can support large windows
 
         $baseQuery = Contact::query();
 
-        // Apply RBAC filtering for 'sales' role if applicable
+        // RBAC: 'sales' can see only own contacts if policy allows
         if ($request->user()->hasRole('sales') && $request->user()->can('view own contacts')) {
             $baseQuery->where('user_id', $request->user()->id);
         }
@@ -138,87 +154,101 @@ class ContactController extends Controller
                 AllowedFilter::callback('search', function (Builder $query, $value) {
                     $query->where(function ($q) use ($value) {
                         $q->where('name', 'LIKE', "%{$value}%")
-                        ->orWhere('email', 'LIKE', "%{$value}%")
-                        ->orWhere('phone', 'LIKE', "%{$value}%");
+                          ->orWhere('email', 'LIKE', "%{$value}%")
+                          ->orWhere('phone', 'LIKE', "%{$value}%");
                     });
                 }),
             ])
             ->allowedIncludes([
-                AllowedInclude::relationship('user')
+                AllowedInclude::relationship('user'),
             ])
             ->allowedSorts([
                 'name',
                 'email',
                 'created_at',
-            ]);
+            ])
+            ->with(['user:id,name,email']);
 
-        // Remplacer `paginate` par `cursorPaginate`
-        $contacts = $contactsQuery->cursorPaginate($perPage);
+        $cursorPaginator = $contactsQuery->cursorPaginate($perPage);
 
-        return response()->json($contacts);
+        return ContactResource::collection($cursorPaginator)
+            ->response()
+            ->setStatusCode(200);
     }
-
 
     /**
      * Store a newly created contact.
+     * Returns the created contact serialized with ContactResource.
      */
     public function store(StoreContactRequest $request)
     {
-        Gate::authorize('create', Contact::class); // Authorize action via Gate/Policy
+        Gate::authorize('create', Contact::class);
 
         $validatedData = $request->validated();
 
+        // Create via relation ensures user_id is set as owner of the contact
         $contact = $request->user()->contacts()->create($validatedData);
-        // Store latitude and longitude if provided by the frontend
+
+        // Persist latitude/longitude if provided outside validated data
         $contact->latitude = $request->input('latitude');
         $contact->longitude = $request->input('longitude');
-        $contact->save(); // Save again if lat/lng are not in validatedData directly
+        $contact->save();
 
-        return response()->json($contact->load('user'), 201); // Return created contact with user relationship
+        $contact->load(['user:id,name,email', 'company:id,name']);
+
+        return (new ContactResource($contact))
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
      * Display the specified contact.
+     * Returns the contact serialized with ContactResource (includes user and company).
      */
     public function show(Contact $contact)
     {
         Gate::authorize('view', $contact);
 
-        return response()->json($contact->load('user'));
+        $contact->load(['user:id,name,email', 'company:id,name', 'documents']);
+
+        return (new ContactResource($contact))
+            ->response()
+            ->setStatusCode(200);
     }
 
     /**
      * Update the specified contact.
+     * Returns the updated contact serialized with ContactResource.
      */
     public function update(UpdateContactRequest $request, Contact $contact)
     {
-        Gate::authorize('update', $contact); // Authorize action via Gate/Policy
+        Gate::authorize('update', $contact);
 
         $validatedData = $request->validated();
 
-        // Update the contact with validated data without latitude/longitude
+        // Update core attributes
         $contact->fill($validatedData);
 
-        // if latitude and longitude are not null, update them
-        if ($request->has('latitude') && $request->input('latitude') !== null) {
-            $contact->latitude = $request->input('latitude');
-        }else{
-            $contact->latitude = null; // Set to null if not provided
+        // Manage latitude/longitude explicitly (nullable)
+        if ($request->has('latitude')) {
+            $contact->latitude = $request->input('latitude') !== null ? $request->input('latitude') : null;
+        }
+        if ($request->has('longitude')) {
+            $contact->longitude = $request->input('longitude') !== null ? $request->input('longitude') : null;
         }
 
-        if ($request->has('longitude') && $request->input('longitude') !== null) {
-            $contact->longitude = $request->input('longitude');
-        }else{
-            $contact->longitude = null; // Set to null if not provided
-        }
+        $contact->save();
 
-        $contact->save(); // Save again if lat/lng are not in validatedData directly
+        $contact->load(['user:id,name,email', 'company:id,name', 'documents']);
 
-        return response()->json($contact->load('user'));
+        return (new ContactResource($contact))
+            ->response()
+            ->setStatusCode(200);
     }
 
     /**
      * Remove the specified contact.
+     * Returns 204 No Content on success.
      */
     public function destroy(Contact $contact)
     {
@@ -226,19 +256,19 @@ class ContactController extends Controller
 
         $contact->delete();
 
-        return response()->noContent(); // 204 No Content for successful deletion
+        return response()->noContent(); // 204 No Content
     }
 
     /**
-     * Handle the CSV import process.
-     * Dispatches jobs to process each CSV row.
+     * Handle the CSV import process by dispatching a job per row in a batch.
+     * Sends notifications on completion/failure/partial.
      */
     public function importCsv(Request $request)
     {
-        Gate::authorize('create', Contact::class); // Authorize import action
+        Gate::authorize('create', Contact::class);
 
         $request->validate([
-            'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:10240'], // 10MB max file size
+            'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:10240'], // 10MB max
         ]);
 
         $file = $request->file('csv_file');
@@ -246,7 +276,7 @@ class ContactController extends Controller
 
         try {
             $csv = Reader::createFromPath($filePath, 'r');
-            $csv->setHeaderOffset(0); // Assume first row is header
+            $csv->setHeaderOffset(0); // first row as header
 
             $records = $csv->getRecords();
 
@@ -256,7 +286,8 @@ class ContactController extends Controller
 
             foreach ($records as $offset => $row) {
                 $totalRows++;
-                $sanitizedRow = array_change_key_case($row, CASE_LOWER); // Convert keys to lowercase for robustness
+                // Normalize headers (lowercase)
+                $sanitizedRow = array_change_key_case($row, CASE_LOWER);
                 $jobs[] = new \App\Jobs\ProcessContactImport($sanitizedRow, $currentUser->id, $currentUser);
             }
 
@@ -264,7 +295,6 @@ class ContactController extends Controller
                 return back()->with('error', 'CSV file is empty or contains no valid data.');
             }
 
-            // Dispatch jobs in a batch for progress tracking and unified notifications
             Bus::batch($jobs)
                 ->then(function (Batch $batch) use ($currentUser, $totalRows) {
                     $importedCount = $totalRows - $batch->failedJobs;
@@ -288,7 +318,7 @@ class ContactController extends Controller
                             'status' => 'cancelled',
                             'message' => 'Your CSV import was cancelled.'
                         ]));
-                    } else if ($batch->failedJobs > 0) {
+                    } elseif ($batch->failedJobs > 0) {
                         $importedCount = $totalRows - $batch->failedJobs;
                         Notification::send($currentUser, new ImportFinishedNotification([
                             'status' => 'partial_success',
@@ -302,7 +332,6 @@ class ContactController extends Controller
                 ->dispatch();
 
             return back()->with('success', 'Your CSV file is being imported. You will be notified when complete.');
-
         } catch (\League\Csv\Exception $e) {
             Log::error('CSV parsing error: ' . $e->getMessage());
             return back()->with('error', 'Error reading CSV file: ' . $e->getMessage());
@@ -314,15 +343,34 @@ class ContactController extends Controller
 
     /**
      * Update the specified contact's status.
+     * Returns the updated contact serialized with ContactResource.
      */
     public function updateStatus(UpdateContactStatusRequest $request, Contact $contact)
     {
-        Gate::authorize('update', $contact); // Authorize action via Gate/Policy
+        Gate::authorize('update', $contact);
 
         $validatedData = $request->validated();
         $contact->status = $validatedData['status'];
         $contact->save();
 
-        return response()->json($contact, 200);
+        $contact->loadMissing(['user:id,name,email', 'company:id,name', 'documents']);
+
+        return (new ContactResource($contact))
+            ->response()
+            ->setStatusCode(200);
+    }
+
+    /**
+     * Lightweight search endpoint for contacts (id + name).
+     */
+    public function search(Request $request)
+    {
+        $q = trim((string) $request->get('q', ''));
+        $res = \App\Models\Contact::query()
+            ->when($q, fn ($qq) => $qq->where('name', 'like', "%{$q}%"))
+            ->limit(15)
+            ->get(['id', 'name']);
+
+        return response()->json($res, 200);
     }
 }

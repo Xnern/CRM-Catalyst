@@ -5,10 +5,11 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Foundation\Application;
 use App\Http\Controllers\GoogleController;
 use App\Http\Controllers\KanbanController;
+use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\GoogleAuthController;
-use App\Http\Controllers\CompanyController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -24,12 +25,16 @@ Route::get('/auth/google/callback', [GoogleAuthController::class, 'handleGoogleC
 Route::middleware(['auth', 'verified'])->group(function () {
     // Route pour la page des contacts
     Route::get('/contacts', [ContactController::class, 'indexInertia'])->name('contacts.indexInertia');
+    Route::get('/contacts/{id}', [ContactController::class, 'showInertia'])
+        ->whereNumber('id')
+        ->name('contacts.showInertia');
     Route::post('/contacts/import', [ContactController::class, 'importCsv'])->name('contacts.import');
     Route::get('/kanban', [KanbanController::class, 'indexInertia'])->name('kanban.indexInertia');
     Route::get('/calendrier', [GoogleController::class, 'indexInertia'])->name('calendar.indexInertia');
 
     Route::get('/entreprises', [CompanyController::class, 'indexInertia'])->name('companies.indexInertia');
     Route::get('/entreprises/{id}', [CompanyController::class, 'showInertia'])->name('companies.showInertia');
+    Route::get('/documents', [DocumentController::class, 'indexInertia'])->name('documents.indexInertia');
 });
 
 Route::get('/dashboard', function () {
