@@ -16,4 +16,14 @@ class DocumentObserver
     {
         ActivityLogger::documentDeleted($document->name, $document->id);
     }
+
+    public function updated(Document $document): void
+    {
+        $changes = $document->getChanges();
+        unset($changes['updated_at']);
+
+        if (!empty($changes)) {
+            ActivityLogger::documentUpdated($document, $changes);
+        }
+    }
 }

@@ -11,6 +11,7 @@ use App\Enums\CompanyStatus;
 use App\Enums\ContactStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class DashboardController extends Controller
 {
@@ -20,6 +21,23 @@ class DashboardController extends Controller
     public function indexInertia()
     {
         return inertia('Dashboard');
+    }
+
+    /**
+     * Redirect to the appropriate object page based on type and ID
+     */
+    public function redirectToObject(string $type, int $id)
+    {
+        switch (strtolower($type)) {
+            case 'contact':
+                return redirect()->route('contacts.showInertia', ['id' => $id]);
+            case 'company':
+                return redirect()->route('companies.showInertia', ['id' => $id]);
+            case 'document':
+                return redirect()->route('documents.indexInertia', ['id' => $id]);
+            default:
+                return redirect()->route('dashboard');
+        }
     }
 
     public function getStats(Request $request)
@@ -176,5 +194,117 @@ class DashboardController extends Controller
             'document' => 'document',
             default => 'activity'
         };
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $user = $request->user();
+
+        $stats = [
+            'total_contacts' => Contact::where('user_id', $user->id)->count(),
+            'total_companies' => Company::where('owner_id', $user->id)->count(),
+            'total_documents' => Document::where('owner_id', $user->id)->count(),
+            'total_events' => 0,
+            'contacts_this_month' => Contact::where('user_id', $user->id)
+                ->whereMonth('created_at', Carbon::now()->month)
+                ->whereYear('created_at', Carbon::now()->year)
+                ->count(),
+            'companies_this_month' => Company::where('owner_id', $user->id)
+                ->whereMonth('created_at', Carbon::now()->month)
+                ->whereYear('created_at', Carbon::now()->year)
+                ->count(),
+        ];
+
+        $contactsByStatus = Contact::where('user_id', $user->id)
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $this->getStatusLabel($item->status),
+                    'value' => $item->count,
+                    'status' => $item->status,
+                ];
+            });
+
+        $companiesByStatus = Company::where('owner_id', $user->id)
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $this->getCompanyStatusLabel($item->status),
+                    'value' => $item->count,
+                    'status' => $item->status,
+                ];
+            });
+
+        $contactsTimeline = Contact::where('user_id', $user->id)
+            ->where('created_at', '>=', Carbon::now()->subMonths(6))
+            ->select(
+                DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month'),
+                DB::raw('count(*) as count')
+            )
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'month' => Carbon::createFromFormat('Y-m', $item->month)->format('M Y'),
+                    'contacts' => $item->count,
+                ];
+            });
+
+        $documentsTimeline = Document::where('owner_id', $user->id)
+            ->where('created_at', '>=', Carbon::now()->subMonths(6))
+            ->select(
+                DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month'),
+                DB::raw('count(*) as count')
+            )
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'month' => Carbon::createFromFormat('Y-m', $item->month)->format('M Y'),
+                    'documents' => $item->count,
+                ];
+            });
+
+        $recentActivities = ActivityLog::forUser($user->id)
+            ->recent(10)
+            ->with(['subject'])
+            ->get()
+            ->map(function ($log) {
+                return [
+                    'type' => $this->getActivityType($log->log_name),
+                    'description' => $log->description,
+                    'date' => $log->created_at->format('d/m/Y H:i'),
+                ];
+            });
+
+        $data = [
+            'user' => $user,
+            'stats' => $stats,
+            'contactsByStatus' => $contactsByStatus,
+            'companiesByStatus' => $companiesByStatus,
+            'contactsTimeline' => $contactsTimeline,
+            'documentsTimeline' => $documentsTimeline,
+            'recentActivities' => $recentActivities,
+            'generated_at' => Carbon::now()->format('d/m/Y à H:i'),
+        ];
+
+        $pdf = Pdf::loadView('dashboard.report', $data);
+
+        $pdf->setPaper('A4', 'portrait');
+        $pdf->setOptions([
+            'dpi' => 150,
+            'defaultFont' => 'sans-serif',
+            'isRemoteEnabled' => true,
+        ]);
+
+        $filename = 'rapport-dashboard-' . Carbon::now()->format('Y-m-d_H-i') . '.pdf';
+
+        return $pdf->download($filename);
     }
 }
