@@ -29,4 +29,9 @@ enum CompanyStatus: string
     {
         return array_map(fn(self $s) => $s->value, self::cases());
     }
+
+    public static function labels(): array
+    {
+        return array_map(fn(self $s) => $s->label(), self::cases());
+    }
 }

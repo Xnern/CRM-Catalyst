@@ -184,4 +184,22 @@ class CompanyController extends Controller
 
         return response()->json($res, 200);
     }
+
+    /**
+     * Get companies by status.
+     * Returns a collection of CompanyResource.
+     */
+    public function getCompaniesByStatus($status)
+    {
+        CompanyStatus::validateStatus($status);
+        $companies = Company::where('status', $status)
+            ->with(['owner:id,name,email'])
+            ->withCount('contacts')
+            ->orderBy('name', 'asc')
+            ->get();
+
+        return CompanyResource::collection($companies)
+            ->response()
+            ->setStatusCode(200);
+    }
 }
