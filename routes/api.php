@@ -290,6 +290,14 @@ Route::middleware('auth:sanctum')->group(function () {
         ->whereNumber('activity')
         ->name('opportunities.activities.complete');
     
+    // Opportunity timeline
+    Route::get('/opportunities/{opportunity}/timeline', [App\Http\Controllers\OpportunityTimelineController::class, 'index'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.timeline');
+    Route::post('/opportunities/{opportunity}/timeline/note', [App\Http\Controllers\OpportunityTimelineController::class, 'addQuickNote'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.timeline.note');
+    
     /**
      * Reminders
      */
