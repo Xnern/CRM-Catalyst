@@ -2,8 +2,6 @@
 
 namespace App\Http\Requests\CompanyContact;
 
-use App\Enums\ContactStatus;
-use Illuminate\Validation\Rule;
 use App\Traits\CleansPhoneNumbers;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -51,7 +49,6 @@ class StoreCompanyContactRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:255'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'status' => ['sometimes', 'string', Rule::in(ContactStatus::values())],
         ];
     }
 

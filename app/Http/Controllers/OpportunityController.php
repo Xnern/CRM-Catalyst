@@ -2,18 +2,26 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\OpportunityStage;
+use App\Models\Contact;
 use App\Models\Opportunity;
 use App\Models\OpportunityActivity;
-use App\Models\Contact;
-use App\Models\Company;
-use App\Enums\ContactStatus;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class OpportunityController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('can:view opportunities')->only(['index', 'show']);
+        $this->middleware('can:create opportunities')->only(['create', 'store']);
+        $this->middleware('can:edit opportunities')->only(['edit', 'update']);
+        $this->middleware('can:delete opportunities')->only(['destroy']);
+        $this->middleware('can:change opportunity stage')->only(['updateStage']);
+    }
+
     /**
      * Display a listing of the opportunities (Sales Dashboard)
      */
@@ -23,36 +31,36 @@ class OpportunityController extends Controller
         $stage = $request->get('stage');
         $userId = $request->get('user_id');
         $companyId = $request->get('company_id');
-        
+
         // Build query
         $query = Opportunity::with(['contact', 'company', 'user']);
-        
+
         if ($stage) {
             $query->where('stage', $stage);
         }
-        
+
         if ($userId) {
             $query->where('user_id', $userId);
         }
-        
+
         if ($companyId) {
             $query->where('company_id', $companyId);
         }
-        
+
         $opportunities = $query->latest()->paginate(20);
-        
+
         // Get metrics for dashboard
         $metrics = $this->getMetrics();
-        
+
         return Inertia::render('Sales/Index', [
             'opportunities' => $opportunities,
             'metrics' => $metrics,
-            'stages' => ContactStatus::options(),
+            'stages' => OpportunityStage::options(),
             'filters' => [
                 'stage' => $stage,
                 'user_id' => $userId,
                 'company_id' => $companyId,
-            ]
+            ],
         ]);
     }
 
@@ -63,10 +71,10 @@ class OpportunityController extends Controller
     {
         $contactId = $request->get('contact_id');
         $contact = $contactId ? Contact::with('company')->find($contactId) : null;
-        
+
         return Inertia::render('Sales/Create', [
             'contact' => $contact,
-            'stages' => ContactStatus::options(),
+            'stages' => OpportunityStage::options(),
             'leadSources' => $this->getLeadSources(),
         ]);
     }
@@ -90,15 +98,15 @@ class OpportunityController extends Controller
             'products.*.quantity' => 'required_with:products|numeric|min:1',
             'products.*.unit_price' => 'required_with:products|numeric|min:0',
         ]);
-        
+
         $validated['user_id'] = auth()->id();
-        
+
         // Remove currency if it exists (we'll default to EUR)
         unset($validated['currency']);
-        
+
         // Create opportunity
         $opportunity = Opportunity::create($validated);
-        
+
         // Add products if provided
         if (isset($validated['products'])) {
             foreach ($validated['products'] as $product) {
@@ -113,7 +121,7 @@ class OpportunityController extends Controller
                 ]);
             }
         }
-        
+
         // Log creation activity
         OpportunityActivity::create([
             'opportunity_id' => $opportunity->id,
@@ -122,12 +130,12 @@ class OpportunityController extends Controller
             'title' => 'Opportunité créée',
             'description' => 'L\'opportunité a été créée',
         ]);
-        
+
         // Always return JSON for API routes
         return response()->json([
             'message' => 'Opportunité créée avec succès',
             'opportunity' => $opportunity->fresh()->load(['contact', 'company', 'user']),
-            'id' => $opportunity->id
+            'id' => $opportunity->id,
         ], 201);
     }
 
@@ -137,16 +145,16 @@ class OpportunityController extends Controller
     public function show($id)
     {
         $opportunity = Opportunity::with(['contact.company', 'company', 'user', 'activities.user'])->findOrFail($id);
-        
+
         // Load products manually
         $products = DB::table('opportunity_products')
             ->where('opportunity_id', $opportunity->id)
             ->get();
         $opportunity->products = $products;
-        
+
         return Inertia::render('Sales/Show', [
             'opportunity' => $opportunity,
-            'stages' => ContactStatus::options(),
+            'stages' => OpportunityStage::options(),
         ]);
     }
 
@@ -156,16 +164,16 @@ class OpportunityController extends Controller
     public function edit($id)
     {
         $opportunity = Opportunity::with(['contact.company', 'company'])->findOrFail($id);
-        
+
         // Load products manually
         $products = DB::table('opportunity_products')
             ->where('opportunity_id', $opportunity->id)
             ->get();
         $opportunity->products = $products;
-        
+
         return Inertia::render('Sales/Edit', [
             'opportunity' => $opportunity,
-            'stages' => ContactStatus::options(),
+            'stages' => OpportunityStage::options(),
             'leadSources' => $this->getLeadSources(),
         ]);
     }
@@ -189,19 +197,19 @@ class OpportunityController extends Controller
             'products.*.quantity' => 'required_with:products|numeric|min:1',
             'products.*.unit_price' => 'required_with:products|numeric|min:0',
         ]);
-        
+
         // Track stage change for activity log
         $oldStage = $opportunity->stage;
         $oldAmount = $opportunity->amount;
-        
+
         // Update opportunity
         $opportunity->update($validated);
-        
+
         // Update products if provided
         if (isset($validated['products'])) {
             // Delete existing products
             DB::table('opportunity_products')->where('opportunity_id', $opportunity->id)->delete();
-            
+
             // Insert new products
             foreach ($validated['products'] as $product) {
                 DB::table('opportunity_products')->insert([
@@ -215,7 +223,7 @@ class OpportunityController extends Controller
                 ]);
             }
         }
-        
+
         // Log stage change
         if ($oldStage !== $opportunity->stage) {
             OpportunityActivity::create([
@@ -226,7 +234,7 @@ class OpportunityController extends Controller
                 'description' => "L'étape a été changée de {$oldStage} à {$opportunity->stage}",
             ]);
         }
-        
+
         // Log amount change
         if ($oldAmount != $opportunity->amount) {
             OpportunityActivity::create([
@@ -234,18 +242,18 @@ class OpportunityController extends Controller
                 'user_id' => auth()->id(),
                 'type' => 'note',
                 'title' => 'Montant modifié',
-                'description' => "Le montant a été changé de " . number_format($oldAmount, 2) . " € à " . number_format($opportunity->amount, 2) . " €",
+                'description' => 'Le montant a été changé de '.number_format($oldAmount, 2).' € à '.number_format($opportunity->amount, 2).' €',
             ]);
         }
-        
+
         // Return JSON response for API
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => 'Opportunité mise à jour avec succès',
-                'opportunity' => $opportunity->fresh()->load(['contact', 'company', 'user'])
+                'opportunity' => $opportunity->fresh()->load(['contact', 'company', 'user']),
             ]);
         }
-        
+
         return redirect()->route('opportunities.show', $opportunity)
             ->with('success', 'Opportunité mise à jour avec succès');
     }
@@ -257,20 +265,20 @@ class OpportunityController extends Controller
     {
         // Delete related products
         DB::table('opportunity_products')->where('opportunity_id', $opportunity->id)->delete();
-        
+
         // Delete related activities
         OpportunityActivity::where('opportunity_id', $opportunity->id)->delete();
-        
+
         // Delete the opportunity
         $opportunity->delete();
-        
+
         // Return JSON response for API
         if ($request->expectsJson()) {
             return response()->json([
-                'message' => 'Opportunité supprimée avec succès'
+                'message' => 'Opportunité supprimée avec succès',
             ], 200);
         }
-        
+
         return redirect()->route('opportunities.index')
             ->with('success', 'Opportunité supprimée avec succès');
     }
@@ -286,12 +294,12 @@ class OpportunityController extends Controller
             'description' => 'nullable|string',
             'scheduled_at' => 'nullable|date',
         ]);
-        
+
         $validated['opportunity_id'] = $opportunity->id;
         $validated['user_id'] = auth()->id();
-        
+
         OpportunityActivity::create($validated);
-        
+
         return back()->with('success', 'Activité ajoutée avec succès');
     }
 
@@ -301,7 +309,7 @@ class OpportunityController extends Controller
     public function completeActivity(OpportunityActivity $activity)
     {
         $activity->markAsCompleted();
-        
+
         return back()->with('success', 'Activité marquée comme complétée');
     }
 
@@ -312,7 +320,7 @@ class OpportunityController extends Controller
     {
         $currentMonth = Carbon::now()->startOfMonth();
         $lastMonth = Carbon::now()->subMonth()->startOfMonth();
-        
+
         return [
             'pipeline_value' => Opportunity::open()->sum('amount'),
             'weighted_pipeline' => Opportunity::open()->sum(DB::raw('amount * probability / 100')),
@@ -335,9 +343,12 @@ class OpportunityController extends Controller
     private function calculateConversionRate()
     {
         $total = Opportunity::whereIn('stage', ['converti', 'perdu'])->count();
-        if ($total === 0) return 0;
-        
+        if ($total === 0) {
+            return 0;
+        }
+
         $won = Opportunity::won()->count();
+
         return round(($won / $total) * 100, 1);
     }
 
@@ -351,7 +362,8 @@ class OpportunityController extends Controller
             ->groupBy('stage')
             ->get()
             ->map(function ($item) {
-                $item->stage_label = ContactStatus::from($item->stage)->label();
+                $item->stage_label = OpportunityStage::from($item->stage)->label();
+
                 return $item;
             });
     }
@@ -362,7 +374,7 @@ class OpportunityController extends Controller
     private function getForecast()
     {
         $forecast = [];
-        
+
         for ($i = 0; $i < 3; $i++) {
             $month = Carbon::now()->addMonths($i);
             $forecast[] = [
@@ -370,12 +382,12 @@ class OpportunityController extends Controller
                 'expected' => Opportunity::open()
                     ->whereBetween('expected_close_date', [
                         $month->copy()->startOfMonth(),
-                        $month->copy()->endOfMonth()
+                        $month->copy()->endOfMonth(),
                     ])
                     ->sum(DB::raw('amount * probability / 100')),
             ];
         }
-        
+
         return $forecast;
     }
 

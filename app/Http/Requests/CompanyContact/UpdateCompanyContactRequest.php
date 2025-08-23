@@ -2,9 +2,8 @@
 
 namespace App\Http\Requests\CompanyContact;
 
-use App\Enums\ContactStatus;
-use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateCompanyContactRequest extends FormRequest
 {
@@ -19,17 +18,16 @@ class UpdateCompanyContactRequest extends FormRequest
         $contactId = is_object($contactParam) ? $contactParam->id : $contactParam;
 
         return [
-            'name'      => ['sometimes','required','string','max:255'],
-            'status' => ['sometimes', 'string', Rule::in(ContactStatus::values())],
-            'email'     => [
-                'sometimes','required','email','max:255',
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'email' => [
+                'sometimes', 'required', 'email', 'max:255',
                 Rule::unique('contacts', 'email')->ignore($contactId),
             ],
-            'phone'     => ['nullable','string','max:255'],
-            'address'   => ['nullable','string'],
-            'latitude'  => ['nullable','numeric'],
-            'longitude' => ['nullable','numeric'],
-            'user_id'   => ['nullable','exists:users,id'],
+            'phone' => ['nullable', 'string', 'max:255'],
+            'address' => ['nullable', 'string'],
+            'latitude' => ['nullable', 'numeric'],
+            'longitude' => ['nullable', 'numeric'],
+            'user_id' => ['nullable', 'exists:users,id'],
         ];
     }
 

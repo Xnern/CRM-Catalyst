@@ -2,7 +2,9 @@ import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/ui/card';
 import { Badge } from '@/Components/ui/badge';
 import { ArrowLeft, MoreVertical, Edit, Trash, DollarSign, Calendar, User, Building2 } from 'lucide-react';
-import { useDrop, useDrag } from 'react-dnd';
+// Drag and drop temporairement désactivé
+// import { useSortable } from '@dnd-kit/sortable';
+// import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/Components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -53,13 +55,8 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
   onDropOpportunity, onEditOpportunity, onDeleteOpportunity, onMoveOpportunity, stages,
   isLoading = false
 }) => {
-  const [{ isOver }, drop] = useDrop(() => ({
-    accept: ItemTypes.OPPORTUNITY,
-    drop: (item: { id: number; currentStage: string }) => {
-      if (item.currentStage !== stage) onDropOpportunity(item.id, stage);
-    },
-    collect: monitor => ({ isOver: monitor.isOver() })
-  }), [stage, onDropOpportunity]);
+  // Drop functionality will be handled by parent DndContext
+  const isOver = false; // This will be managed by parent DndContext
 
   const palette = useMemo(() => {
     switch (stage) {
@@ -81,11 +78,21 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
   );
 
   const OpportunityCard: React.FC<{ opportunity: Opportunity }> = ({ opportunity }) => {
-    const [{ isDragging }, drag] = useDrag(() => ({
-      type: ItemTypes.OPPORTUNITY,
-      item: { id: opportunity.id, currentStage: opportunity.stage },
-      collect: (m) => ({ isDragging: m.isDragging() }),
-    }), [opportunity]);
+    // Drag and drop temporairement désactivé
+    const isDragging = false;
+    // const {
+    //   attributes,
+    //   listeners,
+    //   setNodeRef,
+    //   transform,
+    //   transition,
+    //   isDragging,
+    // } = useSortable({ id: opportunity.id });
+    //
+    // const style = {
+    //   transform: CSS.Transform.toString(transform),
+    //   transition,
+    // };
 
     const stripeClass = palette.stripe;
 
@@ -97,7 +104,6 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
 
     return (
       <Card
-        ref={drag}
         className={`
           p-3 bg-white rounded-lg shadow-sm relative border border-gray-200
           hover:shadow-md transition-all duration-150 cursor-pointer
@@ -187,7 +193,6 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
 
   return (
     <Card
-      ref={drop}
       className={`
         w-80 min-w-[20rem] flex-shrink-0 flex flex-col border ${palette.border}
         rounded-lg shadow-sm transition-all

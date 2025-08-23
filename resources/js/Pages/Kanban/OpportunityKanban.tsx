@@ -4,8 +4,9 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Button } from '@/Components/ui/button';
 import { PlusIcon, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+// Drag and drop temporairement désactivé - à réimplémenter
+// import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+// import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import OpportunityKanbanColumn from '@/Components/Kanban/OpportunityKanbanColumn';
 import {
   AlertDialog,
@@ -51,6 +52,13 @@ interface Props {
 }
 
 export default function OpportunityKanban({ opportunities, stages, auth }: Props) {
+  // Drag and drop temporairement désactivé
+  // const sensors = useSensors(
+  //   useSensor(PointerSensor),
+  //   useSensor(KeyboardSensor, {
+  //     coordinateGetter: sortableKeyboardCoordinates,
+  //   })
+  // );
   const [columnHeight, setColumnHeight] = useState(0);
   const [deleteOpportunityId, setDeleteOpportunityId] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -144,7 +152,7 @@ export default function OpportunityKanban({ opportunities, stages, auth }: Props
   };
 
   const handleEditOpportunity = (opportunity: Opportunity) => {
-    router.visit(`/sales/${opportunity.id}/edit`);
+    router.visit(`/opportunities/${opportunity.id}/edit`);
   };
 
   const handleDeleteOpportunity = async (id: number) => {
@@ -211,26 +219,25 @@ export default function OpportunityKanban({ opportunities, stages, auth }: Props
             </div>
           </div>
 
-          <DndProvider backend={HTML5Backend}>
-            <div className="relative flex-1 overflow-hidden">
-              <div ref={columnsRef} className="flex space-x-5 h-full overflow-x-auto pb-6">
-                {stages.map(stage => (
-                  <OpportunityKanbanColumn
-                    key={stage.value}
-                    stage={stage.value}
-                    stageLabel={stage.label}
-                    opportunities={opportunitiesByStage[stage.value] || []}
-                    columnHeight={columnHeight}
-                    onDropOpportunity={handleMoveOpportunity}
-                    onEditOpportunity={handleEditOpportunity}
-                    onDeleteOpportunity={handleDeleteOpportunity}
-                    onMoveOpportunity={handleMoveOpportunity}
-                    stages={stages}
-                  />
-                ))}
-              </div>
+          {/* Drag and drop temporairement désactivé */}
+          <div className="relative flex-1 overflow-hidden">
+            <div ref={columnsRef} className="flex space-x-5 h-full overflow-x-auto pb-6">
+              {stages.map(stage => (
+                <OpportunityKanbanColumn
+                  key={stage.value}
+                  stage={stage.value}
+                  stageLabel={stage.label}
+                  opportunities={opportunitiesByStage[stage.value] || []}
+                  columnHeight={columnHeight}
+                  onDropOpportunity={handleMoveOpportunity}
+                  onEditOpportunity={handleEditOpportunity}
+                  onDeleteOpportunity={handleDeleteOpportunity}
+                  onMoveOpportunity={handleMoveOpportunity}
+                  stages={stages}
+                />
+              ))}
             </div>
-          </DndProvider>
+          </div>
 
           {canScrollLeft && (
             <Button onClick={scrollLeft} className="absolute left-2 top-1/2">

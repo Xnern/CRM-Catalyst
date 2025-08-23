@@ -1,22 +1,20 @@
 <?php
 
+use App\Http\Controllers\CompanyContactController;
+use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\ContactController;
+use App\Http\Controllers\CrmSettingsController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\GoogleController;
+use App\Http\Controllers\LocalCalendarEventsController;
+use App\Http\Controllers\MetaController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-
-use App\Http\Controllers\MetaController;
-
-use App\Http\Controllers\GoogleController;
-use App\Http\Controllers\CompanyController;
-use App\Http\Controllers\ContactController;
-use App\Http\Controllers\DocumentController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\GoogleAuthController;
 use Illuminate\Validation\ValidationException;
-use App\Http\Controllers\CrmSettingsController;
-use App\Http\Controllers\CompanyContactController;
-use App\Http\Controllers\LocalCalendarEventsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -120,7 +118,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/reset', [CrmSettingsController::class, 'reset']);
     });
 
-
     // Current user
     Route::get('/user', function (Request $request) {
         return response()->json($request->user());
@@ -134,10 +131,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Resource routes (index, store, show, update, destroy)
     Route::apiResource('contacts', ContactController::class)->names([
-        'index'   => 'contacts.index',
-        'store'   => 'contacts.store',
-        'show'    => 'contacts.show',
-        'update'  => 'contacts.update',
+        'index' => 'contacts.index',
+        'store' => 'contacts.store',
+        'show' => 'contacts.show',
+        'update' => 'contacts.update',
         'destroy' => 'contacts.destroy',
     ]);
 
@@ -219,6 +216,26 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/meta/company-statuses', [MetaController::class, 'companyStatuses']);
 
     /**
+     * Profile
+     */
+    Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar.update');
+
+    /**
+     * User Management (Admin only)
+     */
+    Route::prefix('users')->group(function () {
+        Route::get('/', [App\Http\Controllers\UserManagementController::class, 'apiIndex']);
+        Route::get('/roles-permissions', [App\Http\Controllers\UserManagementController::class, 'getRolesAndPermissions']);
+        Route::get('/{id}', [App\Http\Controllers\UserManagementController::class, 'show']);
+        Route::post('/', [App\Http\Controllers\UserManagementController::class, 'store']);
+        Route::put('/{id}', [App\Http\Controllers\UserManagementController::class, 'update']);
+        Route::put('/{id}/roles', [App\Http\Controllers\UserManagementController::class, 'updateRoles']);
+        Route::put('/{id}/permissions', [App\Http\Controllers\UserManagementController::class, 'updatePermissions']);
+        Route::post('/{id}/send-verification', [App\Http\Controllers\UserManagementController::class, 'sendVerificationEmail']);
+        Route::delete('/{id}', [App\Http\Controllers\UserManagementController::class, 'destroy']);
+    });
+
+    /**
      * Documents
      */
     Route::get('/documents', [DocumentController::class, 'index']);
@@ -263,7 +280,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/opportunities/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'destroy'])
         ->whereNumber('opportunity')
         ->name('opportunities.destroy');
-    
+
     // Opportunity activities
     Route::post('/opportunities/{opportunity}/activities', [App\Http\Controllers\OpportunityController::class, 'addActivity'])
         ->whereNumber('opportunity')

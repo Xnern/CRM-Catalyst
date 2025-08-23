@@ -2,37 +2,43 @@
 
 namespace App\Http\Controllers;
 
-use Inertia\Inertia;
-use League\Csv\Reader;
-use App\Models\Contact;
-use Illuminate\Bus\Batch;
-use Illuminate\Http\Request;
-use App\Jobs\ProcessContactImport;
-use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Gate;
-use Spatie\QueryBuilder\QueryBuilder;
-use Throwable; // For Batch callbacks
-use Spatie\QueryBuilder\AllowedFilter;
-use Spatie\QueryBuilder\AllowedInclude;
-use Illuminate\Support\Facades\Notification;
-use App\Notifications\ImportFinishedNotification;
 use App\Http\Requests\Contacts\StoreContactRequest;
 use App\Http\Requests\Contacts\UpdateContactRequest;
-use Illuminate\Database\Eloquent\Builder; // For AllowedFilter::callback type hinting
 use App\Http\Resources\ContactResource;
+use App\Models\Contact;
+use App\Notifications\ImportFinishedNotification;
+use Illuminate\Bus\Batch;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Gate; // For Batch callbacks
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use Inertia\Inertia;
+use League\Csv\Reader;
+use Spatie\QueryBuilder\AllowedFilter;
+use Spatie\QueryBuilder\AllowedInclude;
+use Spatie\QueryBuilder\QueryBuilder; // For AllowedFilter::callback type hinting
+use Throwable;
 
 class ContactController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('can:view contacts')->only(['indexInertia', 'showInertia', 'index', 'show', 'search']);
+        $this->middleware('can:create contacts')->only(['store']);
+        $this->middleware('can:edit contacts')->only(['update']);
+        $this->middleware('can:delete contacts')->only(['destroy']);
+        $this->middleware('can:import contacts')->only(['importCsv']);
+    }
+
     /**
      * Render the contacts page via Inertia.
      */
     public function indexInertia(Request $request)
     {
-        Gate::authorize('viewAny', Contact::class);
-
         return Inertia::render('Contacts/Index', [
-            'canCreateContact' => $request->user()->can('create', Contact::class),
+            'canCreateContact' => $request->user()->can('create contacts'),
         ]);
     }
 
@@ -100,8 +106,8 @@ class ContactController extends Controller
                 AllowedFilter::callback('search', function (Builder $query, $value) {
                     $query->where(function ($q) use ($value) {
                         $q->where('name', 'LIKE', "%{$value}%")
-                          ->orWhere('email', 'LIKE', "%{$value}%")
-                          ->orWhere('phone', 'LIKE', "%{$value}%");
+                            ->orWhere('email', 'LIKE', "%{$value}%")
+                            ->orWhere('phone', 'LIKE', "%{$value}%");
                     });
                 }),
             ])
@@ -258,14 +264,14 @@ class ContactController extends Controller
                     Notification::send($currentUser, new ImportFinishedNotification([
                         'status' => 'failed',
                         'message' => 'Your CSV import failed. Please check logs for details.',
-                        'error_message' => $e->getMessage()
+                        'error_message' => $e->getMessage(),
                     ]));
                 })
                 ->finally(function (Batch $batch) use ($currentUser, $totalRows) {
                     if ($batch->cancelled()) {
                         Notification::send($currentUser, new ImportFinishedNotification([
                             'status' => 'cancelled',
-                            'message' => 'Your CSV import was cancelled.'
+                            'message' => 'Your CSV import was cancelled.',
                         ]));
                     } elseif ($batch->failedJobs > 0) {
                         $importedCount = $totalRows - $batch->failedJobs;
@@ -282,14 +288,15 @@ class ContactController extends Controller
 
             return back()->with('success', 'Your CSV file is being imported. You will be notified when complete.');
         } catch (\League\Csv\Exception $e) {
-            Log::error('CSV parsing error: ' . $e->getMessage());
-            return back()->with('error', 'Error reading CSV file: ' . $e->getMessage());
+            Log::error('CSV parsing error: '.$e->getMessage());
+
+            return back()->with('error', 'Error reading CSV file: '.$e->getMessage());
         } catch (\Exception $e) {
-            Log::error('CSV import error: ' . $e->getMessage());
-            return back()->with('error', 'An unexpected error occurred during import: ' . $e->getMessage());
+            Log::error('CSV import error: '.$e->getMessage());
+
+            return back()->with('error', 'An unexpected error occurred during import: '.$e->getMessage());
         }
     }
-
 
     /**
      * Lightweight search endpoint for contacts (id + name).
@@ -300,7 +307,7 @@ class ContactController extends Controller
         $res = \App\Models\Contact::query()
             ->with('company:id,name')
             ->when($q, fn ($qq) => $qq->where('name', 'like', "%{$q}%")
-                                      ->orWhere('email', 'like', "%{$q}%"))
+                ->orWhere('email', 'like', "%{$q}%"))
             ->limit(15)
             ->get(['id', 'name', 'email', 'company_id']);
 

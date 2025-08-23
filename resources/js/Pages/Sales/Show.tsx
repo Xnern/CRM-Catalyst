@@ -180,7 +180,7 @@ export default function Show({ opportunity, auth }: Props) {
       if (response.ok) {
         toast.success('Opportunité supprimée avec succès');
         setIsDeleteDialogOpen(false);
-        router.visit('/sales');
+        router.visit('/opportunities');
       } else {
         toast.error('Erreur lors de la suppression');
       }
@@ -197,7 +197,7 @@ export default function Show({ opportunity, auth }: Props) {
       header={
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/sales">
+            <Link href="/opportunities">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
@@ -215,7 +215,7 @@ export default function Show({ opportunity, auth }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Link href={`/sales/${opportunity.id}/edit`}>
+            <Link href={`/opportunities/${opportunity.id}/edit`}>
               <Button variant="outline">
                 <Edit className="h-4 w-4 mr-2" />
                 Modifier

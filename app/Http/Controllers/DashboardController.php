@@ -2,20 +2,25 @@
 
 namespace App\Http\Controllers;
 
-use Carbon\Carbon;
+use App\Enums\CompanyStatus;
+use App\Enums\OpportunityStage;
+use App\Models\ActivityLog;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Document;
-use App\Models\ActivityLog;
 use App\Models\Opportunity;
-use App\Enums\CompanyStatus;
-use App\Enums\ContactStatus;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 class DashboardController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('can:view dashboard')->only(['indexInertia', 'getStats', 'getContactsByStatus', 'getCompaniesByStatus', 'getOpportunitiesByStage', 'getContactsTimeline', 'getDocumentsTimeline', 'getRecentActivities']);
+    }
+
     /**
      * Render the Dashboard page (Inertia React).
      */
@@ -49,12 +54,12 @@ class DashboardController extends Controller
         $openOpportunities = Opportunity::where('user_id', $user->id)
             ->whereNotIn('stage', ['converti', 'perdu'])
             ->get();
-        
+
         $pipelineValue = $openOpportunities->sum('amount');
-        $weightedPipeline = $openOpportunities->sum(function($opp) {
+        $weightedPipeline = $openOpportunities->sum(function ($opp) {
             return $opp->amount * $opp->probability / 100;
         });
-        
+
         $wonThisMonth = Opportunity::where('user_id', $user->id)
             ->where('stage', 'converti')
             ->whereMonth('updated_at', Carbon::now()->month)
@@ -93,19 +98,26 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        $contactsByStatus = Contact::where('user_id', $user->id)
-            ->select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'name' => $this->getStatusLabel($item->status),
-                    'value' => $item->count,
-                    'status' => $item->status,
-                ];
-            });
+        // Puisque status n'existe plus, on groupe par source ou on fait un simple compte
+        $totalContacts = Contact::where('user_id', $user->id)->count();
+        $recentContacts = Contact::where('user_id', $user->id)
+            ->where('created_at', '>=', Carbon::now()->subDays(30))
+            ->count();
+        $withCompany = Contact::where('user_id', $user->id)
+            ->whereNotNull('company_id')
+            ->count();
+        $withoutCompany = Contact::where('user_id', $user->id)
+            ->whereNull('company_id')
+            ->count();
 
-        return response()->json(['data' => $contactsByStatus]);
+        $contactsData = [
+            ['name' => 'Total', 'value' => $totalContacts, 'status' => 'total'],
+            ['name' => 'Récents (30j)', 'value' => $recentContacts, 'status' => 'recent'],
+            ['name' => 'Avec entreprise', 'value' => $withCompany, 'status' => 'with_company'],
+            ['name' => 'Sans entreprise', 'value' => $withoutCompany, 'status' => 'without_company'],
+        ];
+
+        return response()->json(['data' => $contactsData]);
     }
 
     public function getCompaniesByStatus(Request $request)
@@ -235,7 +247,7 @@ class DashboardController extends Controller
 
     private function getStatusLabel($status)
     {
-        $labels = ContactStatus::labels();
+        $labels = OpportunityStage::labels();
 
         return $labels[$status] ?? ucfirst(str_replace('_', ' ', $status));
     }
@@ -249,7 +261,7 @@ class DashboardController extends Controller
 
     private function getActivityType($logName): string
     {
-        return match($logName) {
+        return match ($logName) {
             'contact' => 'contact',
             'company' => 'company',
             'document' => 'document',
@@ -265,12 +277,12 @@ class DashboardController extends Controller
         $openOpportunities = Opportunity::where('user_id', $user->id)
             ->whereNotIn('stage', ['converti', 'perdu'])
             ->get();
-        
+
         $pipelineValue = $openOpportunities->sum('amount');
-        $weightedPipeline = $openOpportunities->sum(function($opp) {
+        $weightedPipeline = $openOpportunities->sum(function ($opp) {
             return $opp->amount * $opp->probability / 100;
         });
-        
+
         $wonThisMonth = Opportunity::where('user_id', $user->id)
             ->where('stage', 'converti')
             ->whereMonth('updated_at', Carbon::now()->month)
@@ -404,7 +416,7 @@ class DashboardController extends Controller
             'isRemoteEnabled' => true,
         ]);
 
-        $filename = 'rapport-dashboard-' . Carbon::now()->format('Y-m-d_H-i') . '.pdf';
+        $filename = 'rapport-dashboard-'.Carbon::now()->format('Y-m-d_H-i').'.pdf';
 
         return $pdf->download($filename);
     }

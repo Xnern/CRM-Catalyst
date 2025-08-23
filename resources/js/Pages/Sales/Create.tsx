@@ -177,7 +177,7 @@ export default function CreateOpportunity({ contact, stages, leadSources }: Prop
         if (result.id) {
           toast.success('Opportunité créée avec succès');
           // Navigate to the detail page
-          router.visit(`/sales/${result.id}`);
+          router.visit(`/opportunities/${result.id}`);
         } else {
           toast.error('Erreur lors de la création de l\'opportunité');
         }

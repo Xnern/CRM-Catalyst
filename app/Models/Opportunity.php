@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
-use App\Enums\ContactStatus;
+use App\Enums\OpportunityStage;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Casts\Attribute;
-use Carbon\Carbon;
 
 class Opportunity extends Model
 {
@@ -84,7 +84,7 @@ class Opportunity extends Model
     {
         return Attribute::get(function () {
             try {
-                return ContactStatus::from($this->stage)->label();
+                return OpportunityStage::from($this->stage)->label();
             } catch (\ValueError) {
                 return ucfirst(str_replace('_', ' ', $this->stage ?? ''));
             }
@@ -97,9 +97,10 @@ class Opportunity extends Model
     protected function daysUntilClose(): Attribute
     {
         return Attribute::get(function () {
-            if (!$this->expected_close_date) {
+            if (! $this->expected_close_date) {
                 return null;
             }
+
             return Carbon::now()->diffInDays($this->expected_close_date, false);
         });
     }
@@ -110,12 +111,13 @@ class Opportunity extends Model
     protected function isOverdue(): Attribute
     {
         return Attribute::get(function () {
-            if (!$this->expected_close_date) {
+            if (! $this->expected_close_date) {
                 return false;
             }
             if (in_array($this->stage, ['converti', 'perdu'])) {
                 return false;
             }
+
             return Carbon::now()->isAfter($this->expected_close_date);
         });
     }
@@ -159,7 +161,7 @@ class Opportunity extends Model
     {
         return $query->whereBetween('expected_close_date', [
             Carbon::now()->startOfMonth(),
-            Carbon::now()->endOfMonth()
+            Carbon::now()->endOfMonth(),
         ]);
     }
 
@@ -197,7 +199,7 @@ class Opportunity extends Model
                     'user_id' => auth()->id() ?? 1,
                     'type' => 'amount_change',
                     'title' => 'Changement de montant',
-                    'description' => "Le montant a été modifié",
+                    'description' => 'Le montant a été modifié',
                     'old_value' => $opportunity->getOriginal('amount'),
                     'new_value' => $opportunity->amount,
                 ]);

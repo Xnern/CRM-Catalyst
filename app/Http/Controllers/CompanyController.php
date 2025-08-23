@@ -2,16 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use Inertia\Inertia;
-use App\Models\Company;
-use Illuminate\Http\Request;
 use App\Http\Requests\Companies\StoreCompanyRequest;
 use App\Http\Requests\Companies\UpdateCompanyRequest;
 use App\Http\Resources\CompanyResource;
 use App\Http\Resources\ContactResource;
+use App\Models\Company;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class CompanyController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('can:view companies')->only(['indexInertia', 'showInertia', 'index', 'show', 'search', 'getCompaniesByStatus']);
+        $this->middleware('can:create companies')->only(['store']);
+        $this->middleware('can:edit companies')->only(['update']);
+        $this->middleware('can:delete companies')->only(['destroy']);
+    }
+
     /**
      * Render the Company list page (Inertia React).
      */
@@ -26,7 +34,7 @@ class CompanyController extends Controller
     public function showInertia($id)
     {
         return Inertia::render('Companies/Show', [
-            'id' => (int) $id
+            'id' => (int) $id,
         ]);
     }
 
@@ -50,8 +58,8 @@ class CompanyController extends Controller
             if ($s !== '') {
                 $query->where(function ($q) use ($s) {
                     $q->where('name', 'like', "%{$s}%")
-                      ->orWhere('domain', 'like', "%{$s}%")
-                      ->orWhere('industry', 'like', "%{$s}%");
+                        ->orWhere('domain', 'like', "%{$s}%")
+                        ->orWhere('industry', 'like', "%{$s}%");
                 });
             }
         }
@@ -94,7 +102,7 @@ class CompanyController extends Controller
         $data = $request->validated();
 
         // Default owner to authenticated user if not provided
-        if (!array_key_exists('owner_id', $data) || empty($data['owner_id'])) {
+        if (! array_key_exists('owner_id', $data) || empty($data['owner_id'])) {
             $data['owner_id'] = (int) $request->user()->id;
         }
 
@@ -102,7 +110,7 @@ class CompanyController extends Controller
 
         // Load minimal relations for consistency (owner)
         $company->load(['owner:id,name,email'])
-                ->loadCount('contacts');
+            ->loadCount('contacts');
 
         return (new CompanyResource($company))
             ->response()
@@ -135,7 +143,7 @@ class CompanyController extends Controller
         $company->update($request->validated());
 
         $company->load(['owner:id,name,email'])
-                ->loadCount('contacts');
+            ->loadCount('contacts');
 
         return (new CompanyResource($company))
             ->response()
@@ -149,6 +157,7 @@ class CompanyController extends Controller
     public function destroy(Company $company)
     {
         $company->delete();
+
         return response()->json(null, 204);
     }
 

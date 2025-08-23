@@ -192,6 +192,11 @@ export const api = createApi({
       providesTags: ['Dashboard'],
     }),
 
+    getContactsByStatusApi: builder.query<{ data: StatusData[] }, void>({
+      query: () => '/dashboard/contacts-by-status',
+      providesTags: ['Dashboard'],
+    }),
+
     getCompaniesByStatusApi: builder.query<{ data: StatusData[] }, void>({
       query: () => '/dashboard/companies-by-status',
       providesTags: ['Dashboard'],
@@ -720,6 +725,7 @@ export const {
 
   // Dashboard
   useGetDashboardStatsQuery,
+  useGetContactsByStatusApiQuery,
   useGetCompaniesByStatusApiQuery,
   useGetContactsTimelineApiQuery,
   useGetDocumentsTimelineApiQuery,

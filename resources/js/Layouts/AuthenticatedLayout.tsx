@@ -11,9 +11,12 @@ import {
   ChevronRight,
   Menu,
   X,
-  TrendingUp
+  TrendingUp,
+  User,
+  Users
 } from 'lucide-react';
 import { ThemeProvider } from '@/Components/ThemeProvider';
+import { usePermissions } from '@/hooks/usePermissions';
 
 // --- MOCK COMPONENTS AND FUNCTIONS FOR STANDALONE DEMONSTRATION ---
 // IMPORTANT: Dans votre projet Laravel/Inertia.js, supprimez ces définitions de mock.
@@ -181,6 +184,8 @@ interface UserProps {
 interface PageProps {
     auth: {
         user: UserProps;
+        permissions: string[];
+        roles: string[];
     };
     // Ajoutez d'autres propriétés de page si nécessaire
 }
@@ -189,7 +194,9 @@ export default function Authenticated({
     header,
     children,
 }: PropsWithChildren<{ header?: ReactNode }>) {
-    const { props: { auth: { user } } } = usePage<PageProps>();
+    const page = usePage<PageProps>();
+    const user = page.props.auth?.user;
+    const { can } = usePermissions();
     const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
         if (typeof window !== 'undefined') {
             const savedState = localStorage.getItem('sidebarCollapsed');
@@ -210,18 +217,23 @@ export default function Authenticated({
         label: string;
         icon: ReactNode;
         route: string;
+        permission?: string;
     }
 
-    const navLinks: NavLinkItem[] = [
-        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, route: 'dashboard' },
-        { id: 'sales', label: 'Ventes', icon: <TrendingUp size={20} />, route: 'opportunities.index' },
-        { id: 'contacts', label: 'Contacts', icon: <Contact size={20} />, route: 'contacts.indexInertia' },
-        { id: 'companies', label: 'Entreprises', icon: <Building2 size={20} />, route: 'companies.indexInertia' },
+    const allNavLinks: NavLinkItem[] = [
+        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, route: 'dashboard', permission: 'view dashboard' },
+        { id: 'opportunities', label: 'Opportunités', icon: <TrendingUp size={20} />, route: 'opportunities.index', permission: 'view opportunities' },
+        { id: 'contacts', label: 'Contacts', icon: <Contact size={20} />, route: 'contacts.indexInertia', permission: 'view contacts' },
+        { id: 'companies', label: 'Entreprises', icon: <Building2 size={20} />, route: 'companies.indexInertia', permission: 'view companies' },
         { id: 'kanban', label: 'Kanban', icon: <Building2 size={20} />, route: 'kanban.indexInertia' },
-        { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'calendar.indexInertia' },
-        { id: 'documents', label: 'Documents', icon: <FileText size={20} />, route: 'documents.indexInertia' },
-        { id: 'settings', label: 'Paramètres', icon: <Settings size={20} />, route: 'settings.indexInertia' },
+        { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'calendar.indexInertia', permission: 'view calendar' },
+        { id: 'documents', label: 'Documents', icon: <FileText size={20} />, route: 'documents.indexInertia', permission: 'view documents' },
+        { id: 'users', label: 'Utilisateurs', icon: <Users size={20} />, route: 'users.index', permission: 'view users' },
+        { id: 'profile', label: 'Profil', icon: <User size={20} />, route: 'profile.edit' },
+        { id: 'settings', label: 'Paramètres', icon: <Settings size={20} />, route: 'settings.indexInertia', permission: 'view crm settings' },
     ];
+
+    const navLinks = allNavLinks.filter(link => !link.permission || can(link.permission));
 
     return (
         <ThemeProvider>

@@ -1,18 +1,18 @@
 <?php
 
-use Inertia\Inertia;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Foundation\Application;
-use App\Http\Controllers\GoogleController;
-use App\Http\Controllers\KanbanController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContactController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\DocumentController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\CrmSettingsController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\GoogleController;
+use App\Http\Controllers\KanbanController;
 use App\Http\Controllers\OpportunityController;
+use App\Http\Controllers\ProfileController;
+use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -47,20 +47,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/entreprises', [CompanyController::class, 'indexInertia'])->name('companies.indexInertia');
     Route::get('/entreprises/{id}', [CompanyController::class, 'showInertia'])->name('companies.showInertia');
     Route::get('/documents', [DocumentController::class, 'indexInertia'])->name('documents.indexInertia');
-    
-    // Sales/Opportunities
-    Route::get('/sales', [OpportunityController::class, 'index'])->name('sales.index');
-    Route::get('/sales/create', [OpportunityController::class, 'create'])->name('sales.create');
-    Route::get('/sales/{id}', [OpportunityController::class, 'show'])->whereNumber('id')->name('sales.show');
-    Route::get('/sales/{id}/edit', [OpportunityController::class, 'edit'])->whereNumber('id')->name('sales.edit');
-});
 
+    // User Management (Admin only)
+    Route::get('/utilisateurs', [App\Http\Controllers\UserManagementController::class, 'index'])->name('users.index');
+});
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    
+
     // Opportunities (Sales)
     Route::resource('opportunities', OpportunityController::class);
     Route::post('/opportunities/{opportunity}/activities', [OpportunityController::class, 'addActivity'])->name('opportunities.activities.store');

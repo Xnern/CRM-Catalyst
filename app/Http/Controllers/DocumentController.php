@@ -19,6 +19,15 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DocumentController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('can:view documents')->only(['indexInertia', 'index', 'show', 'preview']);
+        $this->middleware('can:upload documents')->only(['store', 'storeVersion']);
+        $this->middleware('can:edit documents')->only(['update', 'attachLink', 'detachLink']);
+        $this->middleware('can:delete documents')->only(['destroy']);
+        $this->middleware('can:download documents')->only(['download']);
+    }
+
     /**
      * Render the Documents list page (Inertia React).
      */

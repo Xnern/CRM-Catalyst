@@ -209,7 +209,7 @@ export default function Edit({ opportunity, auth }: Props) {
 
     router.put(`/api/opportunities/${opportunity.id}`, data, {
       onSuccess: () => {
-        router.visit(`/sales/${opportunity.id}`);
+        router.visit(`/opportunities/${opportunity.id}`);
       },
       onError: (errors) => {
         setErrors(errors);
@@ -226,7 +226,7 @@ export default function Edit({ opportunity, auth }: Props) {
       user={auth.user}
       header={
         <div className="flex items-center gap-4">
-          <Link href={`/sales/${opportunity.id}`}>
+          <Link href={`/opportunities/${opportunity.id}`}>
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -517,7 +517,7 @@ export default function Edit({ opportunity, auth }: Props) {
 
             {/* Actions */}
             <div className="flex justify-end gap-4">
-              <Link href={`/sales/${opportunity.id}`}>
+              <Link href={`/opportunities/${opportunity.id}`}>
                 <Button type="button" variant="outline">
                   Annuler
                 </Button>

@@ -16,6 +16,12 @@ use Illuminate\Support\Facades\Validator;
  */
 class CrmSettingsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('can:view crm settings')->only(['indexInertia', 'index', 'getSetting', 'getByCategory']);
+        $this->middleware('can:manage crm settings')->only(['update', 'updateSetting', 'reset']);
+    }
+
     public function indexInertia()
     {
         return inertia('Settings/Index', [
