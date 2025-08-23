@@ -224,23 +224,77 @@ class DashboardController extends Controller
     public function getRecentActivities(Request $request)
     {
         $user = $request->user();
-        $limit = $request->get('limit', 10);
+        $limit = $request->get('limit', 15);
 
-        $activities = ActivityLog::forUser($user->id)
-            ->recent($limit)
-            ->with(['subject'])
+        // Combiner les activités de différentes sources
+        $activities = collect();
+
+        // Activités des opportunités
+        $opportunities = Opportunity::where('user_id', $user->id)
+            ->orderBy('updated_at', 'desc')
+            ->limit(5)
             ->get()
-            ->map(function ($log) {
+            ->map(function ($opp) {
                 return [
-                    'type' => $this->getActivityType($log->log_name),
-                    'title' => $log->description,
-                    'date' => $log->created_at,
-                    'id' => $log->id,
-                    'subject_id' => $log->subject_id,
-                    'subject_type' => $log->subject_type,
-                    'properties' => $log->properties,
+                    'type' => 'opportunity',
+                    'title' => "Opportunité: {$opp->name}",
+                    'description' => "Stage: {$opp->stage} - Montant: " . number_format($opp->amount, 0, ',', ' ') . ' €',
+                    'date' => $opp->updated_at,
+                    'id' => $opp->id,
+                    'subject_id' => $opp->id,
+                    'subject_type' => 'opportunity',
+                    'icon' => 'target',
+                    'color' => $opp->stage === 'converti' ? 'green' : ($opp->stage === 'perdu' ? 'red' : 'blue'),
                 ];
             });
+        $activities = $activities->concat($opportunities);
+
+        // Derniers contacts ajoutés
+        $contacts = Contact::where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(function ($contact) {
+                return [
+                    'type' => 'contact',
+                    'title' => "Nouveau contact: {$contact->name}",
+                    'description' => $contact->email ?? 'Pas d\'email',
+                    'date' => $contact->created_at,
+                    'id' => $contact->id,
+                    'subject_id' => $contact->id,
+                    'subject_type' => 'contact',
+                    'icon' => 'user',
+                    'color' => 'purple',
+                ];
+            });
+        $activities = $activities->concat($contacts);
+
+        // Derniers rappels
+        if (class_exists('\App\Models\Reminder')) {
+            $reminders = \App\Models\Reminder::where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->where('reminder_date', '<=', Carbon::now()->addDays(7))
+                ->orderBy('reminder_date', 'asc')
+                ->limit(5)
+                ->get()
+                ->map(function ($reminder) {
+                    return [
+                        'type' => 'reminder',
+                        'title' => "Rappel: {$reminder->title}",
+                        'description' => $reminder->isOverdue() ? 'En retard!' : 'À venir',
+                        'date' => $reminder->reminder_date,
+                        'id' => $reminder->id,
+                        'subject_id' => $reminder->id,
+                        'subject_type' => 'reminder',
+                        'icon' => 'bell',
+                        'color' => $reminder->isOverdue() ? 'red' : 'yellow',
+                    ];
+                });
+            $activities = $activities->concat($reminders);
+        }
+
+        // Trier par date et limiter
+        $activities = $activities->sortByDesc('date')->take($limit)->values();
 
         return response()->json(['data' => $activities]);
     }
@@ -314,17 +368,24 @@ class DashboardController extends Controller
                 ->count(),
         ];
 
-        $contactsByStatus = Contact::where('user_id', $user->id)
-            ->select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'name' => $this->getStatusLabel($item->status),
-                    'value' => $item->count,
-                    'status' => $item->status,
-                ];
-            });
+        // Grouper les contacts par source ou autre critère pertinent
+        $totalContacts = Contact::where('user_id', $user->id)->count();
+        $recentContacts = Contact::where('user_id', $user->id)
+            ->where('created_at', '>=', Carbon::now()->subDays(30))
+            ->count();
+        $withCompany = Contact::where('user_id', $user->id)
+            ->whereNotNull('company_id')
+            ->count();
+        $withoutCompany = Contact::where('user_id', $user->id)
+            ->whereNull('company_id')
+            ->count();
+
+        $contactsByStatus = collect([
+            ['name' => 'Total', 'value' => $totalContacts, 'status' => 'total'],
+            ['name' => 'Récents (30j)', 'value' => $recentContacts, 'status' => 'recent'],
+            ['name' => 'Avec entreprise', 'value' => $withCompany, 'status' => 'with_company'],
+            ['name' => 'Sans entreprise', 'value' => $withoutCompany, 'status' => 'without_company'],
+        ]);
 
         $companiesByStatus = Company::where('owner_id', $user->id)
             ->select('status', DB::raw('count(*) as count'))

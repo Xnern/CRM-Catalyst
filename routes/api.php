@@ -311,4 +311,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/reminders/{reminder}/snooze', [ReminderController::class, 'snooze'])
         ->whereNumber('reminder')
         ->name('reminders.snooze');
+    
+    /**
+     * Email Templates
+     */
+    Route::get('/email-templates', [App\Http\Controllers\EmailTemplateController::class, 'apiIndex'])
+        ->name('email-templates.api.index');
+    Route::get('/email-templates/{template}/preview', [App\Http\Controllers\EmailTemplateController::class, 'preview'])
+        ->whereNumber('template')
+        ->name('email-templates.preview');
+    Route::post('/email-templates/{template}/send', [App\Http\Controllers\EmailTemplateController::class, 'send'])
+        ->whereNumber('template')
+        ->name('email-templates.send');
 });

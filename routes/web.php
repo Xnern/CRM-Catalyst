@@ -55,6 +55,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/reminders', [ReminderController::class, 'store'])->name('reminders.store');
     Route::put('/reminders/{reminder}', [ReminderController::class, 'update'])->name('reminders.update');
     Route::delete('/reminders/{reminder}', [ReminderController::class, 'destroy'])->name('reminders.destroy');
+    
+    // Email Templates
+    Route::get('/email-templates', [App\Http\Controllers\EmailTemplateController::class, 'index'])->name('email-templates.index');
+    Route::post('/email-templates', [App\Http\Controllers\EmailTemplateController::class, 'store'])->name('email-templates.store');
+    Route::put('/email-templates/{template}', [App\Http\Controllers\EmailTemplateController::class, 'update'])->name('email-templates.update');
+    Route::delete('/email-templates/{template}', [App\Http\Controllers\EmailTemplateController::class, 'destroy'])->name('email-templates.destroy');
+    Route::post('/email-templates/{template}/duplicate', [App\Http\Controllers\EmailTemplateController::class, 'duplicate'])->name('email-templates.duplicate');
     Route::get('/calendrier', [GoogleController::class, 'indexInertia'])->name('calendar.indexInertia');
 
     Route::get('/entreprises', [CompanyController::class, 'indexInertia'])->name('companies.indexInertia');
