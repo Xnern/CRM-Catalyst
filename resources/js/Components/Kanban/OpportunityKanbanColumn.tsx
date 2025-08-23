@@ -1,14 +1,15 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/ui/card';
 import { Badge } from '@/Components/ui/badge';
-import { ArrowLeft, MoreVertical, Edit, Trash, DollarSign, Calendar, User, Building2 } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Edit, Trash, DollarSign, Calendar, User, Building2, ArrowRight, CheckCircle, XCircle } from 'lucide-react';
 // Drag and drop temporairement désactivé
-// import { useSortable } from '@dnd-kit/sortable';
+// import { useDroppable, useDraggable } from '@dnd-kit/core';
 // import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/Components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub,
+  DropdownMenuSubContent, DropdownMenuSubTrigger
 } from '@/Components/ui/dropdown-menu';
 import { formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -55,8 +56,11 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
   onDropOpportunity, onEditOpportunity, onDeleteOpportunity, onMoveOpportunity, stages,
   isLoading = false
 }) => {
-  // Drop functionality will be handled by parent DndContext
-  const isOver = false; // This will be managed by parent DndContext
+  // Drag and drop désactivé temporairement
+  // const { isOver, setNodeRef } = useDroppable({
+  //   id: stage,
+  // });
+  const isOver = false;
 
   const palette = useMemo(() => {
     switch (stage) {
@@ -78,21 +82,22 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
   );
 
   const OpportunityCard: React.FC<{ opportunity: Opportunity }> = ({ opportunity }) => {
-    // Drag and drop temporairement désactivé
-    const isDragging = false;
+    // Drag and drop désactivé temporairement
     // const {
     //   attributes,
     //   listeners,
-    //   setNodeRef,
+    //   setNodeRef: setDragRef,
     //   transform,
-    //   transition,
     //   isDragging,
-    // } = useSortable({ id: opportunity.id });
-    //
-    // const style = {
-    //   transform: CSS.Transform.toString(transform),
-    //   transition,
-    // };
+    // } = useDraggable({
+    //   id: opportunity.id,
+    //   disabled: false,
+    // });
+
+    // const style = transform ? {
+    //   transform: CSS.Translate.toString(transform),
+    // } : undefined;
+    const isDragging = false;
 
     const stripeClass = palette.stripe;
 
@@ -106,8 +111,8 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
       <Card
         className={`
           p-3 bg-white rounded-lg shadow-sm relative border border-gray-200
-          hover:shadow-md transition-all duration-150 cursor-pointer
-          ${isDragging ? 'opacity-60' : ''}
+          hover:shadow-md transition-all duration-150
+          ${isDragging ? 'opacity-50 shadow-lg' : ''}
           border-l-4 ${stripeClass}
         `}
         onDoubleClick={() => onEditOpportunity(opportunity)}
@@ -133,29 +138,45 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full">
-                  <MoreVertical className="h-4 w-4 text-gray-500" />
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => onEditOpportunity(opportunity)}>
-                  <Edit className="mr-2 h-4 w-4 text-blue-500" /> Modifier
+                  <Edit className="mr-2 h-4 w-4" />
+                  Modifier
                 </DropdownMenuItem>
-                <DropdownMenuLabel>Déplacer vers</DropdownMenuLabel>
-                <div className="grid grid-cols-2 gap-1 px-1">
-                  {stages
-                    .filter(s => s.value !== opportunity.stage)
-                    .map(s => (
-                      <DropdownMenuItem key={s.value} onClick={() => onMoveOpportunity(opportunity.id, s.value)} className="text-xs">
-                        {s.label}
+                
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <ArrowRight className="mr-2 h-4 w-4" />
+                    Déplacer vers
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-48">
+                    {stages.filter(s => s.value !== stage).map(targetStage => (
+                      <DropdownMenuItem
+                        key={targetStage.value}
+                        onClick={() => onMoveOpportunity(opportunity.id, targetStage.value)}
+                      >
+                        {targetStage.value === 'converti' && <CheckCircle className="mr-2 h-4 w-4 text-green-600" />}
+                        {targetStage.value === 'perdu' && <XCircle className="mr-2 h-4 w-4 text-red-600" />}
+                        {targetStage.value !== 'converti' && targetStage.value !== 'perdu' && <ArrowRight className="mr-2 h-4 w-4" />}
+                        {targetStage.label}
                       </DropdownMenuItem>
                     ))}
-                </div>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onDeleteOpportunity(opportunity.id)} className="text-red-600">
-                  <Trash className="mr-2 h-4 w-4" /> Supprimer
+                <DropdownMenuItem 
+                  onClick={() => onDeleteOpportunity(opportunity.id)}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  <Trash className="mr-2 h-4 w-4" />
+                  Supprimer
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

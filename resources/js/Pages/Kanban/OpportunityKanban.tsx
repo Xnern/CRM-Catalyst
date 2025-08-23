@@ -1,11 +1,11 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Button } from '@/Components/ui/button';
 import { PlusIcon, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-// Drag and drop temporairement désactivé - à réimplémenter
-// import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+// Drag and drop temporairement désactivé pour corriger l'erreur de boucle infinie
+// import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragOverlay } from '@dnd-kit/core';
 // import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import OpportunityKanbanColumn from '@/Components/Kanban/OpportunityKanbanColumn';
 import {
@@ -52,17 +52,18 @@ interface Props {
 }
 
 export default function OpportunityKanban({ opportunities, stages, auth }: Props) {
-  // Drag and drop temporairement désactivé
-  // const sensors = useSensors(
-  //   useSensor(PointerSensor),
-  //   useSensor(KeyboardSensor, {
-  //     coordinateGetter: sortableKeyboardCoordinates,
-  //   })
-  // );
   const [columnHeight, setColumnHeight] = useState(0);
   const [deleteOpportunityId, setDeleteOpportunityId] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [localOpportunities, setLocalOpportunities] = useState(opportunities);
+  
+  // Group opportunities by stage
+  const opportunitiesByStage = useMemo(() => {
+    return stages.reduce((acc, stage) => {
+      acc[stage.value] = localOpportunities.filter(opp => opp.stage === stage.value);
+      return acc;
+    }, {} as Record<string, Opportunity[]>);
+  }, [stages, localOpportunities]);
 
   useEffect(() => {
     const calcHeight = () => {
@@ -104,7 +105,7 @@ export default function OpportunityKanban({ opportunities, stages, auth }: Props
     columnsRef.current?.scrollBy({ left: 320, behavior: 'smooth' });
   };
 
-  const handleMoveOpportunity = async (opportunityId: number, newStage: string) => {
+  const handleMoveOpportunity = useCallback(async (opportunityId: number, newStage: string) => {
     try {
       // Calculer automatiquement la probabilité selon l'étape
       const probability = newStage === 'nouveau' ? 10 :
@@ -149,7 +150,7 @@ export default function OpportunityKanban({ opportunities, stages, auth }: Props
     } catch (error) {
       toast.error('Erreur lors de la mise à jour');
     }
-  };
+  }, [localOpportunities, stages]);
 
   const handleEditOpportunity = (opportunity: Opportunity) => {
     router.visit(`/opportunities/${opportunity.id}/edit`);
@@ -191,12 +192,6 @@ export default function OpportunityKanban({ opportunities, stages, auth }: Props
     }
   };
 
-  // Grouper les opportunités par étape
-  const opportunitiesByStage = stages.reduce((acc, stage) => {
-    acc[stage.value] = localOpportunities.filter(opp => opp.stage === stage.value);
-    return acc;
-  }, {} as Record<string, Opportunity[]>);
-
   return (
     <AuthenticatedLayout user={auth.user} header={<h2 className="font-semibold text-xl">Pipeline Kanban</h2>}>
       <Head title="Pipeline Kanban" />
@@ -219,7 +214,7 @@ export default function OpportunityKanban({ opportunities, stages, auth }: Props
             </div>
           </div>
 
-          {/* Drag and drop temporairement désactivé */}
+          {/* Drag and drop désactivé temporairement */}
           <div className="relative flex-1 overflow-hidden">
             <div ref={columnsRef} className="flex space-x-5 h-full overflow-x-auto pb-6">
               {stages.map(stage => (

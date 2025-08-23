@@ -53,8 +53,52 @@ interface Props {
   userPermissions?: Array<{ id: number; name: string }>;
 }
 
+const translateRole = (role: string): string => {
+  const translations: { [key: string]: string } = {
+    'super-admin': 'Super Administrateur',
+    'admin': 'Administrateur',
+    'manager': 'Manager',
+    'sales': 'Commercial',
+    'support': 'Support',
+  };
+  return translations[role] ?? role;
+};
+
 const translatePermission = (permission: string): string => {
   const translations: { [key: string]: string } = {
+    // Contacts
+    'create contact': 'Créer un contact',
+    'manage contacts': 'Gérer les contacts',
+    'view all contacts': 'Voir tous les contacts',
+    'view contacts': 'Voir les contacts',
+    'view own contacts': 'Voir ses propres contacts',
+    'delete contacts': 'Supprimer les contacts',
+    'create contacts': 'Créer des contacts',
+    'edit contacts': 'Modifier les contacts',
+    'import contacts': 'Importer des contacts',
+    'export contacts': 'Exporter des contacts',
+    
+    // Documents
+    'create document': 'Créer un document',
+    'manage documents': 'Gérer les documents',
+    'delete documents': 'Supprimer les documents',
+    'view all documents': 'Voir tous les documents',
+    'view documents': 'Voir les documents',
+    'view own documents': 'Voir ses propres documents',
+    'upload documents': 'Téléverser des documents',
+    'edit documents': 'Modifier les documents',
+    'download documents': 'Télécharger les documents',
+    
+    // Companies
+    'create company': 'Créer une entreprise',
+    'view own companies': 'Voir ses propres entreprises',
+    'view companies': 'Voir les entreprises',
+    'view all companies': 'Voir toutes les entreprises',
+    'manage companies': 'Gérer les entreprises',
+    'delete companies': 'Supprimer les entreprises',
+    'create companies': 'Créer des entreprises',
+    'edit companies': 'Modifier les entreprises',
+    
     // CRM Settings
     'view crm settings': 'Voir les paramètres CRM',
     'manage crm settings': 'Gérer les paramètres CRM',
@@ -63,22 +107,6 @@ const translatePermission = (permission: string): string => {
     'view dashboard': 'Voir le tableau de bord',
     'view all stats': 'Voir toutes les statistiques',
     
-    // Contacts
-    'view contacts': 'Voir les contacts',
-    'view all contacts': 'Voir tous les contacts',
-    'create contacts': 'Créer des contacts',
-    'edit contacts': 'Modifier les contacts',
-    'delete contacts': 'Supprimer les contacts',
-    'import contacts': 'Importer des contacts',
-    'export contacts': 'Exporter des contacts',
-    
-    // Companies
-    'view companies': 'Voir les entreprises',
-    'view all companies': 'Voir toutes les entreprises',
-    'create companies': 'Créer des entreprises',
-    'edit companies': 'Modifier les entreprises',
-    'delete companies': 'Supprimer les entreprises',
-    
     // Opportunities
     'view opportunities': 'Voir les opportunités',
     'view all opportunities': 'Voir toutes les opportunités',
@@ -86,14 +114,6 @@ const translatePermission = (permission: string): string => {
     'edit opportunities': 'Modifier les opportunités',
     'delete opportunities': 'Supprimer les opportunités',
     'change opportunity stage': 'Changer le statut des opportunités',
-    
-    // Documents
-    'view documents': 'Voir les documents',
-    'view all documents': 'Voir tous les documents',
-    'upload documents': 'Télécharger des documents',
-    'edit documents': 'Modifier les documents',
-    'delete documents': 'Supprimer les documents',
-    'download documents': 'Télécharger les documents',
     
     // Calendar
     'view calendar': 'Voir le calendrier',
@@ -272,9 +292,9 @@ export default function Edit({ auth, mustVerifyEmail, status, userRoles, userPer
                 </div>
                 <div className="flex flex-col gap-2">
                   {(userRoles || user.roles)?.map(role => (
-                    <Badge key={role.id} variant="secondary" className="capitalize">
+                    <Badge key={role.id} variant="secondary">
                       <Shield className="h-3 w-3 mr-1" />
-                      {role.name}
+                      {translateRole(role.name)}
                     </Badge>
                   ))}
                 </div>
@@ -512,8 +532,8 @@ export default function Edit({ auth, mustVerifyEmail, status, userRoles, userPer
                       <div className="flex flex-wrap gap-2">
                         {(userRoles || user.roles) && (userRoles || user.roles).length > 0 ? (
                           (userRoles || user.roles).map(role => (
-                            <Badge key={role.id} variant="default" className="capitalize">
-                              {role.name}
+                            <Badge key={role.id} variant="default">
+                              {translateRole(role.name)}
                             </Badge>
                           ))
                         ) : (
