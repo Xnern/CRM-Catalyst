@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ThemeProvider } from '@/Components/ThemeProvider';
 import { usePermissions } from '@/hooks/usePermissions';
+import RemindersNotification from '@/Components/RemindersNotification';
 
 // --- MOCK COMPONENTS AND FUNCTIONS FOR STANDALONE DEMONSTRATION ---
 // IMPORTANT: Dans votre projet Laravel/Inertia.js, supprimez ces définitions de mock.
@@ -292,8 +293,13 @@ export default function Authenticated({
                     </ul>
                 </nav>
 
-                {/* Bottom Section: User Profile Dropdown and Collapse Button */}
-                <div className="p-4 border-t border-border">
+                {/* Bottom Section: Notifications and User Profile */}
+                <div className="p-4 border-t border-border space-y-3">
+                    {/* Notifications */}
+                    <div className="flex justify-center">
+                        <RemindersNotification />
+                    </div>
+                    
                     {/* User Profile Dropdown */}
                     <Dropdown>
                         <Dropdown.Trigger>
@@ -473,7 +479,8 @@ export default function Authenticated({
                                 </div>
                             </div>
 
-                            <div className="flex items-center">
+                            <div className="flex items-center gap-2">
+                                <RemindersNotification />
                                 <Dropdown>
                                     <Dropdown.Trigger>
                                         {({ isOpen }) => (

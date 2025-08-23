@@ -10,6 +10,7 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\GoogleController;
 use App\Http\Controllers\LocalCalendarEventsController;
 use App\Http\Controllers\MetaController;
+use App\Http\Controllers\ReminderController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -288,4 +289,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/opportunity-activities/{activity}/complete', [App\Http\Controllers\OpportunityController::class, 'completeActivity'])
         ->whereNumber('activity')
         ->name('opportunities.activities.complete');
+    
+    /**
+     * Reminders
+     */
+    Route::get('/reminders/upcoming', [ReminderController::class, 'apiUpcoming'])
+        ->name('reminders.upcoming');
+    Route::get('/reminders/count', [ReminderController::class, 'apiCount'])
+        ->name('reminders.count');
+    Route::post('/reminders/{reminder}/complete', [ReminderController::class, 'complete'])
+        ->whereNumber('reminder')
+        ->name('reminders.complete');
+    Route::post('/reminders/{reminder}/snooze', [ReminderController::class, 'snooze'])
+        ->whereNumber('reminder')
+        ->name('reminders.snooze');
 });

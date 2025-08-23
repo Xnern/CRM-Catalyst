@@ -8,7 +8,9 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\GoogleController;
 use App\Http\Controllers\KanbanController;
+use App\Http\Controllers\ReminderController;
 use App\Http\Controllers\OpportunityController;
+use App\Http\Controllers\OpportunityExportController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -42,6 +44,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('contacts.showInertia');
     Route::post('/contacts/import', [ContactController::class, 'importCsv'])->name('contacts.import');
     Route::get('/kanban', [KanbanController::class, 'indexInertia'])->name('kanban.indexInertia');
+    Route::get('/kanban/stats', [KanbanController::class, 'stats'])->name('kanban.stats');
+    
+    // Import/Export routes
+    Route::get('/opportunities/export', [OpportunityExportController::class, 'export'])->name('opportunities.export');
+    Route::post('/opportunities/import', [OpportunityExportController::class, 'import'])->name('opportunities.import');
+    Route::get('/opportunities/template', [OpportunityExportController::class, 'downloadTemplate'])->name('opportunities.template');
+    
+    Route::get('/reminders', [ReminderController::class, 'index'])->name('reminders.index');
+    Route::post('/reminders', [ReminderController::class, 'store'])->name('reminders.store');
+    Route::put('/reminders/{reminder}', [ReminderController::class, 'update'])->name('reminders.update');
+    Route::delete('/reminders/{reminder}', [ReminderController::class, 'destroy'])->name('reminders.destroy');
     Route::get('/calendrier', [GoogleController::class, 'indexInertia'])->name('calendar.indexInertia');
 
     Route::get('/entreprises', [CompanyController::class, 'indexInertia'])->name('companies.indexInertia');
