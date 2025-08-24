@@ -55,11 +55,26 @@ export default function OpportunityTimeline({ opportunityId, className }: Opport
 
   const fetchTimeline = async () => {
     try {
-      const response = await fetch(`/api/opportunities/${opportunityId}/timeline`);
+      console.log('Fetching timeline for opportunity:', opportunityId);
+      const response = await fetch(`/api/opportunites/${opportunityId}/timeline`, {
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+      });
+      
+      console.log('Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('Timeline data received:', data);
         setTimeline(data.timeline || {});
         setStats(data.stats || { notes: 0, activities: 0, system_logs: 0 });
+      } else {
+        const errorData = await response.text();
+        console.error('Timeline fetch error:', response.status, errorData);
+        toast.error(`Erreur ${response.status}: Impossible de charger la timeline`);
       }
     } catch (error) {
       console.error('Error fetching timeline:', error);
@@ -74,7 +89,7 @@ export default function OpportunityTimeline({ opportunityId, className }: Opport
 
     setSubmittingNote(true);
     try {
-      const response = await fetch(`/api/opportunities/${opportunityId}/timeline/note`, {
+      const response = await fetch(`/api/opportunites/${opportunityId}/timeline/note`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -13,7 +13,13 @@ import {
   X,
   TrendingUp,
   User,
-  Users
+  Users,
+  Bell,
+  Mail,
+  Kanban,
+  ChevronDown,
+  BarChart3,
+  ArrowUp
 } from 'lucide-react';
 import { ThemeProvider } from '@/Components/ThemeProvider';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -128,7 +134,7 @@ Dropdown.Link = ({ href, children, method = 'get', as = 'a', className = '', ...
     if (as === 'button') {
         return (
             <button
-                type="button"
+                type={'button' as 'button'}
                 onClick={() => window.location.href = href}
                 className={`block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 transition duration-150 ease-in-out ${className}`}
                 {...props}
@@ -206,12 +212,22 @@ export default function Authenticated({
         return false;
     });
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
+    const [showScrollTop, setShowScrollTop] = useState(false);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
             localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
         }
     }, [sidebarCollapsed]);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setShowScrollTop(window.scrollY > 200);
+        };
+
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     interface NavLinkItem {
         id: string;
@@ -226,7 +242,10 @@ export default function Authenticated({
         { id: 'opportunities', label: 'Opportunités', icon: <TrendingUp size={20} />, route: 'opportunities.index', permission: 'view opportunities' },
         { id: 'contacts', label: 'Contacts', icon: <Contact size={20} />, route: 'contacts.indexInertia', permission: 'view contacts' },
         { id: 'companies', label: 'Entreprises', icon: <Building2 size={20} />, route: 'companies.indexInertia', permission: 'view companies' },
-        { id: 'kanban', label: 'Kanban', icon: <Building2 size={20} />, route: 'kanban.indexInertia' },
+        { id: 'kanban', label: 'Kanban', icon: <Kanban size={20} />, route: 'kanban.indexInertia' },
+        { id: 'forecast', label: 'Prévisions', icon: <BarChart3 size={20} />, route: 'forecast.index', permission: 'view opportunities' },
+        { id: 'reminders', label: 'Rappels', icon: <Bell size={20} />, route: 'reminders.index' },
+        { id: 'email-templates', label: 'Templates Email', icon: <Mail size={20} />, route: 'email-templates.index' },
         { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'calendar.indexInertia', permission: 'view calendar' },
         { id: 'documents', label: 'Documents', icon: <FileText size={20} />, route: 'documents.indexInertia', permission: 'view documents' },
         { id: 'users', label: 'Utilisateurs', icon: <Users size={20} />, route: 'users.index', permission: 'view users' },
@@ -263,8 +282,8 @@ export default function Authenticated({
                 </div>
 
                 {/* Main Navigation Links */}
-                <nav className="flex-1 py-4 overflow-y-auto">
-                    <ul className="space-y-1 px-2">
+                <nav className="flex-1 overflow-y-auto relative group">
+                    <ul className="space-y-1 px-2 py-4">
                         {navLinks.map((link) => (
                             <li key={link.id}>
                                 <NavLink
@@ -293,13 +312,8 @@ export default function Authenticated({
                     </ul>
                 </nav>
 
-                {/* Bottom Section: Notifications and User Profile */}
+                {/* Bottom Section: User Profile */}
                 <div className="p-4 border-t border-border space-y-3">
-                    {/* Notifications */}
-                    <div className="flex justify-center">
-                        <RemindersNotification />
-                    </div>
-                    
                     {/* User Profile Dropdown */}
                     <Dropdown>
                         <Dropdown.Trigger>
@@ -541,6 +555,18 @@ export default function Authenticated({
                 <main className="flex-1 p-4 sm:p-6">{children}</main>
             </div>
         </div>
+        
+        {/* Scroll to top button - Outside main layout structure */}
+        {showScrollTop && (
+            <button
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="fixed bottom-8 right-8 p-4 bg-primary text-primary-foreground rounded-full shadow-xl hover:bg-primary/90 hover:scale-110 transition-all duration-200 z-[9999] ring-2 ring-white/20"
+                aria-label="Retour en haut"
+                style={{ position: 'fixed' }}
+            >
+                <ArrowUp size={28} />
+            </button>
+        )}
         </ThemeProvider>
     );
 }

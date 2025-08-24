@@ -60,6 +60,7 @@ interface Props {
 
 export default function EmailTemplatesIndex({ templates, categories, variables, auth }: Props) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
   const [deleteTemplateId, setDeleteTemplateId] = useState<number | null>(null);
@@ -82,20 +83,40 @@ export default function EmailTemplatesIndex({ templates, categories, variables, 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    router.post('/email-templates', formData, {
+    const url = selectedTemplate 
+      ? `/modeles-email/${selectedTemplate.id}`
+      : '/modeles-email';
+    
+    const method = selectedTemplate ? 'put' : 'post';
+    
+    router[method](url, formData, {
       onSuccess: () => {
-        toast.success('Template créé avec succès');
+        toast.success(selectedTemplate ? 'Template mis à jour' : 'Template créé avec succès');
         setShowCreateDialog(false);
+        setShowEditDialog(false);
         resetForm();
+        setSelectedTemplate(null);
       },
       onError: () => {
-        toast.error('Erreur lors de la création du template');
+        toast.error(selectedTemplate ? 'Erreur lors de la mise à jour' : 'Erreur lors de la création du template');
       }
     });
   };
 
+  const handleEdit = (template: EmailTemplate) => {
+    setSelectedTemplate(template);
+    setFormData({
+      name: template.name,
+      category: template.category,
+      subject: template.subject,
+      body: template.body,
+      is_shared: template.is_shared,
+    });
+    setShowEditDialog(true);
+  };
+
   const handleDuplicate = (template: EmailTemplate) => {
-    router.post(`/email-templates/${template.id}/duplicate`, {}, {
+    router.post(`/modeles-email/${template.id}/duplicate`, {}, {
       preserveScroll: true,
       onSuccess: () => {
         toast.success('Template dupliqué avec succès');
@@ -106,7 +127,7 @@ export default function EmailTemplatesIndex({ templates, categories, variables, 
   const handleDelete = () => {
     if (!deleteTemplateId) return;
     
-    router.delete(`/email-templates/${deleteTemplateId}`, {
+    router.delete(`/modeles-email/${deleteTemplateId}`, {
       preserveScroll: true,
       onSuccess: () => {
         toast.success('Template supprimé');
@@ -122,7 +143,7 @@ export default function EmailTemplatesIndex({ templates, categories, variables, 
     setSelectedTemplate(template);
     
     try {
-      const response = await fetch(`/api/email-templates/${template.id}/preview`);
+      const response = await fetch(`/api/modeles-email/${template.id}/preview`);
       if (response.ok) {
         const data = await response.json();
         setPreviewData({
@@ -161,6 +182,7 @@ export default function EmailTemplatesIndex({ templates, categories, variables, 
       body: '',
       is_shared: false,
     });
+    setSelectedTemplate(null);
   };
 
   // Filtrer les templates
@@ -385,6 +407,138 @@ export default function EmailTemplatesIndex({ templates, categories, variables, 
                 </form>
               </DialogContent>
             </Dialog>
+            
+            {/* Dialog de modification */}
+            <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <form onSubmit={handleSubmit}>
+                  <DialogHeader>
+                    <DialogTitle>Modifier le template</DialogTitle>
+                    <DialogDescription>
+                      Modifiez votre template d'email réutilisable
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="edit-name">Nom du template</Label>
+                      <Input
+                        id="edit-name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        placeholder="Ex: Email de bienvenue"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="edit-category">Catégorie</Label>
+                        <Select 
+                          value={formData.category} 
+                          onValueChange={(value) => setFormData({...formData, category: value})}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(categories).map(([value, label]) => (
+                              <SelectItem key={value} value={value}>{label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="flex items-end gap-2">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="edit-is_shared"
+                            checked={formData.is_shared}
+                            onChange={(e) => setFormData({...formData, is_shared: e.target.checked})}
+                            className="h-4 w-4"
+                          />
+                          <Label htmlFor="edit-is_shared">
+                            <Users className="h-4 w-4 inline mr-1" />
+                            Partager avec l'équipe
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid gap-2">
+                      <Label htmlFor="edit-subject">Objet de l'email</Label>
+                      <Input
+                        id="edit-subject"
+                        value={formData.subject}
+                        onChange={(e) => setFormData({...formData, subject: e.target.value})}
+                        placeholder="Ex: Bienvenue {{contact_first_name}} !"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="grid gap-2">
+                      <div className="flex justify-between items-center">
+                        <Label htmlFor="edit-template-body">Corps de l'email</Label>
+                        <div className="text-xs text-gray-500">
+                          Cliquez sur une variable pour l'insérer
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {Object.entries(variables).map(([variable, description]) => (
+                          <Button
+                            key={variable}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const textarea = document.getElementById('edit-template-body') as HTMLTextAreaElement;
+                              if (textarea) {
+                                const start = textarea.selectionStart;
+                                const end = textarea.selectionEnd;
+                                const text = formData.body;
+                                const newText = text.substring(0, start) + variable + text.substring(end);
+                                setFormData({ ...formData, body: newText });
+                                
+                                setTimeout(() => {
+                                  textarea.selectionStart = textarea.selectionEnd = start + variable.length;
+                                  textarea.focus();
+                                }, 0);
+                              }
+                            }}
+                            title={description}
+                          >
+                            {variable}
+                          </Button>
+                        ))}
+                      </div>
+                      
+                      <Textarea
+                        id="edit-template-body"
+                        value={formData.body}
+                        onChange={(e) => setFormData({...formData, body: e.target.value})}
+                        placeholder="Bonjour {{contact_name}},\n\n..."
+                        rows={8}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => {
+                      setShowEditDialog(false);
+                      resetForm();
+                    }}>
+                      Annuler
+                    </Button>
+                    <Button type="submit">
+                      Mettre à jour
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Liste des templates */}
@@ -462,6 +616,17 @@ export default function EmailTemplatesIndex({ templates, categories, variables, 
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
+                      
+                      {template.user?.id === auth.user.id && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(template)}
+                          title="Modifier"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
                       
                       {template.user?.id === auth.user.id && (
                         <Button

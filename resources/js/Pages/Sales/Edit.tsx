@@ -207,9 +207,9 @@ export default function Edit({ opportunity, auth }: Props) {
       products: products.filter(p => p.name && p.quantity > 0),
     };
 
-    router.put(`/api/opportunities/${opportunity.id}`, data, {
+    router.put(`/api/opportunites/${opportunity.id}`, data, {
       onSuccess: () => {
-        router.visit(`/opportunities/${opportunity.id}`);
+        router.visit(`/opportunites/${opportunity.id}`);
       },
       onError: (errors) => {
         setErrors(errors);
@@ -226,7 +226,7 @@ export default function Edit({ opportunity, auth }: Props) {
       user={auth.user}
       header={
         <div className="flex items-center gap-4">
-          <Link href={`/opportunities/${opportunity.id}`}>
+          <Link href={`/opportunites/${opportunity.id}`}>
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -517,7 +517,7 @@ export default function Edit({ opportunity, auth }: Props) {
 
             {/* Actions */}
             <div className="flex justify-end gap-4">
-              <Link href={`/opportunities/${opportunity.id}`}>
+              <Link href={`/opportunites/${opportunity.id}`}>
                 <Button type="button" variant="outline">
                   Annuler
                 </Button>

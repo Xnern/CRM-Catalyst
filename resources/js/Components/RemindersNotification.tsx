@@ -64,8 +64,8 @@ export default function RemindersNotification() {
   const fetchReminders = async () => {
     try {
       const [remindersRes, countsRes] = await Promise.all([
-        fetch('/api/reminders/upcoming'),
-        fetch('/api/reminders/count')
+        fetch('/api/rappels/upcoming'),
+        fetch('/api/rappels/count')
       ]);
       
       if (remindersRes.ok && countsRes.ok) {
@@ -80,7 +80,7 @@ export default function RemindersNotification() {
           toast.warning(`Vous avez ${countsData.overdue} rappel(s) en retard`, {
             action: {
               label: 'Voir',
-              onClick: () => router.visit('/reminders')
+              onClick: () => router.visit('/rappels')
             }
           });
         }
@@ -103,7 +103,7 @@ export default function RemindersNotification() {
 
   const handleComplete = async (id: number) => {
     try {
-      const response = await fetch(`/api/reminders/${id}/complete`, {
+      const response = await fetch(`/api/rappels/${id}/complete`, {
         method: 'POST',
         headers: {
           'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
@@ -121,7 +121,7 @@ export default function RemindersNotification() {
 
   const handleSnooze = async (id: number, minutes: number) => {
     try {
-      const response = await fetch(`/api/reminders/${id}/snooze`, {
+      const response = await fetch(`/api/rappels/${id}/snooze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -149,7 +149,7 @@ export default function RemindersNotification() {
     const dateTime = `${formData.reminder_date} ${formData.reminder_time}`;
     
     try {
-      const response = await fetch('/reminders', {
+      const response = await fetch('/rappels', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -242,7 +242,7 @@ export default function RemindersNotification() {
       <DropdownMenuContent align="end" className="w-96">
         <DropdownMenuLabel className="flex justify-between items-center">
           <span>Rappels et Notifications</span>
-          <Link href="/reminders" className="text-xs text-blue-600 hover:underline">
+          <Link href="/rappels" className="text-xs text-blue-600 hover:underline">
             Tout voir
           </Link>
         </DropdownMenuLabel>
@@ -355,7 +355,7 @@ export default function RemindersNotification() {
             Créer un rappel
           </Button>
           
-          <Link href="/reminders" className="block">
+          <Link href="/rappels" className="block">
             <Button variant="outline" className="w-full text-sm">
               <Bell className="h-4 w-4 mr-2" />
               Gérer tous les rappels

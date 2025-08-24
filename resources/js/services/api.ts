@@ -83,10 +83,15 @@ export interface TimelineData {
 }
 
 export interface RecentActivity {
-  type: 'contact' | 'company' | 'document';
+  type: 'contact' | 'company' | 'document' | 'opportunity' | 'activity' | 'reminder';
   title: string;
+  description?: string;
   date: string;
   id: number;
+  subject_id?: number;
+  subject_type?: string;
+  icon?: string;
+  color?: string;
 }
 
 // --- Utils ---
@@ -188,37 +193,37 @@ export const api = createApi({
      * Dashboard Analytics
      */
     getDashboardStats: builder.query<{ data: DashboardStats }, void>({
-      query: () => '/dashboard/stats',
+      query: () => '/tableau-de-bord/stats',
       providesTags: ['Dashboard'],
     }),
 
     getContactsByStatusApi: builder.query<{ data: StatusData[] }, void>({
-      query: () => '/dashboard/contacts-by-status',
+      query: () => '/tableau-de-bord/contacts-by-status',
       providesTags: ['Dashboard'],
     }),
 
     getCompaniesByStatusApi: builder.query<{ data: StatusData[] }, void>({
-      query: () => '/dashboard/companies-by-status',
+      query: () => '/tableau-de-bord/companies-by-status',
       providesTags: ['Dashboard'],
     }),
 
     getContactsTimelineApi: builder.query<{ data: TimelineData[] }, number>({
-      query: (months = 6) => `/dashboard/contacts-timeline?months=${months}`,
+      query: (months = 6) => `/tableau-de-bord/contacts-timeline?months=${months}`,
       providesTags: ['Dashboard'],
     }),
 
     getDocumentsTimelineApi: builder.query<{ data: TimelineData[] }, number>({
-      query: (months = 6) => `/dashboard/documents-timeline?months=${months}`,
+      query: (months = 6) => `/tableau-de-bord/documents-timeline?months=${months}`,
       providesTags: ['Dashboard'],
     }),
 
     getRecentActivitiesApi: builder.query<{ data: RecentActivity[] }, number>({
-      query: (limit = 10) => `/dashboard/recent-activities?limit=${limit}`,
+      query: (limit = 10) => `/tableau-de-bord/recent-activities?limit=${limit}`,
       providesTags: ['Dashboard'],
     }),
 
     getOpportunitiesByStageApi: builder.query<{ data: Array<{ name: string; count: number; amount: number; stage: string }> }, void>({
-      query: () => '/dashboard/opportunities-by-stage',
+      query: () => '/tableau-de-bord/opportunities-by-stage',
       providesTags: ['Dashboard'],
     }),
 

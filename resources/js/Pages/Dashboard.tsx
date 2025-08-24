@@ -36,13 +36,16 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 
 // Activity interface definition
 interface Activity {
-  type: 'contact' | 'company' | 'document' | 'activity';
+  type: 'contact' | 'company' | 'document' | 'activity' | 'opportunity' | 'reminder';
   title: string;
+  description?: string;
   date: string;
   id: number;
   subject_id?: number;
   subject_type?: string;
   properties?: Record<string, any>;
+  icon?: string;
+  color?: string;
 }
 
 // Stats card component props interface
@@ -196,7 +199,7 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
       return;
     }
 
-    router.visit(`/dashboard/redirect-object/${type}/${id}`);
+    router.visit(`/tableau-de-bord/redirect-object/${type}/${id}`);
   };
 
   return (
@@ -352,6 +355,8 @@ const RecentActivityItem: React.FC<{ activity: Activity; onViewDetails: (activit
       case 'contact': return <Users className="h-4 w-4" />;
       case 'company': return <Building className="h-4 w-4" />;
       case 'document': return <FileText className="h-4 w-4" />;
+      case 'opportunity': return <Target className="h-4 w-4" />;
+      case 'reminder': return <Clock className="h-4 w-4" />;
       default: return <Calendar className="h-4 w-4" />;
     }
   };
@@ -360,9 +365,11 @@ const RecentActivityItem: React.FC<{ activity: Activity; onViewDetails: (activit
   const getTypeLabel = (type: string) => {
     switch (type) {
       case 'contact': return 'Contact';
-      case 'company': return 'Company';
+      case 'company': return 'Entreprise';
       case 'document': return 'Document';
-      default: return 'Activity';
+      case 'opportunity': return 'Opportunité';
+      case 'reminder': return 'Rappel';
+      default: return 'Activité';
     }
   };
 
@@ -600,7 +607,7 @@ export default function Dashboard({ auth }) {
   const handleExportPdf = async () => {
     setIsExportingPdf(true);
     try {
-      const response = await fetch('/api/dashboard/export-pdf', {
+      const response = await fetch('/api/tableau-de-bord/export-pdf', {
         method: 'GET',
         headers: {
           'Accept': 'application/pdf',

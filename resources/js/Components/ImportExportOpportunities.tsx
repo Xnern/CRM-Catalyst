@@ -41,7 +41,7 @@ export default function ImportExportOpportunities({ filters }: ImportExportProps
       });
     }
 
-    const url = `/opportunities/export${params.toString() ? '?' + params.toString() : ''}`;
+    const url = `/opportunites/exporter${params.toString() ? '?' + params.toString() : ''}`;
     
     // Create a temporary link to download the file
     const link = document.createElement('a');
@@ -56,7 +56,7 @@ export default function ImportExportOpportunities({ filters }: ImportExportProps
 
   const handleDownloadTemplate = () => {
     const link = document.createElement('a');
-    link.href = '/opportunities/template';
+    link.href = '/opportunites/modele';
     link.download = 'template_opportunities.csv';
     document.body.appendChild(link);
     link.click();
@@ -76,7 +76,7 @@ export default function ImportExportOpportunities({ filters }: ImportExportProps
     const formData = new FormData();
     formData.append('file', importFile);
 
-    router.post('/opportunities/import', formData, {
+    router.post('/opportunites/importer', formData, {
       forceFormData: true,
       onSuccess: () => {
         toast.success('Import réussi');

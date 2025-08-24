@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
@@ -21,6 +21,17 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/Components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
+import { Input } from '@/Components/ui/input';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/Components/ui/pagination';
 
 interface Opportunity {
   id: number;
@@ -81,11 +92,30 @@ interface Props {
     stage: string | null;
     user_id: string | null;
     company_id: string | null;
+    search: string | null;
   };
 }
 
 export default function SalesIndex({ opportunities, metrics, stages, filters }: Props) {
   const [selectedStage, setSelectedStage] = useState(filters.stage);
+  const [searchTerm, setSearchTerm] = useState(filters.search || '');
+
+  const handleFilterChange = (type: string, value: string | null) => {
+    const newFilters: any = { ...filters };
+    newFilters[type] = value;
+    
+    router.get('/opportunites', newFilters, {
+      preserveState: true,
+      preserveScroll: true,
+    });
+  };
+
+  const handlePageChange = (page: number) => {
+    router.get(`/opportunites?page=${page}`, filters, {
+      preserveState: true,
+      preserveScroll: true,
+    });
+  };
 
   const getStageColor = (stage: string) => {
     switch (stage) {
@@ -120,7 +150,7 @@ export default function SalesIndex({ opportunities, metrics, stages, filters }: 
           <h2 className="text-xl font-semibold leading-tight text-gray-800">
             Pipeline de Ventes
           </h2>
-          <Link href="/opportunities/create">
+          <Link href="/opportunites/create">
             <Button className="bg-primary-600 hover:bg-primary-700">
               <Plus className="h-4 w-4 mr-2" />
               Nouvelle Opportunité
@@ -245,12 +275,39 @@ export default function SalesIndex({ opportunities, metrics, stages, filters }: 
           <Card>
             <CardHeader>
               <div className="flex justify-between items-center">
-                <CardTitle>Opportunités Récentes</CardTitle>
+                <CardTitle>Toutes les Opportunités ({opportunities.total})</CardTitle>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm">
-                    <Filter className="h-4 w-4 mr-2" />
-                    Filtrer
-                  </Button>
+                  <Select
+                    value={filters.stage || 'all'}
+                    onValueChange={(value) => handleFilterChange('stage', value === 'all' ? null : value)}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Filtrer par étape" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Toutes les étapes</SelectItem>
+                      {stages.map((stage) => (
+                        <SelectItem key={stage.value} value={stage.value}>
+                          {stage.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="search"
+                    placeholder="Rechercher..."
+                    className="w-[200px]"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        router.get('/opportunites', { ...filters, search: searchTerm }, {
+                          preserveState: true,
+                          preserveScroll: true,
+                        });
+                      }
+                    }}
+                  />
                 </div>
               </div>
             </CardHeader>
@@ -259,7 +316,7 @@ export default function SalesIndex({ opportunities, metrics, stages, filters }: 
                 {opportunities.data.map((opportunity) => (
                   <Link
                     key={opportunity.id}
-                    href={`/opportunities/${opportunity.id}`}
+                    href={`/opportunites/${opportunity.id}`}
                     className="block"
                   >
                     <div className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
@@ -327,6 +384,60 @@ export default function SalesIndex({ opportunities, metrics, stages, filters }: 
               {opportunities.data.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   Aucune opportunité trouvée
+                </div>
+              )}
+              
+              {/* Pagination */}
+              {opportunities.last_page > 1 && (
+                <div className="mt-6">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious 
+                          onClick={() => handlePageChange(opportunities.current_page - 1)}
+                          className={opportunities.current_page === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                      
+                      {[...Array(opportunities.last_page)].map((_, index) => {
+                        const page = index + 1;
+                        if (
+                          page === 1 ||
+                          page === opportunities.last_page ||
+                          (page >= opportunities.current_page - 1 && page <= opportunities.current_page + 1)
+                        ) {
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                onClick={() => handlePageChange(page)}
+                                isActive={page === opportunities.current_page}
+                                className="cursor-pointer"
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        } else if (
+                          page === opportunities.current_page - 2 ||
+                          page === opportunities.current_page + 2
+                        ) {
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          );
+                        }
+                        return null;
+                      })}
+                      
+                      <PaginationItem>
+                        <PaginationNext 
+                          onClick={() => handlePageChange(opportunities.current_page + 1)}
+                          className={opportunities.current_page === opportunities.last_page ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
                 </div>
               )}
             </CardContent>

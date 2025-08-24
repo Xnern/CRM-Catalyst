@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/ui/card';
 import { Badge } from '@/Components/ui/badge';
-import { ArrowLeft, MoreVertical, Edit, Trash, DollarSign, Calendar, User, Building2, ArrowRight, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Edit, Trash, DollarSign, Calendar, User, Building2, ArrowRight, CheckCircle, XCircle, Copy } from 'lucide-react';
 // Drag and drop temporairement désactivé
 // import { useDroppable, useDraggable } from '@dnd-kit/core';
 // import { CSS } from '@dnd-kit/utilities';
@@ -47,13 +47,14 @@ interface OpportunityKanbanColumnProps {
   onEditOpportunity: (opportunity: Opportunity) => void;
   onDeleteOpportunity: (id: number) => void;
   onMoveOpportunity: (id: number, newStage: string) => void;
+  onDuplicateOpportunity?: (opportunity: Opportunity) => void;
   stages: Array<{ value: string; label: string }>;
   isLoading?: boolean;
 }
 
 const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
   stage, stageLabel, opportunities, columnHeight,
-  onDropOpportunity, onEditOpportunity, onDeleteOpportunity, onMoveOpportunity, stages,
+  onDropOpportunity, onEditOpportunity, onDeleteOpportunity, onMoveOpportunity, onDuplicateOpportunity, stages,
   isLoading = false
 }) => {
   // Drag and drop désactivé temporairement
@@ -149,6 +150,13 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
                   <Edit className="mr-2 h-4 w-4" />
                   Modifier
                 </DropdownMenuItem>
+                
+                {onDuplicateOpportunity && (
+                  <DropdownMenuItem onClick={() => onDuplicateOpportunity(opportunity)}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Dupliquer
+                  </DropdownMenuItem>
+                )}
                 
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>

@@ -99,7 +99,7 @@ Route::middleware('auth:sanctum')->group(function () {
     /**
      * Dashboard
      */
-    Route::prefix('dashboard')->name('dashboard.')->group(function () {
+    Route::prefix('tableau-de-bord')->name('dashboard.')->group(function () {
         Route::get('/stats', [DashboardController::class, 'getStats'])->name('stats');
         Route::get('/contacts-by-status', [DashboardController::class, 'getContactsByStatus'])->name('contacts-by-status');
         Route::get('/companies-by-status', [DashboardController::class, 'getCompaniesByStatus'])->name('companies-by-status');
@@ -219,7 +219,7 @@ Route::middleware('auth:sanctum')->group(function () {
     /**
      * Profile
      */
-    Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar.update');
+    Route::post('/profil/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar.update');
 
     /**
      * User Management (Admin only)
@@ -268,47 +268,47 @@ Route::middleware('auth:sanctum')->group(function () {
     /**
      * Opportunities (Sales)
      */
-    Route::get('/opportunities', [App\Http\Controllers\OpportunityController::class, 'index'])
+    Route::get('/opportunites', [App\Http\Controllers\OpportunityController::class, 'index'])
         ->name('opportunities.index');
-    Route::post('/opportunities', [App\Http\Controllers\OpportunityController::class, 'store'])
+    Route::post('/opportunites', [App\Http\Controllers\OpportunityController::class, 'store'])
         ->name('opportunities.store');
-    Route::get('/opportunities/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'show'])
+    Route::get('/opportunites/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'show'])
         ->whereNumber('opportunity')
         ->name('opportunities.show');
-    Route::put('/opportunities/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'update'])
+    Route::put('/opportunites/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'update'])
         ->whereNumber('opportunity')
         ->name('opportunities.update');
-    Route::delete('/opportunities/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'destroy'])
+    Route::delete('/opportunites/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'destroy'])
         ->whereNumber('opportunity')
         ->name('opportunities.destroy');
 
     // Opportunity activities
-    Route::post('/opportunities/{opportunity}/activities', [App\Http\Controllers\OpportunityController::class, 'addActivity'])
+    Route::post('/opportunites/{opportunity}/activites', [App\Http\Controllers\OpportunityController::class, 'addActivity'])
         ->whereNumber('opportunity')
         ->name('opportunities.activities.store');
-    Route::post('/opportunity-activities/{activity}/complete', [App\Http\Controllers\OpportunityController::class, 'completeActivity'])
+    Route::post('/opportunites-activites/{activity}/terminer', [App\Http\Controllers\OpportunityController::class, 'completeActivity'])
         ->whereNumber('activity')
         ->name('opportunities.activities.complete');
     
     // Opportunity timeline
-    Route::get('/opportunities/{opportunity}/timeline', [App\Http\Controllers\OpportunityTimelineController::class, 'index'])
+    Route::get('/opportunites/{opportunity}/timeline', [App\Http\Controllers\OpportunityTimelineController::class, 'index'])
         ->whereNumber('opportunity')
         ->name('opportunities.timeline');
-    Route::post('/opportunities/{opportunity}/timeline/note', [App\Http\Controllers\OpportunityTimelineController::class, 'addQuickNote'])
+    Route::post('/opportunites/{opportunity}/timeline/note', [App\Http\Controllers\OpportunityTimelineController::class, 'addQuickNote'])
         ->whereNumber('opportunity')
         ->name('opportunities.timeline.note');
     
     /**
      * Reminders
      */
-    Route::get('/reminders/upcoming', [ReminderController::class, 'apiUpcoming'])
+    Route::get('/rappels/upcoming', [ReminderController::class, 'apiUpcoming'])
         ->name('reminders.upcoming');
-    Route::get('/reminders/count', [ReminderController::class, 'apiCount'])
+    Route::get('/rappels/count', [ReminderController::class, 'apiCount'])
         ->name('reminders.count');
-    Route::post('/reminders/{reminder}/complete', [ReminderController::class, 'complete'])
+    Route::post('/rappels/{reminder}/complete', [ReminderController::class, 'complete'])
         ->whereNumber('reminder')
         ->name('reminders.complete');
-    Route::post('/reminders/{reminder}/snooze', [ReminderController::class, 'snooze'])
+    Route::post('/rappels/{reminder}/snooze', [ReminderController::class, 'snooze'])
         ->whereNumber('reminder')
         ->name('reminders.snooze');
     

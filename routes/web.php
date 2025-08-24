@@ -29,9 +29,9 @@ Route::get('/auth/google/callback', [GoogleAuthController::class, 'handleGoogleC
 
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    Route::get('/dashboard', [DashboardController::class, 'indexInertia'])->name('dashboard');
+    Route::get('/tableau-de-bord', [DashboardController::class, 'indexInertia'])->name('dashboard');
 
-    Route::get('/dashboard/redirect-object/{type}/{id}', [DashboardController::class, 'redirectToObject'])
+    Route::get('/tableau-de-bord/redirection-objet/{type}/{id}', [DashboardController::class, 'redirectToObject'])
         ->name('dashboard.redirect-object')
         ->whereNumber('id');
 
@@ -45,23 +45,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/contacts/import', [ContactController::class, 'importCsv'])->name('contacts.import');
     Route::get('/kanban', [KanbanController::class, 'indexInertia'])->name('kanban.indexInertia');
     Route::get('/kanban/stats', [KanbanController::class, 'stats'])->name('kanban.stats');
+    Route::get('/previsions', [App\Http\Controllers\ForecastController::class, 'index'])->name('forecast.index');
     
     // Import/Export routes
-    Route::get('/opportunities/export', [OpportunityExportController::class, 'export'])->name('opportunities.export');
-    Route::post('/opportunities/import', [OpportunityExportController::class, 'import'])->name('opportunities.import');
-    Route::get('/opportunities/template', [OpportunityExportController::class, 'downloadTemplate'])->name('opportunities.template');
+    Route::get('/opportunites/exporter', [OpportunityExportController::class, 'export'])->name('opportunities.export');
+    Route::post('/opportunites/importer', [OpportunityExportController::class, 'import'])->name('opportunities.import');
+    Route::get('/opportunites/modele', [OpportunityExportController::class, 'downloadTemplate'])->name('opportunities.template');
     
-    Route::get('/reminders', [ReminderController::class, 'index'])->name('reminders.index');
-    Route::post('/reminders', [ReminderController::class, 'store'])->name('reminders.store');
-    Route::put('/reminders/{reminder}', [ReminderController::class, 'update'])->name('reminders.update');
-    Route::delete('/reminders/{reminder}', [ReminderController::class, 'destroy'])->name('reminders.destroy');
+    Route::get('/rappels', [ReminderController::class, 'index'])->name('reminders.index');
+    Route::post('/rappels', [ReminderController::class, 'store'])->name('reminders.store');
+    Route::put('/rappels/{reminder}', [ReminderController::class, 'update'])->name('reminders.update');
+    Route::delete('/rappels/{reminder}', [ReminderController::class, 'destroy'])->name('reminders.destroy');
     
     // Email Templates
-    Route::get('/email-templates', [App\Http\Controllers\EmailTemplateController::class, 'index'])->name('email-templates.index');
-    Route::post('/email-templates', [App\Http\Controllers\EmailTemplateController::class, 'store'])->name('email-templates.store');
-    Route::put('/email-templates/{template}', [App\Http\Controllers\EmailTemplateController::class, 'update'])->name('email-templates.update');
-    Route::delete('/email-templates/{template}', [App\Http\Controllers\EmailTemplateController::class, 'destroy'])->name('email-templates.destroy');
-    Route::post('/email-templates/{template}/duplicate', [App\Http\Controllers\EmailTemplateController::class, 'duplicate'])->name('email-templates.duplicate');
+    Route::get('/modeles-email', [App\Http\Controllers\EmailTemplateController::class, 'index'])->name('email-templates.index');
+    Route::post('/modeles-email', [App\Http\Controllers\EmailTemplateController::class, 'store'])->name('email-templates.store');
+    Route::put('/modeles-email/{template}', [App\Http\Controllers\EmailTemplateController::class, 'update'])->name('email-templates.update');
+    Route::delete('/modeles-email/{template}', [App\Http\Controllers\EmailTemplateController::class, 'destroy'])->name('email-templates.destroy');
+    Route::post('/modeles-email/{template}/dupliquer', [App\Http\Controllers\EmailTemplateController::class, 'duplicate'])->name('email-templates.duplicate');
     Route::get('/calendrier', [GoogleController::class, 'indexInertia'])->name('calendar.indexInertia');
 
     Route::get('/entreprises', [CompanyController::class, 'indexInertia'])->name('companies.indexInertia');
@@ -73,15 +74,29 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/profil', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profil', [ProfileController::class, 'update'])->name('profile.update');
+    Route::put('/mot-de-passe', [ProfileController::class, 'updatePassword'])->name('password.update');
+    Route::delete('/profil', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Opportunities (Sales)
-    Route::resource('opportunities', OpportunityController::class);
-    Route::post('/opportunities/{opportunity}/activities', [OpportunityController::class, 'addActivity'])->name('opportunities.activities.store');
-    Route::patch('/activities/{activity}/complete', [OpportunityController::class, 'completeActivity'])->name('activities.complete');
+    Route::resource('opportunites', OpportunityController::class, [
+        'names' => [
+            'index' => 'opportunities.index',
+            'create' => 'opportunities.create',
+            'store' => 'opportunities.store',
+            'show' => 'opportunities.show',
+            'edit' => 'opportunities.edit',
+            'update' => 'opportunities.update',
+            'destroy' => 'opportunities.destroy'
+        ],
+        'parameters' => [
+            'opportunites' => 'opportunity'
+        ]
+    ]);
+    Route::post('/opportunites/{opportunity}/dupliquer', [OpportunityController::class, 'duplicate'])->name('opportunities.duplicate');
+    Route::post('/opportunites/{opportunity}/activites', [OpportunityController::class, 'addActivity'])->name('opportunities.activities.store');
+    Route::patch('/activites/{activity}/terminer', [OpportunityController::class, 'completeActivity'])->name('activities.complete');
 });
 
 require __DIR__.'/auth.php';

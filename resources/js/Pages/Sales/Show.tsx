@@ -39,6 +39,7 @@ import { formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
+import OpportunityTimeline from '@/Components/OpportunityTimeline';
 
 interface Contact {
   id: number;
@@ -125,7 +126,7 @@ export default function Show({ opportunity, auth }: Props) {
     setIsUpdatingStage(true);
     
     try {
-      const response = await fetch(`/api/opportunities/${opportunity.id}`, {
+      const response = await fetch(`/api/opportunites/${opportunity.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -166,7 +167,7 @@ export default function Show({ opportunity, auth }: Props) {
     setIsDeleting(true);
     
     try {
-      const response = await fetch(`/api/opportunities/${opportunity.id}`, {
+      const response = await fetch(`/api/opportunites/${opportunity.id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -180,7 +181,7 @@ export default function Show({ opportunity, auth }: Props) {
       if (response.ok) {
         toast.success('Opportunité supprimée avec succès');
         setIsDeleteDialogOpen(false);
-        router.visit('/opportunities');
+        router.visit('/opportunites');
       } else {
         toast.error('Erreur lors de la suppression');
       }
@@ -197,7 +198,7 @@ export default function Show({ opportunity, auth }: Props) {
       header={
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/opportunities">
+            <Link href="/opportunites">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
@@ -215,7 +216,7 @@ export default function Show({ opportunity, auth }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Link href={`/opportunities/${opportunity.id}/edit`}>
+            <Link href={`/opportunites/${opportunity.id}/edit`}>
               <Button variant="outline">
                 <Edit className="h-4 w-4 mr-2" />
                 Modifier
@@ -313,34 +314,8 @@ export default function Show({ opportunity, auth }: Props) {
                 </Card>
               )}
 
-              {/* Activities */}
-              {opportunity.activities && opportunity.activities.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Clock className="h-5 w-5" />
-                      Historique d'activité
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {opportunity.activities.map((activity) => (
-                        <div key={activity.id} className="flex items-start gap-3 pb-3 border-b last:border-0">
-                          <div className="mt-1">
-                            <div className="h-2 w-2 bg-primary-600 rounded-full"></div>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm">{activity.description}</p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {format(new Date(activity.created_at), 'dd MMM yyyy à HH:mm', { locale: fr })}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {/* Timeline */}
+              <OpportunityTimeline opportunityId={opportunity.id} />
             </div>
 
             {/* Sidebar */}

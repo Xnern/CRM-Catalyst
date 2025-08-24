@@ -41,6 +41,12 @@ class DashboardController extends Controller
                 return redirect()->route('companies.showInertia', ['id' => $id]);
             case 'document':
                 return redirect()->route('documents.indexInertia', ['id' => $id]);
+            case 'opportunity':
+                // Rediriger vers la page détail de l'opportunité ou le kanban
+                return redirect()->route('kanban.indexInertia', ['opportunity_id' => $id]);
+            case 'reminder':
+                // Rediriger vers la page des rappels
+                return redirect()->route('reminders.index');
             default:
                 return redirect()->route('dashboard');
         }
@@ -226,50 +232,71 @@ class DashboardController extends Controller
         $user = $request->user();
         $limit = $request->get('limit', 15);
 
-        // Combiner les activités de différentes sources
-        $activities = collect();
-
-        // Activités des opportunités
-        $opportunities = Opportunity::where('user_id', $user->id)
-            ->orderBy('updated_at', 'desc')
-            ->limit(5)
-            ->get()
-            ->map(function ($opp) {
-                return [
-                    'type' => 'opportunity',
-                    'title' => "Opportunité: {$opp->name}",
-                    'description' => "Stage: {$opp->stage} - Montant: " . number_format($opp->amount, 0, ',', ' ') . ' €',
-                    'date' => $opp->updated_at,
-                    'id' => $opp->id,
-                    'subject_id' => $opp->id,
-                    'subject_type' => 'opportunity',
-                    'icon' => 'target',
-                    'color' => $opp->stage === 'converti' ? 'green' : ($opp->stage === 'perdu' ? 'red' : 'blue'),
-                ];
-            });
-        $activities = $activities->concat($opportunities);
-
-        // Derniers contacts ajoutés
-        $contacts = Contact::where('user_id', $user->id)
+        // Récupérer les logs d'activité depuis la table activity_logs
+        $activityLogs = ActivityLog::with(['subject', 'causer'])
             ->orderBy('created_at', 'desc')
-            ->limit(5)
+            ->limit($limit)
             ->get()
-            ->map(function ($contact) {
+            ->map(function ($log) {
+                // Déterminer le type et les détails en fonction du subject_type
+                $type = 'activity';
+                $icon = 'activity';
+                $color = 'gray';
+                $title = $log->description;
+                
+                if ($log->subject_type === 'App\\Models\\Opportunity') {
+                    $type = 'opportunity';
+                    $icon = 'target';
+                    $color = 'blue';
+                    if (str_contains($log->description, 'dupliquée')) {
+                        $icon = 'copy';
+                        $color = 'purple';
+                    } elseif (str_contains($log->description, 'créée')) {
+                        $icon = 'plus';
+                        $color = 'green';
+                    } elseif (str_contains($log->description, 'modifiée')) {
+                        $icon = 'edit';
+                        $color = 'orange';
+                    }
+                } elseif ($log->subject_type === 'App\\Models\\Contact') {
+                    $type = 'contact';
+                    $icon = 'user';
+                    $color = 'purple';
+                } elseif ($log->subject_type === 'App\\Models\\Company') {
+                    $type = 'company';
+                    $icon = 'building';
+                    $color = 'indigo';
+                } elseif ($log->subject_type === 'App\\Models\\Document') {
+                    $type = 'document';
+                    $icon = 'file';
+                    $color = 'yellow';
+                }
+                
+                // Ajouter des détails supplémentaires si disponibles
+                $description = '';
+                if ($log->causer) {
+                    $description = "Par {$log->causer->name}";
+                }
+                if ($log->properties && isset($log->properties['action'])) {
+                    $description .= " - Action: {$log->properties['action']}";
+                }
+                
                 return [
-                    'type' => 'contact',
-                    'title' => "Nouveau contact: {$contact->name}",
-                    'description' => $contact->email ?? 'Pas d\'email',
-                    'date' => $contact->created_at,
-                    'id' => $contact->id,
-                    'subject_id' => $contact->id,
-                    'subject_type' => 'contact',
-                    'icon' => 'user',
-                    'color' => 'purple',
+                    'type' => $type,
+                    'title' => $title,
+                    'description' => $description ?: 'Activité système',
+                    'date' => $log->created_at,
+                    'id' => $log->id,
+                    'subject_id' => $log->subject_id,
+                    'subject_type' => $type,
+                    'icon' => $icon,
+                    'color' => $color,
                 ];
             });
-        $activities = $activities->concat($contacts);
 
-        // Derniers rappels
+        // Ajouter les rappels à venir si la classe existe
+        $activities = collect($activityLogs);
+        
         if (class_exists('\App\Models\Reminder')) {
             $reminders = \App\Models\Reminder::where('user_id', $user->id)
                 ->where('status', 'pending')

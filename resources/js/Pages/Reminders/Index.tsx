@@ -108,7 +108,7 @@ export default function RemindersIndex({ reminders, types, priorities, stats, au
     
     const dateTime = `${formData.reminder_date} ${formData.reminder_time}`;
     
-    router.post('/reminders', {
+    router.post('/rappels', {
       ...formData,
       reminder_date: dateTime,
     }, {
@@ -134,7 +134,7 @@ export default function RemindersIndex({ reminders, types, priorities, stats, au
   };
 
   const handleComplete = (id: number) => {
-    router.post(`/api/reminders/${id}/complete`, {}, {
+    router.post(`/api/rappels/${id}/complete`, {}, {
       preserveScroll: true,
       onSuccess: () => {
         toast.success('Rappel marqué comme complété');
@@ -143,7 +143,7 @@ export default function RemindersIndex({ reminders, types, priorities, stats, au
   };
 
   const handleSnooze = (id: number, minutes: number) => {
-    router.post(`/api/reminders/${id}/snooze`, { minutes }, {
+    router.post(`/api/rappels/${id}/snooze`, { minutes }, {
       preserveScroll: true,
       onSuccess: () => {
         const label = minutes >= 1440 ? 'à demain' : 
@@ -162,7 +162,7 @@ export default function RemindersIndex({ reminders, types, priorities, stats, au
     if (!deleteReminderId) return;
     
     setIsDeleting(true);
-    router.delete(`/reminders/${deleteReminderId}`, {
+    router.delete(`/rappels/${deleteReminderId}`, {
       preserveScroll: true,
       onSuccess: () => {
         toast.success('Rappel supprimé');
@@ -367,14 +367,73 @@ export default function RemindersIndex({ reminders, types, priorities, stats, au
               </Select>
             </div>
             
-            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nouveau rappel
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[525px]">
+            {/* Boutons de création rapide */}
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const now = new Date();
+                  now.setMinutes(now.getMinutes() + 15);
+                  setFormData({
+                    ...formData,
+                    title: 'Rappel dans 15 minutes',
+                    reminder_date: now.toISOString().split('T')[0],
+                    reminder_time: now.toTimeString().slice(0, 5),
+                    priority: 'medium',
+                  });
+                  setShowCreateDialog(true);
+                }}
+              >
+                <Clock className="h-3 w-3 mr-1" />
+                15 min
+              </Button>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const now = new Date();
+                  now.setMinutes(now.getMinutes() + 30);
+                  setFormData({
+                    ...formData,
+                    title: 'Rappel dans 30 minutes',
+                    reminder_date: now.toISOString().split('T')[0],
+                    reminder_time: now.toTimeString().slice(0, 5),
+                    priority: 'medium',
+                  });
+                  setShowCreateDialog(true);
+                }}
+              >
+                <Clock className="h-3 w-3 mr-1" />
+                30 min
+              </Button>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const now = new Date();
+                  now.setHours(now.getHours() + 1);
+                  setFormData({
+                    ...formData,
+                    title: 'Rappel dans 1 heure',
+                    reminder_date: now.toISOString().split('T')[0],
+                    reminder_time: now.toTimeString().slice(0, 5),
+                    priority: 'medium',
+                  });
+                  setShowCreateDialog(true);
+                }}
+              >
+                <Clock className="h-3 w-3 mr-1" />
+                1h
+              </Button>
+              <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nouveau rappel
+                  </Button>
+                  </DialogTrigger>
+                <DialogContent className="sm:max-w-[525px]">
                 <form onSubmit={handleSubmit}>
                   <DialogHeader>
                     <DialogTitle>Créer un rappel</DialogTitle>
@@ -471,6 +530,7 @@ export default function RemindersIndex({ reminders, types, priorities, stats, au
                 </form>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
 
           {/* Reminders Sections */}

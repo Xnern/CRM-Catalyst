@@ -199,7 +199,7 @@ export default function Edit({ auth, mustVerifyEmail, status, userRoles, userPer
     formData.append('avatar', file);
 
     try {
-      const response = await fetch('/api/profile/avatar', {
+      const response = await fetch('/api/profil/avatar', {
         method: 'POST',
         headers: {
           'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',

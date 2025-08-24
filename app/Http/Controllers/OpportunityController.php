@@ -16,7 +16,7 @@ class OpportunityController extends Controller
     public function __construct()
     {
         $this->middleware('can:view opportunities')->only(['index', 'show']);
-        $this->middleware('can:create opportunities')->only(['create', 'store']);
+        $this->middleware('can:create opportunities')->only(['create', 'store', 'duplicate']);
         $this->middleware('can:edit opportunities')->only(['edit', 'update']);
         $this->middleware('can:delete opportunities')->only(['destroy']);
         $this->middleware('can:change opportunity stage')->only(['updateStage']);
@@ -31,6 +31,7 @@ class OpportunityController extends Controller
         $stage = $request->get('stage');
         $userId = $request->get('user_id');
         $companyId = $request->get('company_id');
+        $search = $request->get('search');
 
         // Build query
         $query = Opportunity::with(['contact', 'company', 'user']);
@@ -46,8 +47,21 @@ class OpportunityController extends Controller
         if ($companyId) {
             $query->where('company_id', $companyId);
         }
+        
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhereHas('contact', function ($q) use ($search) {
+                      $q->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('company', function ($q) use ($search) {
+                      $q->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
 
-        $opportunities = $query->latest()->paginate(20);
+        $opportunities = $query->latest()->paginate(20)->withQueryString();
 
         // Get metrics for dashboard
         $metrics = $this->getMetrics();
@@ -60,6 +74,7 @@ class OpportunityController extends Controller
                 'stage' => $stage,
                 'user_id' => $userId,
                 'company_id' => $companyId,
+                'search' => $search,
             ],
         ]);
     }
@@ -311,6 +326,37 @@ class OpportunityController extends Controller
         $activity->markAsCompleted();
 
         return back()->with('success', 'Activité marquée comme complétée');
+    }
+
+    /**
+     * Duplicate an opportunity
+     */
+    public function duplicate(Opportunity $opportunity)
+    {
+        $newOpportunity = $opportunity->replicate(['weighted_amount']);
+        $newOpportunity->name = $opportunity->name . ' (Copie)';
+        $newOpportunity->stage = 'nouveau';
+        $newOpportunity->probability = 10;
+        $newOpportunity->expected_close_date = Carbon::now()->addMonth();
+        $newOpportunity->actual_close_date = null;
+        $newOpportunity->created_at = Carbon::now();
+        $newOpportunity->updated_at = Carbon::now();
+        $newOpportunity->save();
+        
+        // Créer un log d'activité spécifique pour la duplication
+        \App\Services\ActivityLogger::opportunityDuplicated($newOpportunity, $opportunity);
+
+        // Dupliquer les produits associés si présents
+        if ($opportunity->products) {
+            $newOpportunity->products = $opportunity->products;
+            $newOpportunity->save();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Opportunité dupliquée avec succès',
+            'opportunity' => $newOpportunity->load(['contact', 'company', 'user']),
+        ]);
     }
 
     /**

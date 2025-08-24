@@ -245,7 +245,7 @@ export default function OpportunityKanban({ opportunities, stages, auth, users =
       const opportunity = localOpportunities.find(o => o.id === opportunityId);
       if (!opportunity) return;
 
-      const response = await fetch(`/api/opportunities/${opportunityId}`, {
+      const response = await fetch(`/api/opportunites/${opportunityId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -280,11 +280,37 @@ export default function OpportunityKanban({ opportunities, stages, auth, users =
   }, [localOpportunities, stages]);
 
   const handleEditOpportunity = (opportunity: Opportunity) => {
-    router.visit(`/opportunities/${opportunity.id}/edit`);
+    router.visit(`/opportunites/${opportunity.id}/edit`);
   };
 
   const handleDeleteOpportunity = async (id: number) => {
     setDeleteOpportunityId(id);
+  };
+
+  const handleDuplicateOpportunity = async (opportunity: Opportunity) => {
+    try {
+      const response = await fetch(`/opportunites/${opportunity.id}/dupliquer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Ajouter la nouvelle opportunité à la liste locale
+        setLocalOpportunities(prev => [...prev, data.opportunity]);
+        toast.success(data.message || 'Opportunité dupliquée avec succès');
+      } else {
+        toast.error('Erreur lors de la duplication');
+      }
+    } catch (error) {
+      toast.error('Erreur lors de la duplication');
+    }
   };
 
   const confirmDelete = async () => {
@@ -293,7 +319,7 @@ export default function OpportunityKanban({ opportunities, stages, auth, users =
     setIsDeleting(true);
     
     try {
-      const response = await fetch(`/api/opportunities/${deleteOpportunityId}`, {
+      const response = await fetch(`/api/opportunites/${deleteOpportunityId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -523,7 +549,7 @@ export default function OpportunityKanban({ opportunities, stages, auth, users =
                 <RefreshCw className="h-4 w-4" />
               </Button>
               
-              <Link href="/opportunities/create">
+              <Link href="/opportunites/create">
                 <Button>
                   <PlusIcon className="mr-2 h-4 w-4" /> Nouvelle Opportunité
                 </Button>
@@ -544,6 +570,7 @@ export default function OpportunityKanban({ opportunities, stages, auth, users =
                   onDropOpportunity={handleMoveOpportunity}
                   onEditOpportunity={handleEditOpportunity}
                   onDeleteOpportunity={handleDeleteOpportunity}
+                  onDuplicateOpportunity={handleDuplicateOpportunity}
                   onMoveOpportunity={handleMoveOpportunity}
                   stages={stages}
                 />

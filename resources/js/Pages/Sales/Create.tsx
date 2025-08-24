@@ -163,7 +163,7 @@ export default function CreateOpportunity({ contact, stages, leadSources }: Prop
     }
 
     // Use fetch API for better control over the response
-    fetch('/api/opportunities', {
+    fetch('/api/opportunites', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -177,7 +177,7 @@ export default function CreateOpportunity({ contact, stages, leadSources }: Prop
         if (result.id) {
           toast.success('Opportunité créée avec succès');
           // Navigate to the detail page
-          router.visit(`/opportunities/${result.id}`);
+          router.visit(`/opportunites/${result.id}`);
         } else {
           toast.error('Erreur lors de la création de l\'opportunité');
         }
@@ -222,7 +222,7 @@ export default function CreateOpportunity({ contact, stages, leadSources }: Prop
           <h2 className="text-xl font-semibold leading-tight text-gray-800">
             Nouvelle Opportunité
           </h2>
-          <Link href="/opportunities">
+          <Link href="/opportunites">
             <Button variant="outline">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Retour
@@ -567,7 +567,7 @@ export default function CreateOpportunity({ contact, stages, leadSources }: Prop
 
             {/* Actions */}
             <div className="flex justify-end gap-4">
-              <Link href="/opportunities">
+              <Link href="/opportunites">
                 <Button type="button" variant="outline">
                   Annuler
                 </Button>
