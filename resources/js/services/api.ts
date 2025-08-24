@@ -7,7 +7,16 @@ import type { Company, CompanyStatusOptionsResponse } from '@/types/Company';
 import type { Document as DocumentModel } from '@/types/Document';
 import type { PaginatedApiResponse } from '@/types/PaginatedApiResponse';
 
-// Éventuels types d'autres domaines (laisse comme avant si tu as ces fichiers)
+// CRM Settings types
+import type {
+  CrmSettings,
+  CrmSettingsResponse,
+  CrmSettingsUpdateResponse,
+  CrmSettingUpdatePayload,
+  PublicCrmSettingsResponse
+} from '@/types/CrmSettings';
+
+// Calendar events types
 import type { GoogleCalendarEvent, CreateCalendarEventPayload } from '@/types/GoogleCalendarEvent';
 import type { LocalCalendarEvent, LocalEventPayload, UpdateLocalEventPayload } from '@/types/LocalCalendarEvent';
 
@@ -74,10 +83,15 @@ export interface TimelineData {
 }
 
 export interface RecentActivity {
-  type: 'contact' | 'company' | 'document';
+  type: 'contact' | 'company' | 'document' | 'opportunity' | 'activity' | 'reminder';
   title: string;
+  description?: string;
   date: string;
   id: number;
+  subject_id?: number;
+  subject_type?: string;
+  icon?: string;
+  color?: string;
 }
 
 // --- Utils ---
@@ -128,40 +142,88 @@ export const api = createApi({
     'UnassignedContacts',
     'Document',
     'Dashboard',
+    'CrmSettings', // ✅ New tag for CRM Settings
   ],
 
   // Endpoints
   endpoints: (builder) => ({
     /**
+     * ✅ CRM SETTINGS ENDPOINTS
+     */
+    getCrmSettings: builder.query<CrmSettingsResponse, void>({
+      query: () => '/settings',
+      providesTags: ['CrmSettings'],
+    }),
+
+    getPublicCrmSettings: builder.query<PublicCrmSettingsResponse, void>({
+      query: () => '/settings/public',
+      providesTags: ['CrmSettings'],
+    }),
+
+    updateCrmSettings: builder.mutation<CrmSettingsUpdateResponse, Partial<CrmSettings>>({
+      query: (settings) => ({
+        url: '/settings',
+        method: 'POST',
+        body: settings,
+      }),
+      invalidatesTags: ['CrmSettings'],
+    }),
+
+    updateSingleCrmSetting: builder.mutation<
+      { success: boolean; message: string; data: { key: string; value: any; category: string } },
+      CrmSettingUpdatePayload
+    >({
+      query: (setting) => ({
+        url: '/settings/single',
+        method: 'POST',
+        body: setting,
+      }),
+      invalidatesTags: ['CrmSettings'],
+    }),
+
+    resetCrmSettings: builder.mutation<CrmSettingsUpdateResponse, void>({
+      query: () => ({
+        url: '/settings/reset',
+        method: 'POST',
+      }),
+      invalidatesTags: ['CrmSettings'],
+    }),
+
+    /**
      * Dashboard Analytics
      */
     getDashboardStats: builder.query<{ data: DashboardStats }, void>({
-      query: () => '/dashboard/stats',
+      query: () => '/tableau-de-bord/stats',
       providesTags: ['Dashboard'],
     }),
 
     getContactsByStatusApi: builder.query<{ data: StatusData[] }, void>({
-      query: () => '/dashboard/contacts-by-status',
+      query: () => '/tableau-de-bord/contacts-by-status',
       providesTags: ['Dashboard'],
     }),
 
     getCompaniesByStatusApi: builder.query<{ data: StatusData[] }, void>({
-      query: () => '/dashboard/companies-by-status',
+      query: () => '/tableau-de-bord/companies-by-status',
       providesTags: ['Dashboard'],
     }),
 
     getContactsTimelineApi: builder.query<{ data: TimelineData[] }, number>({
-      query: (months = 6) => `/dashboard/contacts-timeline?months=${months}`,
+      query: (months = 6) => `/tableau-de-bord/contacts-timeline?months=${months}`,
       providesTags: ['Dashboard'],
     }),
 
     getDocumentsTimelineApi: builder.query<{ data: TimelineData[] }, number>({
-      query: (months = 6) => `/dashboard/documents-timeline?months=${months}`,
+      query: (months = 6) => `/tableau-de-bord/documents-timeline?months=${months}`,
       providesTags: ['Dashboard'],
     }),
 
     getRecentActivitiesApi: builder.query<{ data: RecentActivity[] }, number>({
-      query: (limit = 10) => `/dashboard/recent-activities?limit=${limit}`,
+      query: (limit = 10) => `/tableau-de-bord/recent-activities?limit=${limit}`,
+      providesTags: ['Dashboard'],
+    }),
+
+    getOpportunitiesByStageApi: builder.query<{ data: Array<{ name: string; count: number; amount: number; stage: string }> }, void>({
+      query: () => '/tableau-de-bord/opportunities-by-stage',
       providesTags: ['Dashboard'],
     }),
 
@@ -182,30 +244,6 @@ export const api = createApi({
         result
           ? [...result.data.map(({ id }) => ({ type: 'Contact' as const, id })), { type: 'Contact', id: 'LIST' }]
           : [{ type: 'Contact', id: 'LIST' }],
-    }),
-
-    getContactsByStatus: builder.query<
-      PaginatedApiResponse<Contact>,
-      { status: Contact['status']; per_page?: number; cursor?: string }
-    >({
-      query: ({ status, per_page = 15, cursor }) => {
-        const params = new URLSearchParams();
-        params.append('per_page', per_page.toString());
-        if (cursor) {
-          params.append('cursor', cursor);
-        }
-        return {
-          url: `/contacts/by-status/${status}`,
-          params: params,
-        };
-      },
-      providesTags: (result, _error, { status }) =>
-        result
-          ? [
-              ...result.data.map(({ id }) => ({ type: 'Contact' as const, id })),
-              { type: 'Contact', id: 'LIST', status },
-            ]
-          : [{ type: 'Contact', id: 'LIST', status }],
     }),
 
     addContact: builder.mutation<Contact, Partial<Contact>>({
@@ -257,26 +295,6 @@ export const api = createApi({
         { type: 'UnassignedContacts', id: 'LIST' },
         { type: 'Dashboard' },
       ],
-    }),
-
-    updateContactStatus: builder.mutation<Contact, { id: number; status: Contact['status'] }>({
-      query: ({ id, status }) => ({
-        url: `/contacts/${id}/status`,
-        method: 'PUT',
-        body: { status },
-      }),
-      invalidatesTags: (_result, _error, { id }) => [
-        { type: 'Contact', id },
-        { type: 'Contact', id: 'LIST' },
-        { type: 'Dashboard' },
-      ],
-    }),
-
-    getContactStatusOptions: builder.query<any, void>({
-      query: () => ({
-        url: '/meta/contact-statuses',
-        method: 'GET',
-      }),
     }),
 
     searchContacts: builder.query<{ id: number; name: string }[], string>({
@@ -450,7 +468,6 @@ export const api = createApi({
                 ]
             : [{ type: 'Company', id: 'LIST', status }],
         }),
-
 
     /**
      * Company-Contact Relations (seulement les opérations spécifiques aux relations)
@@ -704,6 +721,13 @@ export const api = createApi({
 
 // --- Export generated RTK Query hooks for usage in components ---
 export const {
+  // ✅ CRM Settings hooks
+  useGetCrmSettingsQuery,
+  useGetPublicCrmSettingsQuery,
+  useUpdateCrmSettingsMutation,
+  useUpdateSingleCrmSettingMutation,
+  useResetCrmSettingsMutation,
+
   // Dashboard
   useGetDashboardStatsQuery,
   useGetContactsByStatusApiQuery,
@@ -711,16 +735,14 @@ export const {
   useGetContactsTimelineApiQuery,
   useGetDocumentsTimelineApiQuery,
   useGetRecentActivitiesApiQuery,
+  useGetOpportunitiesByStageApiQuery,
 
   // Contacts - Routes génériques (à utiliser partout)
   useGetContactsQuery,
-  useGetContactsByStatusQuery,
   useLazyGetContactsQuery,
   useAddContactMutation,
   useUpdateContactMutation,
   useDeleteContactMutation,
-  useUpdateContactStatusMutation,
-  useGetContactStatusOptionsQuery,
   useGetContactQuery,
 
   // Google Calendar
@@ -748,7 +770,6 @@ export const {
   useLazySearchCompaniesQuery,
   useGetCompanyByStatusQuery,
 
-
   // Company-Contact Relations (seulement les opérations spécifiques)
   useGetCompanyContactsQuery,
   useGetUnassignedContactsQuery,
@@ -775,3 +796,4 @@ export const {
   useSearchContactsQuery,
   useLazySearchContactsQuery,
 } = api;
+

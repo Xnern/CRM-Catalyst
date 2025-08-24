@@ -6,7 +6,6 @@ export interface Contact {
   company_id?: number;
   user_id: number;
   name: string;
-  status: 'Nouveau' | 'Qualification' | 'Proposition envoyée' | 'Négociation' | 'Converti' | 'Perdu';
   email: string | null;
   phone: string | null;
   address: string | null;

@@ -256,7 +256,7 @@ export const LinkPicker: React.FC<Props> = ({
               setLoading(false);
               lastRequestKeyRef.current = '';
             }}
-            className="h-10 w-full md:w-auto border-teal-600 text-teal-700 hover:bg-teal-50"
+            className="h-10 w-full md:w-auto border-primary-600 text-primary-700 hover:bg-primary-50"
             disabled={disableCompanySearch && disableContactSearch}
           >
             Réinitialiser
@@ -291,7 +291,7 @@ export const LinkPicker: React.FC<Props> = ({
               <Button
                 size="sm"
                 onClick={() => add(r)}
-                className="bg-teal-600 hover:bg-teal-700 text-white"
+                className="bg-primary-600 hover:bg-primary-700 text-white"
               >
                 Ajouter
               </Button>
@@ -305,7 +305,7 @@ export const LinkPicker: React.FC<Props> = ({
         {value.map((l) => (
           <span
             key={`${l.type}-${l.id}`}
-            className="px-2 py-1 rounded bg-teal-50 text-teal-700 text-xs inline-flex items-center gap-2 border border-teal-200"
+            className="px-2 py-1 rounded bg-primary-50 text-primary-700 text-xs inline-flex items-center gap-2 border border-primary-200"
           >
             <span className="truncate max-w-[260px]">
               {l.type === 'company' ? 'Entreprise' : 'Contact'}: {l.name}

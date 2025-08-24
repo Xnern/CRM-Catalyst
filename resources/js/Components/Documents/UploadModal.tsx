@@ -6,6 +6,9 @@ import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/Components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/Components/ui/dialog';
+import { Alert, AlertDescription } from '@/Components/ui/alert';
+import { AlertCircle } from 'lucide-react';
+import { useAppSettings } from '@/hooks/useAppSettings';
 
 type Link = { type: 'company' | 'contact'; id: number; name: string; role?: string };
 
@@ -47,22 +50,20 @@ export const UploadModal: React.FC<Props> = ({
   const [tags, setTags] = useState<string[]>([]);
   const [links, setLinks] = useState<Link[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Keep a stable signature of initialLinks to compare content (not reference)
   const initialLinksSig = useMemo(() => computeLinksSignature(initialLinks), [initialLinks]);
   const prevInitialLinksSigRef = useRef<string>(initialLinksSig);
   const prevIsOpenRef = useRef<boolean>(isOpen);
 
-  // Extended allow-list for CRM-typical files
-  const allowedMemo = [
-    '.pdf', '.doc', '.docx', '.rtf', '.odt',
-    '.xls', '.xlsx', '.xlsm', '.ods', '.csv',
-    '.ppt', '.pptx', '.odp',
-    '.txt', '.md',
-    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp', '.svg',
-    '.zip',
-  ];
-  const allowed = useMemo(() => allowedMemo, []);
+  // Get allowed extensions from settings
+  const appSettings = useAppSettings();
+  const allowed = useMemo(() => {
+    const extensions = appSettings?.upload?.allowed_extensions || ['jpg', 'jpeg', 'png'];
+    // Add dot prefix for each extension
+    return extensions.map(ext => `.${ext}`);
+  }, [appSettings]);
 
   // Reset all local states (called on success and on close)
   const resetForm = () => {
@@ -75,6 +76,7 @@ export const UploadModal: React.FC<Props> = ({
     // the next open will sync if needed.
     setLinks([]);
     setSubmitting(false);
+    setError(null);
   };
 
   // Sync links from initialLinks only:
@@ -110,6 +112,7 @@ export const UploadModal: React.FC<Props> = ({
   const submit = async () => {
     if (!file || submitting) return;
     setSubmitting(true);
+    setError(null);
     try {
       const form = new FormData();
       form.append('file', file);
@@ -130,8 +133,23 @@ export const UploadModal: React.FC<Props> = ({
 
       resetForm();
       onClose();
-    } catch {
-      // Keep open to retry
+    } catch (err: any) {
+      // Handle validation errors
+      if (err?.data?.errors) {
+        // Get the first error message
+        const firstError = Object.values(err.data.errors)[0];
+        if (Array.isArray(firstError)) {
+          setError(firstError[0]);
+        } else {
+          setError(firstError as string);
+        }
+      } else if (err?.data?.message) {
+        setError(err.data.message);
+      } else if (err?.message) {
+        setError(err.message);
+      } else {
+        setError('Une erreur est survenue lors du téléversement.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -146,10 +164,17 @@ export const UploadModal: React.FC<Props> = ({
         </DialogHeader>
 
         <div className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
           <FileDropzone
-            onFileSelected={(f) => { setFile(f); setName(f.name.replace(/\.[^/.]+$/, '')); }}
+            onFileSelected={(f) => { setFile(f); setName(f.name.replace(/\.[^/.]+$/, '')); setError(null); }}
             accept={allowed.join(',')}
-            maxSizeBytes={25 * 1024 * 1024}
+            maxSizeBytes={(appSettings?.upload?.max_file_size || 10) * 1024 * 1024}
           />
 
           {/* Name + Visibility */}
@@ -204,7 +229,7 @@ export const UploadModal: React.FC<Props> = ({
           {/* Actions */}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={handleClose}>Annuler</Button>
-            <Button disabled={!file || submitting} onClick={submit} className="bg-teal-600 hover:bg-teal-700 text-white">
+            <Button disabled={!file || submitting} onClick={submit} className="bg-primary-600 hover:bg-primary-700 text-white">
               {submitting ? 'Téléversement…' : 'Téléverser'}
             </Button>
           </div>

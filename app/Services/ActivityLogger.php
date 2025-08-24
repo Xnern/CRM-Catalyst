@@ -127,4 +127,19 @@ class ActivityLogger
             ['action' => 'updated', 'changes' => $changes]
         );
     }
+
+    public static function opportunityDuplicated(Model $opportunity, Model $originalOpportunity): ActivityLog
+    {
+        return self::log(
+            "Opportunité dupliquée depuis '{$originalOpportunity->name}'",
+            $opportunity,
+            null,
+            'opportunity',
+            [
+                'action' => 'duplicated',
+                'original_id' => $originalOpportunity->id,
+                'original_name' => $originalOpportunity->name
+            ]
+        );
+    }
 }

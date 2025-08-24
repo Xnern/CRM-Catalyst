@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Com
 import { Badge } from '@/Components/ui/badge';
 import { ArrowLeft, MoreVertical, Edit, Trash } from 'lucide-react';
 import { useDrop, useDrag } from 'react-dnd';
-import { useGetContactsByStatusQuery } from '@/services/api';
+// import { useGetContactsByStatusQuery } from '@/services/api'; // TODO: Adapter pour les opportunités
 import { Button } from '@/Components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/Components/ui/avatar';
 import {
@@ -55,11 +55,15 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   const [cursor, setCursor] = useState<string | null>(null);
   const [items, setItems] = useState<Contact[]>([]);
 
-  const { data, isFetching, isLoading } = useGetContactsByStatusQuery({
-    status: statusValue as Contact['status'],
-    per_page: perPage,
-    cursor
-  });
+  // TODO: Adapter pour les opportunités
+  const data: any = null;
+  const isFetching = false;
+  const isLoading = false;
+  // const { data, isFetching, isLoading } = useGetContactsByStatusQuery({
+  //   status: statusValue as Contact['status'],
+  //   per_page: perPage,
+  //   cursor
+  // });
 
   useEffect(() => {
     setCursor(null);

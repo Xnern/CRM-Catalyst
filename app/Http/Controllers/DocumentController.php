@@ -2,21 +2,32 @@
 
 namespace App\Http\Controllers;
 
-use Inertia\Inertia;
+use App\Http\Requests\Documents\DocumentStoreRequest;
+use App\Http\Requests\Documents\DocumentUpdateRequest;
+use App\Http\Resources\DocumentResource;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Document;
-use Illuminate\Support\Str;
-use Illuminate\Http\Request;
 use App\Models\DocumentVersion;
+use App\Rules\AllowedFileExtension;
+use App\Services\SettingsService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use App\Http\Resources\DocumentResource;
-use App\Http\Requests\Documents\DocumentStoreRequest;
-use App\Http\Requests\Documents\DocumentUpdateRequest;
+use Illuminate\Support\Str;
+use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DocumentController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('can:view documents')->only(['indexInertia', 'index', 'show', 'preview']);
+        $this->middleware('can:upload documents')->only(['store', 'storeVersion']);
+        $this->middleware('can:edit documents')->only(['update', 'attachLink', 'detachLink']);
+        $this->middleware('can:delete documents')->only(['destroy']);
+        $this->middleware('can:download documents')->only(['download']);
+    }
+
     /**
      * Render the Documents list page (Inertia React).
      */
@@ -36,18 +47,20 @@ class DocumentController extends Controller
             ->with(['owner:id,name,email']) // minimal owner fields for list
             ->when($req->search, function ($qq, $s) {
                 $s = trim((string) $s);
-                if ($s === '') return;
+                if ($s === '') {
+                    return;
+                }
                 $qq->where(function ($w) use ($s) {
                     $w->where('name', 'like', "%{$s}%")
-                      ->orWhere('original_filename', 'like', "%{$s}%")
-                      ->orWhere('description', 'like', "%{$s}%")
-                      ->orWhereJsonContains('tags', $s);
+                        ->orWhere('original_filename', 'like', "%{$s}%")
+                        ->orWhere('description', 'like', "%{$s}%")
+                        ->orWhereJsonContains('tags', $s);
                 });
             })
             ->when($req->tag, fn ($qq, $tag) => $qq->whereJsonContains('tags', $tag))
             ->when($req->type, fn ($qq, $type) => $qq->where(function ($w) use ($type) {
                 $w->where('mime_type', 'like', "{$type}%")
-                  ->orWhere('extension', $type);
+                    ->orWhere('extension', $type);
             }))
             ->when($req->owner_id, fn ($qq, $id) => $qq->where('owner_id', (int) $id))
             ->when($req->company_id, fn ($qq, $id) => $qq->whereHas('companies', fn ($h) => $h->where('companies.id', (int) $id)))
@@ -105,10 +118,15 @@ class DocumentController extends Controller
         $user = $req->user();
         $file = $req->file('file');
 
+        // Get upload settings
+        $settingsService = SettingsService::getInstance();
+        $uploadSettings = $settingsService->getUploadSettings();
+
         $uuid = (string) Str::uuid();
         $ext = $file->getClientOriginalExtension();
         $disk = config('filesystems.default', 's3');
-        $path = 'documents/' . now()->format('Y/m') . "/{$uuid}/" . $file->getClientOriginalName();
+        $storagePath = $uploadSettings['storage_path'] ?? 'documents';
+        $path = $storagePath.'/'.now()->format('Y/m')."/{$uuid}/".$file->getClientOriginalName();
 
         // Store file
         Storage::disk($disk)->put($path, file_get_contents($file->getRealPath()));
@@ -222,11 +240,12 @@ class DocumentController extends Controller
         // S3: provide a temporary signed URL (JSON)
         if ($document->storage_disk === 's3' && method_exists($disk, 'temporaryUrl')) {
             $url = $disk->temporaryUrl($document->storage_path, now()->addMinutes(5));
+
             return response()->json(['url' => $url], 200);
         }
 
         // Local/other disks: stream the file
-        if (!$disk->exists($document->storage_path)) {
+        if (! $disk->exists($document->storage_path)) {
             abort(404);
         }
 
@@ -320,8 +339,15 @@ class DocumentController extends Controller
     {
         $this->authorize('update', $document);
 
+        // Get upload settings
+        $settingsService = SettingsService::getInstance();
+        $uploadSettings = $settingsService->getUploadSettings();
+
+        // Convert MB to KB for Laravel validation
+        $maxFileSize = ($uploadSettings['max_file_size'] ?? 10) * 1024;
+
         $data = $req->validate([
-            'file' => ['required', 'file', 'max:25600', 'mimes:pdf,doc,docx,rtf,odt,xls,xlsx,xlsm,ods,csv,ppt,pptx,odp,txt,md,png,jpg,jpeg,gif,bmp,tiff,webp,svg,zip'],
+            'file' => ['required', 'file', 'max:'.$maxFileSize, new AllowedFileExtension],
         ]);
 
         $file = $req->file('file');
@@ -329,7 +355,7 @@ class DocumentController extends Controller
 
         $nextVersion = (int) ($document->versions()->max('version') ?? 0) + 1;
 
-        $path = 'documents/' . $document->created_at->format('Y/m') . "/{$document->uuid}/v{$nextVersion}-" . $file->getClientOriginalName();
+        $path = 'documents/'.$document->created_at->format('Y/m')."/{$document->uuid}/v{$nextVersion}-".$file->getClientOriginalName();
 
         Storage::disk($disk)->put($path, file_get_contents($file->getRealPath()));
 
@@ -379,7 +405,7 @@ class DocumentController extends Controller
         $disk = $document->storage_disk ?? 'local';
         $path = $document->storage_path;
 
-        if (!Storage::disk($disk)->exists($path)) {
+        if (! Storage::disk($disk)->exists($path)) {
             abort(404);
         }
 

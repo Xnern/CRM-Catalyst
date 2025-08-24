@@ -7,8 +7,8 @@ import {
   useAddContactMutation,
   useUpdateContactMutation,
   useDeleteContactMutation,
-  useUpdateContactStatusMutation,
-  useGetContactStatusOptionsQuery,
+  // useUpdateContactStatusMutation, // TODO: Adapter pour les opportunités
+  // useGetContactStatusOptionsQuery, // TODO: Adapter pour les opportunités
 } from '@/services/api';
 import type { Contact } from '@/types/Contact';
 import ContactForm from '@/Components/ContactForm';
@@ -35,7 +35,11 @@ export default function KanbanBoard({ auth }) {
   );
 
   // Charger les options dynamiques depuis l’API meta
-  const { data: statusRes, isLoading: isLoadingStatuses, isError: isErrorStatuses } = useGetContactStatusOptionsQuery();
+  // TODO: Adapter pour les opportunités
+  const statusRes = null;
+  const isLoadingStatuses = false;
+  const isErrorStatuses = false;
+  // const { data: statusRes, isLoading: isLoadingStatuses, isError: isErrorStatuses } = useGetContactStatusOptionsQuery();
 
   // Colonnes de Kanban: utiliser l’API sinon fallback
   const kanbanStatuses: StatusOption[] = useMemo(() => {
@@ -74,7 +78,12 @@ export default function KanbanBoard({ auth }) {
   const [addContact] = useAddContactMutation();
   const [updateContact] = useUpdateContactMutation();
   const [deleteContact] = useDeleteContactMutation();
-  const [updateStatus] = useUpdateContactStatusMutation();
+  // TODO: Adapter pour les opportunités
+  const updateStatus = async ({ id, status }: any) => {
+    console.warn('updateStatus non implémenté - Kanban à adapter pour les opportunités');
+    return { unwrap: async () => {} };
+  };
+  // const [updateStatus] = useUpdateContactStatusMutation();
 
   const handleMoveContact = async (contactId: number, newStatusValue: string) => {
     try {

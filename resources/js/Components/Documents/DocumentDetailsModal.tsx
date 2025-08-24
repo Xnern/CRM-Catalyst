@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/Components/ui/dialog';
-import { X, Save, UploadCloud, FileText, Download, Eye, Building2, User, FilePlus } from 'lucide-react';
+import { X, Save, UploadCloud, FileText, Download, Eye, Building2, User, FilePlus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { TagInput } from '@/Components/Documents/TagInput';
 import { LinkPicker } from '@/Components/Documents/LinkPicker';
@@ -122,6 +122,9 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
 
   // File input reference
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  
+  // Error state for version upload
+  const [versionUploadError, setVersionUploadError] = useState<string | null>(null);
 
   // Prevent flash: hydrate only when id changes, merge otherwise
   const prevIdRef = useRef<number | null>(null);
@@ -175,13 +178,16 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
   // Upload new document version
   const handleUploadVersion = useCallback(async (file: File) => {
     if (!localDoc?.id) return;
+    setVersionUploadError(null);
     try {
       await uploadVersion({ id: localDoc.id, file }).unwrap();
       toast.success('Nouvelle version uploadée.');
       setLocalDoc((s) => s ? ({ ...s, updated_at: `${Date.now()}` }) : s);
       await onAfterChange?.();
-    } catch {
-      toast.error("Échec de l'upload de la nouvelle version.");
+    } catch (error: any) {
+      const message = error?.data?.message || error?.data?.errors?.file?.[0] || "Échec de l'upload de la nouvelle version.";
+      setVersionUploadError(message);
+      toast.error(message);
     }
   }, [localDoc?.id, uploadVersion, onAfterChange]);
 
@@ -459,7 +465,10 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                               variant="outline"
                               size="sm"
                               className="gap-1"
-                              onClick={() => fileInputRef.current?.click()}
+                              onClick={() => {
+                                setVersionUploadError(null);
+                                fileInputRef.current?.click();
+                              }}
                               type="button"
                               disabled={uploadingVersion || !localDoc?.id}
                               title={!localDoc?.id ? 'Aucun document sélectionné' : undefined}
@@ -468,6 +477,14 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                               {uploadingVersion ? 'Envoi...' : 'Nouvelle version'}
                             </Button>
                           </div>
+                          
+                          {/* Error display */}
+                          {versionUploadError && (
+                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
+                              <AlertCircle className="h-4 w-4 text-red-600 mt-0.5" />
+                              <div className="text-sm text-red-700">{versionUploadError}</div>
+                            </div>
+                          )}
                           <div className="mt-2 text-sm text-gray-700 space-y-1 max-h-48 overflow-auto pr-4">
                             {versionsList.length > 0 ? (
                               versionsList.map((v: any) => {

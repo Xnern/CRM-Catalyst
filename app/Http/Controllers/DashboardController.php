@@ -2,19 +2,25 @@
 
 namespace App\Http\Controllers;
 
-use Carbon\Carbon;
+use App\Enums\CompanyStatus;
+use App\Enums\OpportunityStage;
+use App\Models\ActivityLog;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Document;
-use App\Models\ActivityLog;
-use App\Enums\CompanyStatus;
-use App\Enums\ContactStatus;
+use App\Models\Opportunity;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 class DashboardController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('can:view dashboard')->only(['indexInertia', 'getStats', 'getContactsByStatus', 'getCompaniesByStatus', 'getOpportunitiesByStage', 'getContactsTimeline', 'getDocumentsTimeline', 'getRecentActivities']);
+    }
+
     /**
      * Render the Dashboard page (Inertia React).
      */
@@ -35,6 +41,12 @@ class DashboardController extends Controller
                 return redirect()->route('companies.showInertia', ['id' => $id]);
             case 'document':
                 return redirect()->route('documents.indexInertia', ['id' => $id]);
+            case 'opportunity':
+                // Rediriger vers la page détail de l'opportunité ou le kanban
+                return redirect()->route('kanban.indexInertia', ['opportunity_id' => $id]);
+            case 'reminder':
+                // Rediriger vers la page des rappels
+                return redirect()->route('reminders.index');
             default:
                 return redirect()->route('dashboard');
         }
@@ -43,6 +55,22 @@ class DashboardController extends Controller
     public function getStats(Request $request)
     {
         $user = $request->user();
+
+        // Opportunités stats
+        $openOpportunities = Opportunity::where('user_id', $user->id)
+            ->whereNotIn('stage', ['converti', 'perdu'])
+            ->get();
+
+        $pipelineValue = $openOpportunities->sum('amount');
+        $weightedPipeline = $openOpportunities->sum(function ($opp) {
+            return $opp->amount * $opp->probability / 100;
+        });
+
+        $wonThisMonth = Opportunity::where('user_id', $user->id)
+            ->where('stage', 'converti')
+            ->whereMonth('updated_at', Carbon::now()->month)
+            ->whereYear('updated_at', Carbon::now()->year)
+            ->sum('amount');
 
         $stats = [
             'total_contacts' => Contact::where('user_id', $user->id)->count(),
@@ -57,6 +85,16 @@ class DashboardController extends Controller
                 ->whereMonth('created_at', Carbon::now()->month)
                 ->whereYear('created_at', Carbon::now()->year)
                 ->count(),
+            // Nouvelles stats d'opportunités
+            'total_opportunities' => Opportunity::where('user_id', $user->id)->count(),
+            'open_opportunities' => $openOpportunities->count(),
+            'pipeline_value' => $pipelineValue,
+            'weighted_pipeline' => $weightedPipeline,
+            'won_this_month' => $wonThisMonth,
+            'opportunities_this_month' => Opportunity::where('user_id', $user->id)
+                ->whereMonth('created_at', Carbon::now()->month)
+                ->whereYear('created_at', Carbon::now()->year)
+                ->count(),
         ];
 
         return response()->json(['data' => $stats]);
@@ -66,19 +104,26 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        $contactsByStatus = Contact::where('user_id', $user->id)
-            ->select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'name' => $this->getStatusLabel($item->status),
-                    'value' => $item->count,
-                    'status' => $item->status,
-                ];
-            });
+        // Puisque status n'existe plus, on groupe par source ou on fait un simple compte
+        $totalContacts = Contact::where('user_id', $user->id)->count();
+        $recentContacts = Contact::where('user_id', $user->id)
+            ->where('created_at', '>=', Carbon::now()->subDays(30))
+            ->count();
+        $withCompany = Contact::where('user_id', $user->id)
+            ->whereNotNull('company_id')
+            ->count();
+        $withoutCompany = Contact::where('user_id', $user->id)
+            ->whereNull('company_id')
+            ->count();
 
-        return response()->json(['data' => $contactsByStatus]);
+        $contactsData = [
+            ['name' => 'Total', 'value' => $totalContacts, 'status' => 'total'],
+            ['name' => 'Récents (30j)', 'value' => $recentContacts, 'status' => 'recent'],
+            ['name' => 'Avec entreprise', 'value' => $withCompany, 'status' => 'with_company'],
+            ['name' => 'Sans entreprise', 'value' => $withoutCompany, 'status' => 'without_company'],
+        ];
+
+        return response()->json(['data' => $contactsData]);
     }
 
     public function getCompaniesByStatus(Request $request)
@@ -148,33 +193,142 @@ class DashboardController extends Controller
         return response()->json(['data' => $timeline]);
     }
 
+    public function getOpportunitiesByStage(Request $request)
+    {
+        $user = $request->user();
+
+        $opportunitiesByStage = Opportunity::where('user_id', $user->id)
+            ->select('stage', DB::raw('count(*) as count'), DB::raw('sum(amount) as total_amount'))
+            ->groupBy('stage')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $this->getOpportunityStageLabel($item->stage),
+                    'count' => $item->count,
+                    'amount' => $item->total_amount ?? 0,
+                    'stage' => $item->stage,
+                ];
+            });
+
+        return response()->json(['data' => $opportunitiesByStage]);
+    }
+
+    private function getOpportunityStageLabel($stage)
+    {
+        $labels = [
+            'nouveau' => 'Nouveau',
+            'qualification' => 'Qualification',
+            'proposition' => 'Proposition',
+            'négociation' => 'Négociation',
+            'converti' => 'Converti',
+            'perdu' => 'Perdu',
+        ];
+
+        return $labels[$stage] ?? ucfirst(str_replace('_', ' ', $stage));
+    }
+
     public function getRecentActivities(Request $request)
     {
         $user = $request->user();
-        $limit = $request->get('limit', 10);
+        $limit = $request->get('limit', 15);
 
-        $activities = ActivityLog::forUser($user->id)
-            ->recent($limit)
-            ->with(['subject'])
+        // Récupérer les logs d'activité depuis la table activity_logs
+        $activityLogs = ActivityLog::with(['subject', 'causer'])
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
             ->get()
             ->map(function ($log) {
+                // Déterminer le type et les détails en fonction du subject_type
+                $type = 'activity';
+                $icon = 'activity';
+                $color = 'gray';
+                $title = $log->description;
+                
+                if ($log->subject_type === 'App\\Models\\Opportunity') {
+                    $type = 'opportunity';
+                    $icon = 'target';
+                    $color = 'blue';
+                    if (str_contains($log->description, 'dupliquée')) {
+                        $icon = 'copy';
+                        $color = 'purple';
+                    } elseif (str_contains($log->description, 'créée')) {
+                        $icon = 'plus';
+                        $color = 'green';
+                    } elseif (str_contains($log->description, 'modifiée')) {
+                        $icon = 'edit';
+                        $color = 'orange';
+                    }
+                } elseif ($log->subject_type === 'App\\Models\\Contact') {
+                    $type = 'contact';
+                    $icon = 'user';
+                    $color = 'purple';
+                } elseif ($log->subject_type === 'App\\Models\\Company') {
+                    $type = 'company';
+                    $icon = 'building';
+                    $color = 'indigo';
+                } elseif ($log->subject_type === 'App\\Models\\Document') {
+                    $type = 'document';
+                    $icon = 'file';
+                    $color = 'yellow';
+                }
+                
+                // Ajouter des détails supplémentaires si disponibles
+                $description = '';
+                if ($log->causer) {
+                    $description = "Par {$log->causer->name}";
+                }
+                if ($log->properties && isset($log->properties['action'])) {
+                    $description .= " - Action: {$log->properties['action']}";
+                }
+                
                 return [
-                    'type' => $this->getActivityType($log->log_name),
-                    'title' => $log->description,
+                    'type' => $type,
+                    'title' => $title,
+                    'description' => $description ?: 'Activité système',
                     'date' => $log->created_at,
                     'id' => $log->id,
                     'subject_id' => $log->subject_id,
-                    'subject_type' => $log->subject_type,
-                    'properties' => $log->properties,
+                    'subject_type' => $type,
+                    'icon' => $icon,
+                    'color' => $color,
                 ];
             });
+
+        // Ajouter les rappels à venir si la classe existe
+        $activities = collect($activityLogs);
+        
+        if (class_exists('\App\Models\Reminder')) {
+            $reminders = \App\Models\Reminder::where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->where('reminder_date', '<=', Carbon::now()->addDays(7))
+                ->orderBy('reminder_date', 'asc')
+                ->limit(5)
+                ->get()
+                ->map(function ($reminder) {
+                    return [
+                        'type' => 'reminder',
+                        'title' => "Rappel: {$reminder->title}",
+                        'description' => $reminder->isOverdue() ? 'En retard!' : 'À venir',
+                        'date' => $reminder->reminder_date,
+                        'id' => $reminder->id,
+                        'subject_id' => $reminder->id,
+                        'subject_type' => 'reminder',
+                        'icon' => 'bell',
+                        'color' => $reminder->isOverdue() ? 'red' : 'yellow',
+                    ];
+                });
+            $activities = $activities->concat($reminders);
+        }
+
+        // Trier par date et limiter
+        $activities = $activities->sortByDesc('date')->take($limit)->values();
 
         return response()->json(['data' => $activities]);
     }
 
     private function getStatusLabel($status)
     {
-        $labels = ContactStatus::labels();
+        $labels = OpportunityStage::labels();
 
         return $labels[$status] ?? ucfirst(str_replace('_', ' ', $status));
     }
@@ -188,7 +342,7 @@ class DashboardController extends Controller
 
     private function getActivityType($logName): string
     {
-        return match($logName) {
+        return match ($logName) {
             'contact' => 'contact',
             'company' => 'company',
             'document' => 'document',
@@ -199,6 +353,22 @@ class DashboardController extends Controller
     public function exportPdf(Request $request)
     {
         $user = $request->user();
+
+        // Opportunités stats
+        $openOpportunities = Opportunity::where('user_id', $user->id)
+            ->whereNotIn('stage', ['converti', 'perdu'])
+            ->get();
+
+        $pipelineValue = $openOpportunities->sum('amount');
+        $weightedPipeline = $openOpportunities->sum(function ($opp) {
+            return $opp->amount * $opp->probability / 100;
+        });
+
+        $wonThisMonth = Opportunity::where('user_id', $user->id)
+            ->where('stage', 'converti')
+            ->whereMonth('updated_at', Carbon::now()->month)
+            ->whereYear('updated_at', Carbon::now()->year)
+            ->sum('amount');
 
         $stats = [
             'total_contacts' => Contact::where('user_id', $user->id)->count(),
@@ -213,19 +383,36 @@ class DashboardController extends Controller
                 ->whereMonth('created_at', Carbon::now()->month)
                 ->whereYear('created_at', Carbon::now()->year)
                 ->count(),
+            // Nouvelles stats d'opportunités
+            'total_opportunities' => Opportunity::where('user_id', $user->id)->count(),
+            'open_opportunities' => $openOpportunities->count(),
+            'pipeline_value' => $pipelineValue,
+            'weighted_pipeline' => $weightedPipeline,
+            'won_this_month' => $wonThisMonth,
+            'opportunities_this_month' => Opportunity::where('user_id', $user->id)
+                ->whereMonth('created_at', Carbon::now()->month)
+                ->whereYear('created_at', Carbon::now()->year)
+                ->count(),
         ];
 
-        $contactsByStatus = Contact::where('user_id', $user->id)
-            ->select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'name' => $this->getStatusLabel($item->status),
-                    'value' => $item->count,
-                    'status' => $item->status,
-                ];
-            });
+        // Grouper les contacts par source ou autre critère pertinent
+        $totalContacts = Contact::where('user_id', $user->id)->count();
+        $recentContacts = Contact::where('user_id', $user->id)
+            ->where('created_at', '>=', Carbon::now()->subDays(30))
+            ->count();
+        $withCompany = Contact::where('user_id', $user->id)
+            ->whereNotNull('company_id')
+            ->count();
+        $withoutCompany = Contact::where('user_id', $user->id)
+            ->whereNull('company_id')
+            ->count();
+
+        $contactsByStatus = collect([
+            ['name' => 'Total', 'value' => $totalContacts, 'status' => 'total'],
+            ['name' => 'Récents (30j)', 'value' => $recentContacts, 'status' => 'recent'],
+            ['name' => 'Avec entreprise', 'value' => $withCompany, 'status' => 'with_company'],
+            ['name' => 'Sans entreprise', 'value' => $withoutCompany, 'status' => 'without_company'],
+        ]);
 
         $companiesByStatus = Company::where('owner_id', $user->id)
             ->select('status', DB::raw('count(*) as count'))
@@ -271,6 +458,19 @@ class DashboardController extends Controller
                 ];
             });
 
+        $opportunitiesByStage = Opportunity::where('user_id', $user->id)
+            ->select('stage', DB::raw('count(*) as count'), DB::raw('sum(amount) as total_amount'))
+            ->groupBy('stage')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $this->getOpportunityStageLabel($item->stage),
+                    'count' => $item->count,
+                    'amount' => $item->total_amount ?? 0,
+                    'stage' => $item->stage,
+                ];
+            });
+
         $recentActivities = ActivityLog::forUser($user->id)
             ->recent(10)
             ->with(['subject'])
@@ -288,6 +488,7 @@ class DashboardController extends Controller
             'stats' => $stats,
             'contactsByStatus' => $contactsByStatus,
             'companiesByStatus' => $companiesByStatus,
+            'opportunitiesByStage' => $opportunitiesByStage,
             'contactsTimeline' => $contactsTimeline,
             'documentsTimeline' => $documentsTimeline,
             'recentActivities' => $recentActivities,
@@ -303,7 +504,7 @@ class DashboardController extends Controller
             'isRemoteEnabled' => true,
         ]);
 
-        $filename = 'rapport-dashboard-' . Carbon::now()->format('Y-m-d_H-i') . '.pdf';
+        $filename = 'rapport-dashboard-'.Carbon::now()->format('Y-m-d_H-i').'.pdf';
 
         return $pdf->download($filename);
     }

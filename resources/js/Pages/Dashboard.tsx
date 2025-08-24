@@ -5,8 +5,9 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/Components/ui/card';
 import { Button } from '@/Components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/Components/ui/dialog';
 import { Badge } from '@/Components/ui/badge';
-import { RefreshCw, Users, Building, FileText, Calendar, TrendingUp, TrendingDown, Eye, Clock, Download } from 'lucide-react';
+import { RefreshCw, Users, Building, FileText, Calendar, TrendingUp, TrendingDown, Eye, Clock, Download, DollarSign, Target, TrendingUp as TrendingUpIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/utils';
 import {
   PieChart,
   Pie,
@@ -27,6 +28,7 @@ import {
   useGetContactsTimelineApiQuery,
   useGetDocumentsTimelineApiQuery,
   useGetRecentActivitiesApiQuery,
+  useGetOpportunitiesByStageApiQuery,
 } from '@/services/api';
 
 // Color palette for charts
@@ -34,13 +36,16 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 
 // Activity interface definition
 interface Activity {
-  type: 'contact' | 'company' | 'document' | 'activity';
+  type: 'contact' | 'company' | 'document' | 'activity' | 'opportunity' | 'reminder';
   title: string;
+  description?: string;
   date: string;
   id: number;
   subject_id?: number;
   subject_type?: string;
   properties?: Record<string, any>;
+  icon?: string;
+  color?: string;
 }
 
 // Stats card component props interface
@@ -75,7 +80,7 @@ const StatsCard: React.FC<StatsCardProps> = ({ title, value, icon, trend, trendL
               )}
             </div>
           </div>
-          <div className="text-blue-600">{icon}</div>
+          <div className="text-primary-600">{icon}</div>
         </div>
       </CardContent>
     </Card>
@@ -194,7 +199,7 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
       return;
     }
 
-    router.visit(`/dashboard/redirect-object/${type}/${id}`);
+    router.visit(`/tableau-de-bord/redirect-object/${type}/${id}`);
   };
 
   return (
@@ -350,6 +355,8 @@ const RecentActivityItem: React.FC<{ activity: Activity; onViewDetails: (activit
       case 'contact': return <Users className="h-4 w-4" />;
       case 'company': return <Building className="h-4 w-4" />;
       case 'document': return <FileText className="h-4 w-4" />;
+      case 'opportunity': return <Target className="h-4 w-4" />;
+      case 'reminder': return <Clock className="h-4 w-4" />;
       default: return <Calendar className="h-4 w-4" />;
     }
   };
@@ -358,9 +365,11 @@ const RecentActivityItem: React.FC<{ activity: Activity; onViewDetails: (activit
   const getTypeLabel = (type: string) => {
     switch (type) {
       case 'contact': return 'Contact';
-      case 'company': return 'Company';
+      case 'company': return 'Entreprise';
       case 'document': return 'Document';
-      default: return 'Activity';
+      case 'opportunity': return 'Opportunité';
+      case 'reminder': return 'Rappel';
+      default: return 'Activité';
     }
   };
 
@@ -460,6 +469,16 @@ export default function Dashboard({ auth }) {
     refetchOnFocus: true,
     refetchOnReconnect: true,
   });
+
+  // Opportunities by stage
+  const {
+    data: opportunitiesByStageData,
+    isLoading: isLoadingOpportunities,
+    refetch: refetchOpportunities
+  } = useGetOpportunitiesByStageApiQuery?.(undefined, {
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  }) || { data: null, isLoading: false, refetch: () => {} };
 
   // ✅ ACTIVITIES with automatic polling for real-time data
   const {
@@ -571,6 +590,7 @@ export default function Dashboard({ auth }) {
     refetchCompanies();
     refetchContactsTimeline();
     refetchDocumentsTimeline();
+    refetchOpportunities();
     toast.success('Data refreshed!');
   };
 
@@ -587,7 +607,7 @@ export default function Dashboard({ auth }) {
   const handleExportPdf = async () => {
     setIsExportingPdf(true);
     try {
-      const response = await fetch('/api/dashboard/export-pdf', {
+      const response = await fetch('/api/tableau-de-bord/export-pdf', {
         method: 'GET',
         headers: {
           'Accept': 'application/pdf',
@@ -666,7 +686,7 @@ export default function Dashboard({ auth }) {
             <Button
               onClick={handleExportPdf}
               variant="default"
-              className="bg-teal-600 hover:bg-teal-700"
+              className="bg-primary-600 hover:bg-primary-700"
               disabled={isLoadingStats || isExportingPdf}
             >
               {isExportingPdf ? (
@@ -691,14 +711,14 @@ export default function Dashboard({ auth }) {
             value={stats.total_contacts}
             icon={<Users className="h-8 w-8" />}
             trend={stats.contacts_this_month}
-            trendLabel="this month"
+            trendLabel="ce mois"
           />
           <StatsCard
-            title="Total Companies"
+            title="Total Entreprises"
             value={stats.total_companies}
             icon={<Building className="h-8 w-8" />}
             trend={stats.companies_this_month}
-            trendLabel="this month"
+            trendLabel="ce mois"
           />
           <StatsCard
             title="Total Documents"
@@ -706,11 +726,70 @@ export default function Dashboard({ auth }) {
             icon={<FileText className="h-8 w-8" />}
           />
           <StatsCard
-            title="Total Events"
-            value={stats.total_events}
-            icon={<Calendar className="h-8 w-8" />}
+            title="Total Opportunités"
+            value={stats.total_opportunities || 0}
+            icon={<Target className="h-8 w-8" />}
+            trend={stats.opportunities_this_month}
+            trendLabel="ce mois"
           />
         </div>
+
+        {/* Sales KPIs */}
+        {stats.pipeline_value !== undefined && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Valeur du Pipeline</p>
+                    <p className="text-2xl font-bold">{formatCurrency(stats.pipeline_value || 0)}</p>
+                    <p className="text-xs text-gray-500 mt-1">{stats.open_opportunities || 0} affaires ouvertes</p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-primary-600" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Pipeline Pondéré</p>
+                    <p className="text-2xl font-bold">{formatCurrency(stats.weighted_pipeline || 0)}</p>
+                    <p className="text-xs text-gray-500 mt-1">Basé sur la probabilité</p>
+                  </div>
+                  <TrendingUpIcon className="h-8 w-8 text-primary-600" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Gagné ce Mois</p>
+                    <p className="text-2xl font-bold text-primary-600">{formatCurrency(stats.won_this_month || 0)}</p>
+                    <p className="text-xs text-gray-500 mt-1">Affaires conclues</p>
+                  </div>
+                  <Target className="h-8 w-8 text-primary-600" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Taille Moyenne</p>
+                    <p className="text-2xl font-bold">{formatCurrency((stats.pipeline_value || 0) / Math.max(stats.open_opportunities || 1, 1))}</p>
+                    <p className="text-xs text-gray-500 mt-1">Par opportunité</p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-primary-600" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Charts Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -718,7 +797,7 @@ export default function Dashboard({ auth }) {
           {/* Contacts by Status Chart */}
           <Card>
             <CardHeader>
-              <CardTitle>Contact Distribution</CardTitle>
+              <CardTitle>Répartition des Contacts</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoadingContacts ? (
@@ -748,7 +827,7 @@ export default function Dashboard({ auth }) {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-64 flex items-center justify-center text-gray-500">
-                  No data available
+                  Aucune donnée disponible
                 </div>
               )}
             </CardContent>
@@ -757,7 +836,7 @@ export default function Dashboard({ auth }) {
           {/* Companies by Status Chart */}
           <Card>
             <CardHeader>
-              <CardTitle>Company Distribution</CardTitle>
+              <CardTitle>Répartition des Entreprises</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoadingCompanies ? (
@@ -787,17 +866,59 @@ export default function Dashboard({ auth }) {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-64 flex items-center justify-center text-gray-500">
-                  No data available
+                  Aucune donnée disponible
                 </div>
               )}
             </CardContent>
           </Card>
+          {/* Opportunities by Stage Chart */}
+          {opportunitiesByStageData && opportunitiesByStageData.data && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Pipeline des Opportunités</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingOpportunities ? (
+                  <div className="h-64 flex items-center justify-center">
+                    <RefreshCw className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : opportunitiesByStageData.data.length > 0 ? (
+                  <div className="space-y-4">
+                    {opportunitiesByStageData.data.map((stage: any, index: number) => (
+                      <div key={stage.stage} className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">{stage.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">{stage.count} affaires</span>
+                            <span className="text-sm font-semibold">{formatCurrency(stage.amount || 0)}</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="h-2 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${(stage.amount / Math.max(...opportunitiesByStageData.data.map((s: any) => s.amount || 1))) * 100}%`,
+                              backgroundColor: COLORS[index % COLORS.length]
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="h-64 flex items-center justify-center text-gray-500">
+                    Aucune donnée d'opportunité disponible
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Evolution Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>6-Month Evolution</CardTitle>
+            <CardTitle>Évolution sur 6 Mois</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoadingContactsTimeline || isLoadingDocumentsTimeline ? (
@@ -830,7 +951,7 @@ export default function Dashboard({ auth }) {
               </ResponsiveContainer>
             ) : (
               <div className="h-64 flex items-center justify-center text-gray-500">
-                No evolution data available
+                Aucune donnée d'évolution disponible
               </div>
             )}
           </CardContent>
@@ -840,11 +961,11 @@ export default function Dashboard({ auth }) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              Recent Activities
+              Activités Récentes
               {/* ✅ Real-time polling indicator */}
               <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full flex items-center gap-1">
                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                Real-time
+                Temps réel
               </span>
             </CardTitle>
           </CardHeader>

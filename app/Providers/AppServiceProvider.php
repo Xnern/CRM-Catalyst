@@ -5,10 +5,12 @@ namespace App\Providers;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Document;
+use App\Models\Opportunity;
 use App\Policies\ContactPolicy;
 use App\Observers\CompanyObserver;
 use App\Observers\ContactObserver;
 use App\Observers\DocumentObserver;
+use App\Observers\OpportunityObserver;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -34,5 +36,6 @@ class AppServiceProvider extends ServiceProvider
         Contact::observe(ContactObserver::class);
         Company::observe(CompanyObserver::class);
         Document::observe(DocumentObserver::class);
+        Opportunity::observe(OpportunityObserver::class);
     }
 }

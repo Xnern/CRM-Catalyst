@@ -2,10 +2,9 @@
 
 namespace App\Http\Requests\Contacts;
 
-use App\Enums\ContactStatus;
-use Illuminate\Validation\Rule;
+use App\Traits\CleansPhoneNumbers;
 use Illuminate\Foundation\Http\FormRequest;
-use App\Traits\CleansPhoneNumbers; // Importer le trait
+use Illuminate\Validation\Rule; // Importer le trait
 
 class UpdateContactRequest extends FormRequest
 {
@@ -17,6 +16,7 @@ class UpdateContactRequest extends FormRequest
     public function authorize(): bool
     {
         $contact = $this->route('contact');
+
         return true;
     }
 
@@ -48,7 +48,6 @@ class UpdateContactRequest extends FormRequest
                 'max:100',
                 Rule::unique('contacts', 'email')->ignore($contactId),
             ],
-            'status' => ['sometimes', 'string', Rule::in(ContactStatus::values())],
             'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?\d{10,15}$/'],
             'address' => ['nullable', 'string', 'max:255'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
@@ -64,8 +63,6 @@ class UpdateContactRequest extends FormRequest
         return [
             'name.required' => 'Le nom du contact est obligatoire.',
             'name.max' => 'Le nom ne doit pas dépasser :max caractères.',
-            'status.string' => 'Le statut doit être une chaîne de caractères.',
-            'status.in' => 'Le statut fourni n\'est pas valide. Veuillez choisir',
             'email.email' => 'Veuillez entrer une adresse email valide.',
             'email.max' => "L'email ne doit pas dépasser :max caractères.",
             'email.unique' => 'Cet e-mail est déjà utilisé par un autre contact.',

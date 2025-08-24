@@ -10,8 +10,20 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  X
+  X,
+  TrendingUp,
+  User,
+  Users,
+  Bell,
+  Mail,
+  Kanban,
+  ChevronDown,
+  BarChart3,
+  ArrowUp
 } from 'lucide-react';
+import { ThemeProvider } from '@/Components/ThemeProvider';
+import { usePermissions } from '@/hooks/usePermissions';
+import RemindersNotification from '@/Components/RemindersNotification';
 
 // --- MOCK COMPONENTS AND FUNCTIONS FOR STANDALONE DEMONSTRATION ---
 // IMPORTANT: Dans votre projet Laravel/Inertia.js, supprimez ces définitions de mock.
@@ -122,7 +134,7 @@ Dropdown.Link = ({ href, children, method = 'get', as = 'a', className = '', ...
     if (as === 'button') {
         return (
             <button
-                type="button"
+                type={'button' as 'button'}
                 onClick={() => window.location.href = href}
                 className={`block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 transition duration-150 ease-in-out ${className}`}
                 {...props}
@@ -179,6 +191,8 @@ interface UserProps {
 interface PageProps {
     auth: {
         user: UserProps;
+        permissions: string[];
+        roles: string[];
     };
     // Ajoutez d'autres propriétés de page si nécessaire
 }
@@ -187,7 +201,9 @@ export default function Authenticated({
     header,
     children,
 }: PropsWithChildren<{ header?: ReactNode }>) {
-    const { props: { auth: { user } } } = usePage<PageProps>();
+    const page = usePage<PageProps>();
+    const user = page.props.auth?.user;
+    const { can } = usePermissions();
     const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
         if (typeof window !== 'undefined') {
             const savedState = localStorage.getItem('sidebarCollapsed');
@@ -196,6 +212,7 @@ export default function Authenticated({
         return false;
     });
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
+    const [showScrollTop, setShowScrollTop] = useState(false);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -203,25 +220,44 @@ export default function Authenticated({
         }
     }, [sidebarCollapsed]);
 
+    useEffect(() => {
+        const handleScroll = () => {
+            setShowScrollTop(window.scrollY > 200);
+        };
+
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
     interface NavLinkItem {
         id: string;
         label: string;
         icon: ReactNode;
         route: string;
+        permission?: string;
     }
 
-    const navLinks: NavLinkItem[] = [
-        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, route: 'dashboard' },
-        { id: 'contacts', label: 'Contacts', icon: <Contact size={20} />, route: 'contacts.indexInertia' },
-        { id: 'companies', label: 'Entreprises', icon: <Building2 size={20} />, route: 'companies.indexInertia' },
-        { id: 'kanban', label: 'Kanban', icon: <Building2 size={20} />, route: 'kanban.indexInertia' },
-        { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'calendar.indexInertia' },
-        { id: 'documents', label: 'Documents', icon: <FileText size={20} />, route: 'documents.indexInertia' },
-        { id: 'settings', label: 'Paramètres', icon: <Settings size={20} />, route: 'contacts.index' },
+    const allNavLinks: NavLinkItem[] = [
+        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, route: 'dashboard', permission: 'view dashboard' },
+        { id: 'opportunities', label: 'Opportunités', icon: <TrendingUp size={20} />, route: 'opportunities.index', permission: 'view opportunities' },
+        { id: 'contacts', label: 'Contacts', icon: <Contact size={20} />, route: 'contacts.indexInertia', permission: 'view contacts' },
+        { id: 'companies', label: 'Entreprises', icon: <Building2 size={20} />, route: 'companies.indexInertia', permission: 'view companies' },
+        { id: 'kanban', label: 'Kanban', icon: <Kanban size={20} />, route: 'kanban.indexInertia' },
+        { id: 'forecast', label: 'Prévisions', icon: <BarChart3 size={20} />, route: 'forecast.index', permission: 'view opportunities' },
+        { id: 'reminders', label: 'Rappels', icon: <Bell size={20} />, route: 'reminders.index' },
+        { id: 'email-templates', label: 'Templates Email', icon: <Mail size={20} />, route: 'email-templates.index' },
+        { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'calendar.indexInertia', permission: 'view calendar' },
+        { id: 'documents', label: 'Documents', icon: <FileText size={20} />, route: 'documents.indexInertia', permission: 'view documents' },
+        { id: 'users', label: 'Utilisateurs', icon: <Users size={20} />, route: 'users.index', permission: 'view users' },
+        { id: 'profile', label: 'Profil', icon: <User size={20} />, route: 'profile.edit' },
+        { id: 'settings', label: 'Paramètres', icon: <Settings size={20} />, route: 'settings.indexInertia', permission: 'view crm settings' },
     ];
 
+    const navLinks = allNavLinks.filter(link => !link.permission || can(link.permission));
+
     return (
-        <div className="min-h-screen bg-background text-foreground flex font-inter z-50">
+        <ThemeProvider>
+            <div className="min-h-screen bg-background text-foreground flex font-inter z-50">
             {/* Sidebar Desktop */}
             <div
                 className={`hidden md:flex flex-col h-screen fixed bg-card border-r border-border transition-all duration-300 ease-in-out ${
@@ -246,8 +282,8 @@ export default function Authenticated({
                 </div>
 
                 {/* Main Navigation Links */}
-                <nav className="flex-1 py-4 overflow-y-auto">
-                    <ul className="space-y-1 px-2">
+                <nav className="flex-1 overflow-y-auto relative group">
+                    <ul className="space-y-1 px-2 py-4">
                         {navLinks.map((link) => (
                             <li key={link.id}>
                                 <NavLink
@@ -276,8 +312,8 @@ export default function Authenticated({
                     </ul>
                 </nav>
 
-                {/* Bottom Section: User Profile Dropdown and Collapse Button */}
-                <div className="p-4 border-t border-border">
+                {/* Bottom Section: User Profile */}
+                <div className="p-4 border-t border-border space-y-3">
                     {/* User Profile Dropdown */}
                     <Dropdown>
                         <Dropdown.Trigger>
@@ -337,7 +373,7 @@ export default function Authenticated({
                     {/* Sidebar Collapse/Expand Button */}
                     <button
                         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                        className={`mt-4 flex items-center justify-center w-8 h-8 p-2 text-teal-600 hover:text-white rounded-lg bg-muted hover:bg-teal-600 transition-colors duration-200 text-foreground absolute bottom-32 -right-4 shadow-lg`}
+                        className={`mt-4 flex items-center justify-center w-8 h-8 p-2 text-primary-600 hover:text-white rounded-lg bg-muted hover:bg-primary-600 transition-colors duration-200 text-foreground absolute bottom-32 -right-4 shadow-lg`}
                     >
                         <ChevronLeft size={24} className={`${sidebarCollapsed ? 'rotate-180' : ''}`} />
                     </button>
@@ -457,7 +493,8 @@ export default function Authenticated({
                                 </div>
                             </div>
 
-                            <div className="flex items-center">
+                            <div className="flex items-center gap-2">
+                                <RemindersNotification />
                                 <Dropdown>
                                     <Dropdown.Trigger>
                                         {({ isOpen }) => (
@@ -518,5 +555,18 @@ export default function Authenticated({
                 <main className="flex-1 p-4 sm:p-6">{children}</main>
             </div>
         </div>
+        
+        {/* Scroll to top button - Outside main layout structure */}
+        {showScrollTop && (
+            <button
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="fixed bottom-8 right-8 p-4 bg-primary text-primary-foreground rounded-full shadow-xl hover:bg-primary/90 hover:scale-110 transition-all duration-200 z-[9999] ring-2 ring-white/20"
+                aria-label="Retour en haut"
+                style={{ position: 'fixed' }}
+            >
+                <ArrowUp size={28} />
+            </button>
+        )}
+        </ThemeProvider>
     );
 }

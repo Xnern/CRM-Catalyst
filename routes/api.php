@@ -1,21 +1,21 @@
 <?php
 
+use App\Http\Controllers\CompanyContactController;
+use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\ContactController;
+use App\Http\Controllers\CrmSettingsController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\GoogleController;
+use App\Http\Controllers\LocalCalendarEventsController;
+use App\Http\Controllers\MetaController;
+use App\Http\Controllers\ReminderController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-
-use App\Http\Controllers\MetaController;
-
-use App\Http\Controllers\GoogleController;
-use App\Http\Controllers\CompanyController;
-use App\Http\Controllers\ContactController;
-use App\Http\Controllers\DocumentController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\GoogleAuthController;
 use Illuminate\Validation\ValidationException;
-use App\Http\Controllers\CompanyContactController;
-use App\Http\Controllers\LocalCalendarEventsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -99,10 +99,11 @@ Route::middleware('auth:sanctum')->group(function () {
     /**
      * Dashboard
      */
-    Route::prefix('dashboard')->name('dashboard.')->group(function () {
+    Route::prefix('tableau-de-bord')->name('dashboard.')->group(function () {
         Route::get('/stats', [DashboardController::class, 'getStats'])->name('stats');
         Route::get('/contacts-by-status', [DashboardController::class, 'getContactsByStatus'])->name('contacts-by-status');
         Route::get('/companies-by-status', [DashboardController::class, 'getCompaniesByStatus'])->name('companies-by-status');
+        Route::get('/opportunities-by-stage', [DashboardController::class, 'getOpportunitiesByStage'])->name('opportunities-by-stage');
         Route::get('/contacts-timeline', [DashboardController::class, 'getContactsTimeline'])->name('contacts-timeline');
         Route::get('/documents-timeline', [DashboardController::class, 'getDocumentsTimeline'])->name('documents-timeline');
         Route::get('/recent-activities', [DashboardController::class, 'getRecentActivities'])->name('recent-activities');
@@ -110,6 +111,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/export-pdf', [DashboardController::class, 'exportPdf'])->name('export-pdf');
     });
 
+    Route::prefix('settings')->group(function () {
+        Route::get('/', [CrmSettingsController::class, 'index']);
+        Route::get('/public', [CrmSettingsController::class, 'public']);
+        Route::post('/', [CrmSettingsController::class, 'update']);
+        Route::post('/single', [CrmSettingsController::class, 'updateSetting']);
+        Route::post('/reset', [CrmSettingsController::class, 'reset']);
+    });
 
     // Current user
     Route::get('/user', function (Request $request) {
@@ -124,20 +132,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Resource routes (index, store, show, update, destroy)
     Route::apiResource('contacts', ContactController::class)->names([
-        'index'   => 'contacts.index',
-        'store'   => 'contacts.store',
-        'show'    => 'contacts.show',
-        'update'  => 'contacts.update',
+        'index' => 'contacts.index',
+        'store' => 'contacts.store',
+        'show' => 'contacts.show',
+        'update' => 'contacts.update',
         'destroy' => 'contacts.destroy',
     ]);
 
     // Constrain parameterized routes to numeric IDs to avoid collisions with "search"
-    Route::put('/contacts/{contact}/status', [ContactController::class, 'updateStatus'])
-        ->whereNumber('contact')
-        ->name('contacts.update-status');
-
-    Route::get('/contacts/by-status/{status}', [ContactController::class, 'getContactsByStatus'])
-        ->name('contacts.by-status');
 
     Route::get('/companies/by-status/{status}', [CompanyController::class, 'getCompaniesByStatus'])
         ->name('companies.by-status');
@@ -212,8 +214,27 @@ Route::middleware('auth:sanctum')->group(function () {
     /**
      * Meta
      */
-    Route::get('/meta/contact-statuses', [MetaController::class, 'contactStatuses']);
     Route::get('/meta/company-statuses', [MetaController::class, 'companyStatuses']);
+
+    /**
+     * Profile
+     */
+    Route::post('/profil/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar.update');
+
+    /**
+     * User Management (Admin only)
+     */
+    Route::prefix('users')->group(function () {
+        Route::get('/', [App\Http\Controllers\UserManagementController::class, 'apiIndex']);
+        Route::get('/roles-permissions', [App\Http\Controllers\UserManagementController::class, 'getRolesAndPermissions']);
+        Route::get('/{id}', [App\Http\Controllers\UserManagementController::class, 'show']);
+        Route::post('/', [App\Http\Controllers\UserManagementController::class, 'store']);
+        Route::put('/{id}', [App\Http\Controllers\UserManagementController::class, 'update']);
+        Route::put('/{id}/roles', [App\Http\Controllers\UserManagementController::class, 'updateRoles']);
+        Route::put('/{id}/permissions', [App\Http\Controllers\UserManagementController::class, 'updatePermissions']);
+        Route::post('/{id}/send-verification', [App\Http\Controllers\UserManagementController::class, 'sendVerificationEmail']);
+        Route::delete('/{id}', [App\Http\Controllers\UserManagementController::class, 'destroy']);
+    });
 
     /**
      * Documents
@@ -243,4 +264,63 @@ Route::middleware('auth:sanctum')->group(function () {
         ->whereNumber('document');
     Route::get('/documents/{document}/versions', [DocumentController::class, 'listVersions'])
         ->whereNumber('document');
+
+    /**
+     * Opportunities (Sales)
+     */
+    Route::get('/opportunites', [App\Http\Controllers\OpportunityController::class, 'index'])
+        ->name('opportunities.index');
+    Route::post('/opportunites', [App\Http\Controllers\OpportunityController::class, 'store'])
+        ->name('opportunities.store');
+    Route::get('/opportunites/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'show'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.show');
+    Route::put('/opportunites/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'update'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.update');
+    Route::delete('/opportunites/{opportunity}', [App\Http\Controllers\OpportunityController::class, 'destroy'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.destroy');
+
+    // Opportunity activities
+    Route::post('/opportunites/{opportunity}/activites', [App\Http\Controllers\OpportunityController::class, 'addActivity'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.activities.store');
+    Route::post('/opportunites-activites/{activity}/terminer', [App\Http\Controllers\OpportunityController::class, 'completeActivity'])
+        ->whereNumber('activity')
+        ->name('opportunities.activities.complete');
+    
+    // Opportunity timeline
+    Route::get('/opportunites/{opportunity}/timeline', [App\Http\Controllers\OpportunityTimelineController::class, 'index'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.timeline');
+    Route::post('/opportunites/{opportunity}/timeline/note', [App\Http\Controllers\OpportunityTimelineController::class, 'addQuickNote'])
+        ->whereNumber('opportunity')
+        ->name('opportunities.timeline.note');
+    
+    /**
+     * Reminders
+     */
+    Route::get('/rappels/upcoming', [ReminderController::class, 'apiUpcoming'])
+        ->name('reminders.upcoming');
+    Route::get('/rappels/count', [ReminderController::class, 'apiCount'])
+        ->name('reminders.count');
+    Route::post('/rappels/{reminder}/complete', [ReminderController::class, 'complete'])
+        ->whereNumber('reminder')
+        ->name('reminders.complete');
+    Route::post('/rappels/{reminder}/snooze', [ReminderController::class, 'snooze'])
+        ->whereNumber('reminder')
+        ->name('reminders.snooze');
+    
+    /**
+     * Email Templates
+     */
+    Route::get('/email-templates', [App\Http\Controllers\EmailTemplateController::class, 'apiIndex'])
+        ->name('email-templates.api.index');
+    Route::get('/email-templates/{template}/preview', [App\Http\Controllers\EmailTemplateController::class, 'preview'])
+        ->whereNumber('template')
+        ->name('email-templates.preview');
+    Route::post('/email-templates/{template}/send', [App\Http\Controllers\EmailTemplateController::class, 'send'])
+        ->whereNumber('template')
+        ->name('email-templates.send');
 });
