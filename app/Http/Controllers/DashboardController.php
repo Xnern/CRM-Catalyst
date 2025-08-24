@@ -42,10 +42,10 @@ class DashboardController extends Controller
             case 'document':
                 return redirect()->route('documents.indexInertia', ['id' => $id]);
             case 'opportunity':
-                // Rediriger vers la page détail de l'opportunité ou le kanban
+                // Redirect to opportunity detail page or kanban
                 return redirect()->route('kanban.indexInertia', ['opportunity_id' => $id]);
             case 'reminder':
-                // Rediriger vers la page des rappels
+                // Redirect to reminders page
                 return redirect()->route('reminders.index');
             default:
                 return redirect()->route('dashboard');

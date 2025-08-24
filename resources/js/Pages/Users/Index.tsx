@@ -6,6 +6,7 @@ import { FiUser, FiMail, FiShield, FiEdit2, FiTrash2, FiPlus, FiSearch, FiKey, F
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface User {
     id: number;
@@ -151,6 +152,7 @@ const getPermissionCategory = (permission: string): string => {
 };
 
 export default function UsersIndex({ auth }: PageProps) {
+    const themeColors = useThemeColors();
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -389,7 +391,7 @@ export default function UsersIndex({ auth }: PageProps) {
         const colors = {
             'super-admin': 'bg-gradient-to-r from-red-500 to-pink-500 text-white',
             'admin': 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white',
-            'manager': 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white',
+            'manager': `bg-gradient-to-r text-white`,
             'sales': 'bg-gradient-to-r from-green-500 to-emerald-500 text-white',
             'support': 'bg-gradient-to-r from-gray-500 to-slate-500 text-white',
         };
@@ -527,10 +529,10 @@ export default function UsersIndex({ auth }: PageProps) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-600 dark:text-gray-400">Nouveaux (30j)</p>
-                                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{stats.recentUsers}</p>
+                                    <p className="text-2xl font-bold mt-1" style={{ color: themeColors.primary }}>{stats.recentUsers}</p>
                                 </div>
-                                <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-lg">
-                                    <FiAlertCircle className="text-blue-600 dark:text-blue-400 w-6 h-6" />
+                                <div className="p-3 rounded-lg" style={{ backgroundColor: `${themeColors.primary}20` }}>
+                                    <FiAlertCircle className="w-6 h-6" style={{ color: themeColors.primary }} />
                                 </div>
                             </div>
                         </motion.div>
@@ -732,7 +734,10 @@ export default function UsersIndex({ auth }: PageProps) {
                                                             {user.roles.length > 0 ? user.roles.map((role) => (
                                                                 <span
                                                                     key={role.id}
-                                                                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold ${getRoleBadgeColor(role.name)} shadow-sm`}
+                                                                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold ${role.name === 'manager' ? 'bg-gradient-to-r text-white' : getRoleBadgeColor(role.name)} shadow-sm`}
+                                                                    style={role.name === 'manager' ? { 
+                                                                        background: `linear-gradient(45deg, ${themeColors.primary}, #06b6d4)` 
+                                                                    } : {}}
                                                                 >
                                                                     <span>{getRoleIcon(role.name)}</span>
                                                                     <span>{translateRole(role.name)}</span>
@@ -1166,7 +1171,7 @@ export default function UsersIndex({ auth }: PageProps) {
                                         </p>
                                         <div className="flex items-center gap-4 mt-2">
                                             <div className="flex items-center gap-1">
-                                                <div className="w-3 h-3 bg-blue-600 rounded"></div>
+                                                <div className="w-3 h-3 rounded" style={{ backgroundColor: themeColors.primary }}></div>
                                                 <span className="text-xs text-gray-500 dark:text-gray-400">Via rôle</span>
                                             </div>
                                             <div className="flex items-center gap-1">
@@ -1215,9 +1220,13 @@ export default function UsersIndex({ auth }: PageProps) {
                                                             isDirectlySelected
                                                                 ? 'bg-green-50 dark:bg-green-900/20 border-2 border-green-500'
                                                                 : isFromRole
-                                                                ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 dark:border-blue-700'
+                                                                ? 'border-2'
                                                                 : 'bg-gray-50 dark:bg-gray-700/50 border-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600'
                                                         }`}
+                                                        style={isFromRole && !isDirectlySelected ? { 
+                                                            backgroundColor: `${themeColors.primary}0d`,
+                                                            borderColor: `${themeColors.primary}50`
+                                                        } : {}}
                                                     >
                                                         <input
                                                             type="checkbox"
@@ -1235,9 +1244,12 @@ export default function UsersIndex({ auth }: PageProps) {
                                                             isDirectlySelected
                                                                 ? 'bg-green-600'
                                                                 : isFromRole
-                                                                ? 'bg-blue-600'
+                                                                ? ''
                                                                 : 'bg-white dark:bg-gray-600 border-2 border-gray-300 dark:border-gray-500'
-                                                        }`}>
+                                                        }`}
+                                                        style={isFromRole && !isDirectlySelected ? { 
+                                                            backgroundColor: themeColors.primary 
+                                                        } : {}}>
                                                             {(isDirectlySelected || isFromRole) && (
                                                                 <FiCheckCircle className="w-3 h-3 text-white" />
                                                             )}
@@ -1248,7 +1260,13 @@ export default function UsersIndex({ auth }: PageProps) {
                                                                     {permission.label || translatePermission(permission.name)}
                                                                 </span>
                                                                 {isFromRole && !isDirectlySelected && (
-                                                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                                                                    <span 
+                                                                        className="text-xs px-2 py-0.5 rounded-full"
+                                                                        style={{ 
+                                                                            backgroundColor: `${themeColors.primary}20`,
+                                                                            color: themeColors.primary 
+                                                                        }}
+                                                                    >
                                                                         Via rôle
                                                                     </span>
                                                                 )}

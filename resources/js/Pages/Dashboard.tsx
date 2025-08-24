@@ -8,6 +8,7 @@ import { Badge } from '@/Components/ui/badge';
 import { RefreshCw, Users, Building, FileText, Calendar, TrendingUp, TrendingDown, Eye, Clock, Download, DollarSign, Target, TrendingUp as TrendingUpIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import {
   PieChart,
   Pie,
@@ -102,6 +103,7 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const themeColors = useThemeColors();
   if (!activity) return null;
 
   // Get appropriate icon for activity type
@@ -117,7 +119,14 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
   // Get color scheme for activity type
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'contact': return 'bg-blue-100 text-blue-800';
+      case 'contact': 
+        return {
+          className: 'px-2 py-1 rounded-full text-xs',
+          style: {
+            backgroundColor: `${themeColors.primary}20`,
+            color: themeColors.primary
+          }
+        };
       case 'company': return 'bg-green-100 text-green-800';
       case 'document': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -140,19 +149,26 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
       case 'created': return 'bg-green-100 text-green-800';
       case 'updated': return 'bg-yellow-100 text-yellow-800';
       case 'deleted': return 'bg-red-100 text-red-800';
-      case 'uploaded': return 'bg-blue-100 text-blue-800';
+      case 'uploaded': 
+        return {
+          className: 'px-2 py-1 rounded-full text-xs',
+          style: {
+            backgroundColor: `${themeColors.primary}20`,
+            color: themeColors.primary
+          }
+        };
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  // Get human-readable label for action type
+  // Get human-readable label for action type (French translation)
   const getActionLabel = (action: string) => {
     switch (action) {
-      case 'created': return 'Created';
-      case 'updated': return 'Updated';
-      case 'deleted': return 'Deleted';
-      case 'uploaded': return 'Uploaded';
-      case 'status_changed': return 'Status Changed';
+      case 'created': return 'Créé';
+      case 'updated': return 'Modifié';
+      case 'deleted': return 'Supprimé';
+      case 'uploaded': return 'Téléversé';
+      case 'status_changed': return 'Statut modifié';
       default: return action;
     }
   };
@@ -186,20 +202,46 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
 
   // Handle navigation to related object
   const handleViewObject = () => {
-    if (!activity.subject_type || !activity.subject_id) {
-      toast.error('Unable to redirect to this object');
+    if (!activity.subject_id) {
+      toast.error('Impossible de rediriger vers cet objet');
       return;
     }
 
-    const type = activity.subject_type.split('\\').pop()?.toLowerCase();
+    // Déterminer le type à partir de activity.type ou activity.subject_type
+    let type = activity.type || activity.subject_type || '';
     const id = activity.subject_id;
 
-    if (!type) {
-      toast.error('Unrecognized object type');
-      return;
+    // Si le type contient un namespace complet, extraire juste le nom du modèle
+    if (type.includes('\\')) {
+      type = type.split('\\').pop()?.toLowerCase() || '';
     }
 
-    router.visit(`/tableau-de-bord/redirect-object/${type}/${id}`);
+    // Rediriger selon le type
+    switch (type) {
+      case 'contact':
+        router.visit(`/contacts/${id}`);
+        break;
+      case 'company':
+      case 'entreprise':
+        router.visit(`/entreprises/${id}`);
+        break;
+      case 'document':
+        router.visit(`/documents?id=${id}`);
+        break;
+      case 'opportunity':
+      case 'opportunité':
+        router.visit(`/opportunites/${id}`);
+        break;
+      case 'reminder':
+      case 'rappel':
+        router.visit('/rappels');
+        break;
+      default:
+        toast.error(`Type d'objet non reconnu: ${type}`);
+        return;
+    }
+    
+    onClose();
   };
 
   return (
@@ -208,10 +250,10 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {getIcon(activity.type)}
-            Activity Details
+            Détails de l'activité
           </DialogTitle>
           <DialogDescription>
-            Complete information about this activity
+            Informations complètes sur cette activité
           </DialogDescription>
         </DialogHeader>
 
@@ -220,15 +262,28 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
           <div className="flex flex-col space-y-3">
             <div className="flex items-start justify-between">
               <h3 className="text-lg font-medium">{activity.title}</h3>
-              <Badge className={getTypeColor(activity.type)}>
-                {getTypeLabel(activity.type)}
-              </Badge>
+              {(() => {
+                const colorConfig = getTypeColor(activity.type);
+                if (typeof colorConfig === 'string') {
+                  return (
+                    <Badge className={colorConfig}>
+                      {getTypeLabel(activity.type)}
+                    </Badge>
+                  );
+                } else {
+                  return (
+                    <span className={colorConfig.className} style={colorConfig.style}>
+                      {getTypeLabel(activity.type)}
+                    </span>
+                  );
+                }
+              })()}
             </div>
 
             <div className="flex items-center gap-4 text-sm text-gray-500">
               <div className="flex items-center gap-1">
                 <Clock className="h-4 w-4" />
-                {new Date(activity.date).toLocaleString('en-US')}
+                {new Date(activity.date).toLocaleString('fr-FR')}
               </div>
             </div>
           </div>
@@ -237,11 +292,11 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
           {activity.subject_type && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Related Object</CardTitle>
+                <CardTitle className="text-base">Objet associé</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-sm font-medium text-gray-600">Type:</span>
+                  <span className="text-sm font-medium text-gray-600">Type :</span>
                   <Badge variant="outline">
                     {getSubjectTypeLabel(activity.subject_type)}
                   </Badge>
@@ -254,21 +309,34 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
           {activity.properties && Object.keys(activity.properties).length > 0 && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Action Details</CardTitle>
+                <CardTitle className="text-base">Détails de l'action</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {activity.properties.action && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-gray-600">Action:</span>
-                    <Badge className={getActionColor(activity.properties.action)}>
-                      {getActionLabel(activity.properties.action)}
-                    </Badge>
+                    <span className="text-sm font-medium text-gray-600">Action :</span>
+                    {(() => {
+                      const colorConfig = getActionColor(activity.properties.action);
+                      if (typeof colorConfig === 'string') {
+                        return (
+                          <Badge className={colorConfig}>
+                            {getActionLabel(activity.properties.action)}
+                          </Badge>
+                        );
+                      } else {
+                        return (
+                          <span className={colorConfig.className} style={colorConfig.style}>
+                            {getActionLabel(activity.properties.action)}
+                          </span>
+                        );
+                      }
+                    })()}
                   </div>
                 )}
 
                 {activity.properties.size && (
                   <div className="flex justify-between">
-                    <span className="text-sm font-medium text-gray-600">Size:</span>
+                    <span className="text-sm font-medium text-gray-600">Taille :</span>
                     <span className="text-sm">{formatFileSize(activity.properties.size)}</span>
                   </div>
                 )}
@@ -276,11 +344,11 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
                 {activity.properties.old_status && activity.properties.new_status && (
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-sm font-medium text-gray-600">Old Status:</span>
+                      <span className="text-sm font-medium text-gray-600">Ancien statut :</span>
                       <Badge variant="outline">{activity.properties.old_status}</Badge>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm font-medium text-gray-600">New Status:</span>
+                      <span className="text-sm font-medium text-gray-600">Nouveau statut :</span>
                       <Badge variant="outline">{activity.properties.new_status}</Badge>
                     </div>
                   </div>
@@ -288,7 +356,7 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
 
                 {activity.properties.changes && Object.keys(activity.properties.changes).length > 0 && (
                   <div>
-                    <span className="text-sm font-medium text-gray-600 block mb-2">Changes:</span>
+                    <span className="text-sm font-medium text-gray-600 block mb-2">Modifications :</span>
                     <div className="bg-gray-50 rounded-lg p-3 space-y-1">
                       {Object.entries(activity.properties.changes).map(([key, value]) => (
                         <div key={key} className="flex justify-between text-xs">
@@ -323,7 +391,7 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
           {/* Action buttons */}
           <div className="flex justify-end space-x-3 pt-4 border-t">
             <Button variant="outline" onClick={onClose}>
-              Close
+              Fermer
             </Button>
             {activity.subject_type && activity.subject_id && (
               <Button
@@ -332,7 +400,7 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
                 className="flex items-center gap-2"
               >
                 <Eye className="h-4 w-4" />
-                View Object
+                Voir l'objet
               </Button>
             )}
           </div>
@@ -376,11 +444,11 @@ const RecentActivityItem: React.FC<{ activity: Activity; onViewDetails: (activit
   // Get human-readable label for action (lowercase for inline usage)
   const getActionLabel = (action: string) => {
     switch (action) {
-      case 'created': return 'created';
-      case 'updated': return 'updated';
-      case 'deleted': return 'deleted';
-      case 'uploaded': return 'uploaded';
-      case 'status_changed': return 'status changed';
+      case 'created': return 'créé';
+      case 'updated': return 'modifié';
+      case 'deleted': return 'supprimé';
+      case 'uploaded': return 'téléversé';
+      case 'status_changed': return 'statut modifié';
       default: return action;
     }
   };
@@ -407,10 +475,10 @@ const RecentActivityItem: React.FC<{ activity: Activity; onViewDetails: (activit
       </div>
       <div className="text-right">
         <p className="text-xs text-gray-400">
-          {new Date(activity.date).toLocaleDateString('en-US')}
+          {new Date(activity.date).toLocaleDateString('fr-FR')}
         </p>
         <p className="text-xs text-gray-400">
-          {new Date(activity.date).toLocaleTimeString('en-US', {
+          {new Date(activity.date).toLocaleTimeString('fr-FR', {
             hour: '2-digit',
             minute: '2-digit'
           })}
@@ -424,6 +492,7 @@ const RecentActivityItem: React.FC<{ activity: Activity; onViewDetails: (activit
  * Main Dashboard component with real-time data refresh capabilities
  */
 export default function Dashboard({ auth }) {
+  const themeColors = useThemeColors();
   // ✅ OPTIMIZATIONS: Queries with automatic refetch capabilities
   const {
     data: statsData,
@@ -591,7 +660,7 @@ export default function Dashboard({ auth }) {
     refetchContactsTimeline();
     refetchDocumentsTimeline();
     refetchOpportunities();
-    toast.success('Data refreshed!');
+    toast.success('Données actualisées !');
   };
 
   const handleViewActivityDetails = (activity: Activity) => {
@@ -628,13 +697,13 @@ export default function Dashboard({ auth }) {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
 
-        toast.success('PDF report downloaded successfully!');
+        toast.success('Rapport PDF téléchargé avec succès !');
       } else {
         throw new Error('Error generating PDF');
       }
     } catch (error) {
       console.error('Error:', error);
-      toast.error('Error generating PDF');
+      toast.error('Erreur lors de la génération du PDF');
     } finally {
       setIsExportingPdf(false);
     }
@@ -666,22 +735,22 @@ export default function Dashboard({ auth }) {
   return (
     <AuthenticatedLayout
       user={auth.user}
-      header={<h2 className="font-semibold text-xl">Dashboard</h2>}
+      header={<h2 className="font-semibold text-xl">Tableau de bord</h2>}
     >
-      <Head title="Dashboard" />
+      <Head title="Tableau de bord" />
 
       <div className="py-6 space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h3 className="text-2xl font-bold">Overview</h3>
+            <h3 className="text-2xl font-bold">Vue d'ensemble</h3>
             <p className="text-gray-500 text-sm">
-              Statistics and recent activities
+              Statistiques et activités récentes
             </p>
           </div>
           <div className="flex gap-3">
             <Button onClick={handleRefresh} variant="outline" disabled={isLoadingStats}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingStats ? 'animate-spin' : ''}`} />
-              Refresh
+              Actualiser
             </Button>
             <Button
               onClick={handleExportPdf}
@@ -692,12 +761,12 @@ export default function Dashboard({ auth }) {
               {isExportingPdf ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
+                  Génération...
                 </>
               ) : (
                 <>
                   <Download className="h-4 w-4 mr-2" />
-                  Export PDF
+                  Exporter PDF
                 </>
               )}
             </Button>
@@ -707,7 +776,7 @@ export default function Dashboard({ auth }) {
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatsCard
-            title="Total Contacts"
+            title="Total des contacts"
             value={stats.total_contacts}
             icon={<Users className="h-8 w-8" />}
             trend={stats.contacts_this_month}
@@ -721,7 +790,7 @@ export default function Dashboard({ auth }) {
             trendLabel="ce mois"
           />
           <StatsCard
-            title="Total Documents"
+            title="Total des documents"
             value={stats.total_documents}
             icon={<FileText className="h-8 w-8" />}
           />
@@ -963,8 +1032,17 @@ export default function Dashboard({ auth }) {
             <CardTitle className="flex items-center justify-between">
               Activités Récentes
               {/* ✅ Real-time polling indicator */}
-              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full flex items-center gap-1">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span 
+                className="text-xs px-2 py-1 rounded-full flex items-center gap-1"
+                style={{
+                  backgroundColor: `${themeColors.primary}20`,
+                  color: themeColors.primary
+                }}
+              >
+                <div 
+                  className="w-2 h-2 rounded-full animate-pulse"
+                  style={{ backgroundColor: themeColors.primary }}
+                ></div>
                 Temps réel
               </span>
             </CardTitle>
@@ -985,7 +1063,7 @@ export default function Dashboard({ auth }) {
                     />
                   ))
                 ) : (
-                  <p className="text-gray-500 text-center py-4">No recent activities</p>
+                  <p className="text-gray-500 text-center py-4">Aucune activité récente</p>
                 )}
               </div>
             )}

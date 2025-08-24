@@ -399,6 +399,30 @@ class OpportunityController extends Controller
     }
 
     /**
+     * Search opportunities for API (used by CRM event selector)
+     */
+    public function search(Request $request)
+    {
+        $q = trim((string) $request->get('q', ''));
+        $limit = min((int) $request->get('limit', 20), 50);
+        
+        $opportunities = Opportunity::query()
+            ->with(['contact:id,name', 'company:id,name'])
+            ->when($q, fn ($query) => $query->where('name', 'like', "%{$q}%")
+                ->orWhere('description', 'like', "%{$q}%")
+                ->orWhereHas('contact', function ($subQuery) use ($q) {
+                    $subQuery->where('name', 'like', "%{$q}%");
+                })
+                ->orWhereHas('company', function ($subQuery) use ($q) {
+                    $subQuery->where('name', 'like', "%{$q}%");
+                }))
+            ->limit($limit)
+            ->get(['id', 'name', 'stage', 'amount', 'contact_id', 'company_id']);
+            
+        return response()->json($opportunities);
+    }
+
+    /**
      * Get opportunities grouped by stage
      */
     private function getOpportunitiesByStage()

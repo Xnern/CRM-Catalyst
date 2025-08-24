@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Com
 import { Badge } from '@/Components/ui/badge';
 import { ArrowLeft, MoreVertical, Edit, Trash } from 'lucide-react';
 import { useDrop, useDrag } from 'react-dnd';
+import { useThemeColors } from '@/hooks/useThemeColors';
 // import { useGetContactsByStatusQuery } from '@/services/api'; // TODO: Adapter pour les opportunités
 import { Button } from '@/Components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/Components/ui/avatar';
@@ -32,6 +33,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   statusValue, statusLabel, perPage, columnHeight,
   onDropContact, onEditContact, onDeleteContact, onMoveContact, statuses
 }) => {
+  const themeColors = useThemeColors();
   const [{ isOver }, drop] = useDrop(() => ({
     accept: ItemTypes.CONTACT,
     drop: (item: { id: number; currentStatus: string }) => {
@@ -42,7 +44,20 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
 
   const palette = useMemo(() => {
     switch (statusValue) {
-      case 'nouveau': return { headerBg: 'bg-blue-50', headerText: 'text-blue-800', bodyBg: 'bg-blue-50/40', border: 'border-blue-200', stripe: 'border-l-blue-400' };
+      case 'nouveau': return { 
+        headerBg: '', 
+        headerText: '', 
+        bodyBg: '', 
+        border: '', 
+        stripe: '',
+        styles: {
+          headerBg: { backgroundColor: `${themeColors.primary}0d` },
+          headerText: { color: `${themeColors.primary}dd` },
+          bodyBg: { backgroundColor: `${themeColors.primary}08` },
+          border: { borderColor: `${themeColors.primary}33` },
+          stripe: { borderLeftColor: themeColors.primary }
+        }
+      };
       case 'qualification': return { headerBg: 'bg-yellow-50', headerText: 'text-yellow-800', bodyBg: 'bg-yellow-50/40', border: 'border-yellow-200', stripe: 'border-l-yellow-400' };
       case 'proposition_envoyee': return { headerBg: 'bg-purple-50', headerText: 'text-purple-800', bodyBg: 'bg-purple-50/40', border: 'border-purple-200', stripe: 'border-l-purple-400' };
       case 'negociation': return { headerBg: 'bg-orange-50', headerText: 'text-orange-800', bodyBg: 'bg-orange-50/40', border: 'border-orange-200', stripe: 'border-l-orange-400' };
@@ -50,7 +65,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
       case 'perdu': return { headerBg: 'bg-red-50', headerText: 'text-red-800', bodyBg: 'bg-red-50/40', border: 'border-red-200', stripe: 'border-l-red-400' };
       default: return { headerBg: 'bg-gray-50', headerText: 'text-gray-800', bodyBg: 'bg-gray-50', border: 'border-gray-200', stripe: 'border-l-gray-300' };
     }
-  }, [statusValue]);
+  }, [statusValue, themeColors.primary]);
 
   const [cursor, setCursor] = useState<string | null>(null);
   const [items, setItems] = useState<Contact[]>([]);
@@ -113,12 +128,15 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
 
     // Stripe/couleur basée sur la value stockée en base (contact.status)
     const stripeClass =
-      contact.status === 'nouveau' ? 'border-l-blue-400' :
+      contact.status === 'nouveau' ? '' :
       contact.status === 'qualification' ? 'border-l-yellow-400' :
       contact.status === 'proposition_envoyee' ? 'border-l-purple-400' :
       contact.status === 'negociation' ? 'border-l-orange-400' :
       contact.status === 'converti' ? 'border-l-green-400' :
       contact.status === 'perdu' ? 'border-l-red-400' : 'border-l-gray-300';
+    
+    const stripeStyle = contact.status === 'nouveau' ? 
+      { borderLeftColor: themeColors.primary } : {};
 
     return (
       <Card
@@ -129,6 +147,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
           ${isDragging ? 'opacity-60' : ''}
           border-l-4 ${stripeClass}
         `}
+        style={stripeStyle}
         onDoubleClick={() => onEditContact(contact)}
       >
         <div className="flex items-start gap-3">
@@ -141,7 +160,17 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
             <CardDescription className="text-xs text-gray-500 truncate mt-1">{(contact as any).company || 'Sans entreprise'}</CardDescription>
             {contact.email && (
               <p className="text-xs text-gray-600 truncate mt-1">
-                <a href={`mailto:${contact.email}`} className="hover:text-blue-600 hover:underline">{contact.email}</a>
+                <a 
+                  href={`mailto:${contact.email}`} 
+                  className="hover:underline"
+                  style={{ color: 'rgb(107, 114, 128)' }}
+                  onMouseEnter={(e) => {
+                    e.target.style.color = themeColors.primary;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.color = 'rgb(107, 114, 128)';
+                  }}
+                >{contact.email}</a>
               </p>
             )}
           </div>
@@ -158,7 +187,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onEditContact(contact)}>
-                <Edit className="mr-2 h-4 w-4 text-blue-500" /> Modifier
+                <Edit className="mr-2 h-4 w-4" style={{ color: themeColors.primary }} /> Modifier
               </DropdownMenuItem>
               <DropdownMenuLabel>Déplacer vers</DropdownMenuLabel>
               <div className="grid grid-cols-2 gap-1 px-1">
@@ -187,20 +216,27 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
       className={`
         w-80 min-w-[20rem] flex-shrink-0 flex flex-col border ${palette.border}
         rounded-lg shadow-sm transition-all
-        ${isOver ? 'ring-2 ring-blue-400' : ''}
+        ${isOver ? 'ring-2' : ''}
       `}
+      style={{
+        ...(palette.styles?.border || {}),
+        ...(isOver ? { 
+          '--tw-ring-color': `${themeColors.primary}66`,
+          boxShadow: `0 0 0 2px ${themeColors.primary}66`
+        } : {})
+      }}
       aria-label={`Colonne ${statusLabel}`}
     >
-      <CardHeader className={`py-3 px-4 border-b ${palette.headerBg}`}>
+      <CardHeader className={`py-3 px-4 border-b ${palette.headerBg}`} style={palette.styles?.headerBg || {}}>
         <div className="flex justify-between items-center">
-          <CardTitle className={`text-md font-bold ${palette.headerText}`}>{statusLabel}</CardTitle>
+          <CardTitle className={`text-md font-bold ${palette.headerText}`} style={palette.styles?.headerText || {}}>{statusLabel}</CardTitle>
           <Badge variant="secondary" className="bg-white border border-gray-300 text-gray-700">
             {items.length}
           </Badge>
         </div>
       </CardHeader>
 
-      <CardContent className={`p-3 flex-1 overflow-hidden ${palette.bodyBg}`}>
+      <CardContent className={`p-3 flex-1 overflow-hidden ${palette.bodyBg}`} style={palette.styles?.bodyBg || {}}>
         <div
           ref={scrollRef}
           className="h-full overflow-y-auto pr-2"

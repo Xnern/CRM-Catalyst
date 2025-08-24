@@ -134,7 +134,7 @@ class ReminderController extends Controller
     // API endpoints for AJAX
     public function apiUpcoming()
     {
-        // On récupère tous les rappels pending, pas seulement upcoming
+        // Get all pending reminders, not just upcoming ones
         $reminders = Reminder::with(['opportunity', 'contact'])
             ->where('user_id', auth()->id())
             ->pending()
@@ -169,5 +169,30 @@ class ReminderController extends Controller
         ];
 
         return response()->json($counts);
+    }
+
+    /**
+     * Search reminders for API (used by CRM event selector)
+     */
+    public function search(Request $request)
+    {
+        $q = trim((string) $request->get('q', ''));
+        $limit = min((int) $request->get('limit', 20), 50);
+        
+        $reminders = Reminder::query()
+            ->with(['contact:id,name', 'opportunity:id,name'])
+            ->where('user_id', auth()->id())
+            ->when($q, fn ($query) => $query->where('title', 'like', "%{$q}%")
+                ->orWhere('description', 'like', "%{$q}%")
+                ->orWhereHas('contact', function ($subQuery) use ($q) {
+                    $subQuery->where('name', 'like', "%{$q}%");
+                })
+                ->orWhereHas('opportunity', function ($subQuery) use ($q) {
+                    $subQuery->where('name', 'like', "%{$q}%");
+                }))
+            ->limit($limit)
+            ->get(['id', 'title', 'reminder_date', 'type', 'contact_id', 'opportunity_id']);
+            
+        return response()->json($reminders);
     }
 }

@@ -156,7 +156,7 @@ export default function ContactForm({
     if (initialData?.address && !(initialData?.latitude && initialData?.longitude)) {
       geocodeAddress(initialData.address);
     }
-  }, [initialData, geocodeAddress, defaultStatus]);
+  }, [initialData, geocodeAddress]);
 
   // Address input change
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {

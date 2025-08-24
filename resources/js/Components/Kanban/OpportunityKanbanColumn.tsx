@@ -14,6 +14,7 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 const ItemTypes = { OPPORTUNITY: 'opportunity' };
 
@@ -57,6 +58,7 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
   onDropOpportunity, onEditOpportunity, onDeleteOpportunity, onMoveOpportunity, onDuplicateOpportunity, stages,
   isLoading = false
 }) => {
+  const themeColors = useThemeColors();
   // Drag and drop désactivé temporairement
   // const { isOver, setNodeRef } = useDroppable({
   //   id: stage,
@@ -65,7 +67,21 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
 
   const palette = useMemo(() => {
     switch (stage) {
-      case 'nouveau': return { headerBg: 'bg-blue-50', headerText: 'text-blue-800', bodyBg: 'bg-blue-50/40', border: 'border-blue-200', stripe: 'border-l-blue-400' };
+      case 'nouveau': return { 
+        headerStyle: { 
+          backgroundColor: `${themeColors.primary}10`,
+          color: themeColors.primary
+        },
+        bodyStyle: { 
+          backgroundColor: `${themeColors.primary}08`
+        },
+        borderStyle: { 
+          borderColor: `${themeColors.primary}40`
+        },
+        stripeStyle: { 
+          borderLeftColor: `${themeColors.primary}80`
+        }
+      };
       case 'qualification': return { headerBg: 'bg-yellow-50', headerText: 'text-yellow-800', bodyBg: 'bg-yellow-50/40', border: 'border-yellow-200', stripe: 'border-l-yellow-400' };
       case 'proposition_envoyee': return { headerBg: 'bg-purple-50', headerText: 'text-purple-800', bodyBg: 'bg-purple-50/40', border: 'border-purple-200', stripe: 'border-l-purple-400' };
       case 'negociation': return { headerBg: 'bg-orange-50', headerText: 'text-orange-800', bodyBg: 'bg-orange-50/40', border: 'border-orange-200', stripe: 'border-l-orange-400' };
@@ -73,7 +89,7 @@ const OpportunityKanbanColumn: React.FC<OpportunityKanbanColumnProps> = ({
       case 'perdu': return { headerBg: 'bg-red-50', headerText: 'text-red-800', bodyBg: 'bg-red-50/40', border: 'border-red-200', stripe: 'border-l-red-400' };
       default: return { headerBg: 'bg-gray-50', headerText: 'text-gray-800', bodyBg: 'bg-gray-50', border: 'border-gray-200', stripe: 'border-l-gray-300' };
     }
-  }, [stage]);
+  }, [stage, themeColors.primary]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 

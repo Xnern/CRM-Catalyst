@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import {
   useGetCompanyQuery,
   useDeleteCompanyMutation,
@@ -52,12 +53,19 @@ type Props = { auth: any; id: number };
 type ApiErrors = Record<string, string[] | string> | undefined;
 
 // Badge styling
-const companyBadgeClasses = (status?: string) => {
+const companyBadgeClasses = (status?: string, primaryColor?: string) => {
   switch (status) {
     case 'Client':
       return 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200';
     case 'Prospect':
-      return 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200';
+      return {
+        className: 'ring-1 ring-inset',
+        style: {
+          backgroundColor: primaryColor ? `${primaryColor}0d` : 'rgb(239, 246, 255)',
+          color: primaryColor ? `${primaryColor}dd` : 'rgb(29, 78, 216)',
+          '--tw-ring-color': primaryColor ? `${primaryColor}33` : 'rgb(191, 219, 254)'
+        }
+      };
     case 'Inactif':
     default:
       return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-300';
@@ -65,6 +73,7 @@ const companyBadgeClasses = (status?: string) => {
 };
 
 export default function CompanyShow({ auth, id }: Props) {
+  const themeColors = useThemeColors();
   // Company detail: API returns { data: Company }
   const { data: companyApi, isLoading, refetch: refetchCompany } = useGetCompanyQuery(id);
   const company: Company | null = (companyApi as any)?.data ?? null;
@@ -443,8 +452,8 @@ export default function CompanyShow({ auth, id }: Props) {
             <Card>
               <CardContent className="p-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="flex items-start gap-3">
-                  <div className="rounded-md bg-blue-50 p-2">
-                    <Building2 className="h-6 w-6 text-blue-700" />
+                  <div className="rounded-md p-2" style={{ backgroundColor: `${themeColors.primary}0d` }}>
+                    <Building2 className="h-6 w-6" style={{ color: `${themeColors.primary}dd` }} />
                   </div>
                   <div>
                     <div className="text-2xl font-semibold text-gray-900">{company.name}</div>
@@ -499,9 +508,22 @@ export default function CompanyShow({ auth, id }: Props) {
                 <div>
                   <div className="text-xs text-gray-500">Statut</div>
                   <div className="text-sm">
-                    <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', companyBadgeClasses(company.status)].join(' ')}>
-                      {company.status}
-                    </span>
+                    {(() => {
+                      const badgeStyle = companyBadgeClasses(company.status, themeColors.primary);
+                      if (typeof badgeStyle === 'object') {
+                        return (
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyle.className}`} style={badgeStyle.style}>
+                            {company.status}
+                          </span>
+                        );
+                      } else {
+                        return (
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyle}`}>
+                            {company.status}
+                          </span>
+                        );
+                      }
+                    })()}
                   </div>
                 </div>
                 <div className="lg:col-span-4">
@@ -731,7 +753,22 @@ export default function CompanyShow({ auth, id }: Props) {
                       <div className="flex flex-col space-y-1">
                         <div className="flex items-center justify-between">
                           <label className="text-sm text-gray-700">Statut</label>
-                          <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', companyBadgeClasses(form.status as string)].join(' ')}>{form.status ?? '—'}</span>
+                          {(() => {
+                            const badgeStyle = companyBadgeClasses(form.status as string, themeColors.primary);
+                            if (typeof badgeStyle === 'object') {
+                              return (
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyle.className}`} style={badgeStyle.style}>
+                                  {form.status ?? '—'}
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyle}`}>
+                                  {form.status ?? '—'}
+                                </span>
+                              );
+                            }
+                          })()}
                         </div>
                         <Select
                           value={(form.status as string) ?? (companyStatusOptions[0]?.value ?? 'Prospect')}

@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent } from '@/Components/ui/card';
 import { UploadModal } from '@/Components/Documents/UploadModal';
@@ -49,6 +50,7 @@ interface BackendValidationErrors {
 }
 
 export default function ContactShow({ auth, id }: Props) {
+  const themeColors = useThemeColors();
   // Contact with loaded relations
   const { data: contactResp, isLoading: isLoadingContact, refetch: refetchContact } = useGetContactQuery(id, {
     // Force reload on each page visit
@@ -290,13 +292,33 @@ export default function ContactShow({ auth, id }: Props) {
                 <div className="inline-flex items-center gap-2">
                   <Mail className="h-4 w-4 text-gray-600" />
                   {contact?.email ? (
-                    <a className="text-blue-600 hover:underline" href={`mailto:${contact.email}`}>{contact.email}</a>
+                    <a 
+                      className="hover:underline" 
+                      href={`mailto:${contact.email}`}
+                      style={{ color: themeColors.primary }}
+                      onMouseEnter={(e) => {
+                        e.target.style.textDecoration = 'underline';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.textDecoration = 'none';
+                      }}
+                    >{contact.email}</a>
                   ) : '—'}
                 </div>
                 <div className="inline-flex items-center gap-2">
                   <Phone className="h-4 w-4 text-gray-600" />
                   {contact?.phone ? (
-                    <a className="text-blue-600 hover:underline" href={`tel:${contact.phone}`}>{contact.phone}</a>
+                    <a 
+                      className="hover:underline" 
+                      href={`tel:${contact.phone}`}
+                      style={{ color: themeColors.primary }}
+                      onMouseEnter={(e) => {
+                        e.target.style.textDecoration = 'underline';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.textDecoration = 'none';
+                      }}
+                    >{contact.phone}</a>
                   ) : '—'}
                 </div>
                 <div className="inline-flex items-center gap-2">
@@ -304,9 +326,16 @@ export default function ContactShow({ auth, id }: Props) {
                   {contact?.address ? (
                     contact.latitude && contact.longitude ? (
                       <a
-                        className="text-blue-600 hover:underline"
+                        className="hover:underline"
+                        style={{ color: themeColors.primary }}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onMouseEnter={(e) => {
+                          e.target.style.textDecoration = 'underline';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.textDecoration = 'none';
+                        }}
                         href={`https://www.google.com/maps/search/?api=1&query=${contact.latitude},${contact.longitude}`}
                       >
                         {contact.address}

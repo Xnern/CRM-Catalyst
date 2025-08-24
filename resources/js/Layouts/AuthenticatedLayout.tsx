@@ -246,7 +246,7 @@ export default function Authenticated({
         { id: 'forecast', label: 'Prévisions', icon: <BarChart3 size={20} />, route: 'forecast.index', permission: 'view opportunities' },
         { id: 'reminders', label: 'Rappels', icon: <Bell size={20} />, route: 'reminders.index' },
         { id: 'email-templates', label: 'Templates Email', icon: <Mail size={20} />, route: 'email-templates.index' },
-        { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'calendar.indexInertia', permission: 'view calendar' },
+        { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'calendar.enhanced', permission: 'view calendar' },
         { id: 'documents', label: 'Documents', icon: <FileText size={20} />, route: 'documents.indexInertia', permission: 'view documents' },
         { id: 'users', label: 'Utilisateurs', icon: <Users size={20} />, route: 'users.index', permission: 'view users' },
         { id: 'profile', label: 'Profil', icon: <User size={20} />, route: 'profile.edit' },
@@ -312,9 +312,13 @@ export default function Authenticated({
                     </ul>
                 </nav>
 
-                {/* Bottom Section: User Profile */}
+                {/* Bottom Section: User Profil */}
                 <div className="p-4 border-t border-border space-y-3">
-                    {/* User Profile Dropdown */}
+                    {/* Notifications */}
+                    <div className="flex justify-center">
+                        <RemindersNotification />
+                    </div>
+                    {/* User Profil Dropdown */}
                     <Dropdown>
                         <Dropdown.Trigger>
                             {({ isOpen }) => (
@@ -358,14 +362,14 @@ export default function Authenticated({
                         {/* Dropdown Content - styled to open UPWARDS */}
                         <Dropdown.Content>
                             <Dropdown.Link href={route('profile.edit')} className='w-full top-0'>
-                                Profile
+                                Profil
                             </Dropdown.Link>
                             <Dropdown.Link
                                 href={route('logout')}
                                 method="post"
                                 as="button"
                             >
-                                Log Out
+                                Déconnexion
                             </Dropdown.Link>
                         </Dropdown.Content>
                     </Dropdown>
@@ -433,7 +437,7 @@ export default function Authenticated({
                         </ul>
                     </nav>
 
-                    {/* Mobile User Profile Dropdown */}
+                    {/* Mobile User Profil Dropdown */}
                     <div className="p-4 border-t border-border">
                         <Dropdown>
                             <Dropdown.Trigger>
@@ -456,14 +460,14 @@ export default function Authenticated({
                             {/* Dropdown Content for Mobile - styled to open UPWARDS */}
                             <Dropdown.Content className="bottom-full mb-2 origin-bottom-right right-0 w-48">
                                 <Dropdown.Link href={route('profile.edit')}>
-                                    Profile
+                                    Profil
                                 </Dropdown.Link>
                                 <Dropdown.Link
                                     href={route('logout')}
                                     method="post"
                                     as="button"
                                 >
-                                    Log Out
+                                    Déconnexion
                                 </Dropdown.Link>
                             </Dropdown.Content>
                         </Dropdown>
@@ -494,7 +498,6 @@ export default function Authenticated({
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <RemindersNotification />
                                 <Dropdown>
                                     <Dropdown.Trigger>
                                         {({ isOpen }) => (
@@ -528,14 +531,14 @@ export default function Authenticated({
                                         <Dropdown.Link
                                             href={route('profile.edit')}
                                         >
-                                            Profile
+                                            Profil
                                         </Dropdown.Link>
                                         <Dropdown.Link
                                             href={route('logout')}
                                             method="post"
                                             as="button"
                                         >
-                                            Log Out
+                                            Déconnexion
                                         </Dropdown.Link>
                                     </Dropdown.Content>
                                 </Dropdown>
@@ -555,7 +558,12 @@ export default function Authenticated({
                 <main className="flex-1 p-4 sm:p-6">{children}</main>
             </div>
         </div>
-        
+
+        {/* Fixed Notifications - positioned above user info */}
+        <div className="fixed top-4 right-4 z-50">
+            <RemindersNotification />
+        </div>
+
         {/* Scroll to top button - Outside main layout structure */}
         {showScrollTop && (
             <button

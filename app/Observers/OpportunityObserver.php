@@ -12,9 +12,9 @@ class OpportunityObserver
      */
     public function created(Opportunity $opportunity): void
     {
-        // Ne pas créer de log ici car le trait LogsActivity le fait déjà
-        // On pourrait ajouter un log plus détaillé si nécessaire, mais pour éviter
-        // la duplication, on laisse le trait gérer la création basique
+        // Don't create log here as the LogsActivity trait already handles it
+        // We could add a more detailed log if necessary, but to avoid
+        // duplication, we let the trait handle basic creation
     }
 
     /**
@@ -22,7 +22,7 @@ class OpportunityObserver
      */
     public function updated(Opportunity $opportunity): void
     {
-        // Le trait LogsActivity gère déjà les logs de mise à jour
+        // The LogsActivity trait already handles update logs
     }
 
     /**
@@ -30,7 +30,7 @@ class OpportunityObserver
      */
     public function deleted(Opportunity $opportunity): void
     {
-        // Le trait LogsActivity gère déjà les logs de suppression
+        // The LogsActivity trait already handles deletion logs
     }
 
     /**

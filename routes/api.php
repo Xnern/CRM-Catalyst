@@ -164,14 +164,26 @@ Route::middleware('auth:sanctum')->group(function () {
     /**
      * Local events
      */
-    Route::get('/events/local', [LocalCalendarEventsController::class, 'getLocalEvents'])->name('local-events.index');
-    Route::post('/events/local', [LocalCalendarEventsController::class, 'store'])->name('local-events.store');
-    Route::put('/events/local/{event}', [LocalCalendarEventsController::class, 'update'])
-        ->whereNumber('event')
-        ->name('local-events.update');
-    Route::delete('/events/local/{event}', [LocalCalendarEventsController::class, 'destroy'])
-        ->whereNumber('event')
-        ->name('local-events.destroy');
+    Route::prefix('local-calendar-events')->name('local-events.')->group(function () {
+        Route::get('/', [LocalCalendarEventsController::class, 'getLocalEvents'])->name('index');
+        Route::post('/', [LocalCalendarEventsController::class, 'store'])->name('store');
+        Route::put('/{event}', [LocalCalendarEventsController::class, 'update'])
+            ->whereNumber('event')
+            ->name('update');
+        Route::delete('/{event}', [LocalCalendarEventsController::class, 'destroy'])
+            ->whereNumber('event')
+            ->name('destroy');
+        
+        // Event configuration
+        Route::get('/types', [LocalCalendarEventsController::class, 'getEventTypes'])->name('types');
+        Route::get('/priorities', [LocalCalendarEventsController::class, 'getPriorityLevels'])->name('priorities');
+    });
+    
+    // Keep backward compatibility with old routes
+    Route::get('/events/local', [LocalCalendarEventsController::class, 'getLocalEvents']);
+    Route::post('/events/local', [LocalCalendarEventsController::class, 'store']);
+    Route::put('/events/local/{event}', [LocalCalendarEventsController::class, 'update'])->whereNumber('event');
+    Route::delete('/events/local/{event}', [LocalCalendarEventsController::class, 'destroy'])->whereNumber('event');
 
     /**
      * Companies (CRUD)
@@ -267,7 +279,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /**
      * Opportunities (Sales)
+     * IMPORTANT: Declare "search" BEFORE any parameterized routes to avoid collisions.
      */
+    Route::get('/opportunites/search', [App\Http\Controllers\OpportunityController::class, 'search']);
+    
     Route::get('/opportunites', [App\Http\Controllers\OpportunityController::class, 'index'])
         ->name('opportunities.index');
     Route::post('/opportunites', [App\Http\Controllers\OpportunityController::class, 'store'])
@@ -300,7 +315,10 @@ Route::middleware('auth:sanctum')->group(function () {
     
     /**
      * Reminders
+     * IMPORTANT: Declare "search" BEFORE any parameterized routes to avoid collisions.
      */
+    Route::get('/rappels/search', [ReminderController::class, 'search']);
+    
     Route::get('/rappels/upcoming', [ReminderController::class, 'apiUpcoming'])
         ->name('reminders.upcoming');
     Route::get('/rappels/count', [ReminderController::class, 'apiCount'])
