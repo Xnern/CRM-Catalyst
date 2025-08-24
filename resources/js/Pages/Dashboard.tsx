@@ -8,6 +8,7 @@ import { Badge } from '@/Components/ui/badge';
 import { RefreshCw, Users, Building, FileText, Calendar, TrendingUp, TrendingDown, Eye, Clock, Download, DollarSign, Target, TrendingUp as TrendingUpIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import {
   PieChart,
   Pie,
@@ -102,6 +103,7 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const themeColors = useThemeColors();
   if (!activity) return null;
 
   // Get appropriate icon for activity type
@@ -117,7 +119,14 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
   // Get color scheme for activity type
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'contact': return 'bg-blue-100 text-blue-800';
+      case 'contact': 
+        return {
+          className: 'px-2 py-1 rounded-full text-xs',
+          style: {
+            backgroundColor: `${themeColors.primary}20`,
+            color: themeColors.primary
+          }
+        };
       case 'company': return 'bg-green-100 text-green-800';
       case 'document': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -140,7 +149,14 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
       case 'created': return 'bg-green-100 text-green-800';
       case 'updated': return 'bg-yellow-100 text-yellow-800';
       case 'deleted': return 'bg-red-100 text-red-800';
-      case 'uploaded': return 'bg-blue-100 text-blue-800';
+      case 'uploaded': 
+        return {
+          className: 'px-2 py-1 rounded-full text-xs',
+          style: {
+            backgroundColor: `${themeColors.primary}20`,
+            color: themeColors.primary
+          }
+        };
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -246,9 +262,22 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
           <div className="flex flex-col space-y-3">
             <div className="flex items-start justify-between">
               <h3 className="text-lg font-medium">{activity.title}</h3>
-              <Badge className={getTypeColor(activity.type)}>
-                {getTypeLabel(activity.type)}
-              </Badge>
+              {(() => {
+                const colorConfig = getTypeColor(activity.type);
+                if (typeof colorConfig === 'string') {
+                  return (
+                    <Badge className={colorConfig}>
+                      {getTypeLabel(activity.type)}
+                    </Badge>
+                  );
+                } else {
+                  return (
+                    <span className={colorConfig.className} style={colorConfig.style}>
+                      {getTypeLabel(activity.type)}
+                    </span>
+                  );
+                }
+              })()}
             </div>
 
             <div className="flex items-center gap-4 text-sm text-gray-500">
@@ -286,9 +315,22 @@ const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
                 {activity.properties.action && (
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium text-gray-600">Action :</span>
-                    <Badge className={getActionColor(activity.properties.action)}>
-                      {getActionLabel(activity.properties.action)}
-                    </Badge>
+                    {(() => {
+                      const colorConfig = getActionColor(activity.properties.action);
+                      if (typeof colorConfig === 'string') {
+                        return (
+                          <Badge className={colorConfig}>
+                            {getActionLabel(activity.properties.action)}
+                          </Badge>
+                        );
+                      } else {
+                        return (
+                          <span className={colorConfig.className} style={colorConfig.style}>
+                            {getActionLabel(activity.properties.action)}
+                          </span>
+                        );
+                      }
+                    })()}
                   </div>
                 )}
 
@@ -450,6 +492,7 @@ const RecentActivityItem: React.FC<{ activity: Activity; onViewDetails: (activit
  * Main Dashboard component with real-time data refresh capabilities
  */
 export default function Dashboard({ auth }) {
+  const themeColors = useThemeColors();
   // ✅ OPTIMIZATIONS: Queries with automatic refetch capabilities
   const {
     data: statsData,
@@ -989,8 +1032,17 @@ export default function Dashboard({ auth }) {
             <CardTitle className="flex items-center justify-between">
               Activités Récentes
               {/* ✅ Real-time polling indicator */}
-              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full flex items-center gap-1">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span 
+                className="text-xs px-2 py-1 rounded-full flex items-center gap-1"
+                style={{
+                  backgroundColor: `${themeColors.primary}20`,
+                  color: themeColors.primary
+                }}
+              >
+                <div 
+                  className="w-2 h-2 rounded-full animate-pulse"
+                  style={{ backgroundColor: themeColors.primary }}
+                ></div>
                 Temps réel
               </span>
             </CardTitle>

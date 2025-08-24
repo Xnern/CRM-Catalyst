@@ -3,6 +3,7 @@ import { Button } from '@/Components/ui/button';
 import { Download, Upload, FileDown } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import { toast } from 'sonner';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,7 @@ interface ImportExportProps {
 }
 
 export default function ImportExportOpportunities({ filters }: ImportExportProps) {
+  const themeColors = useThemeColors();
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -140,13 +142,14 @@ export default function ImportExportOpportunities({ filters }: ImportExportProps
                 </p>
               </div>
               
-              <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-                <FileDown className="h-4 w-4 text-blue-600" />
+              <div className="flex items-center gap-2 p-3 rounded-lg" style={{ backgroundColor: `${themeColors.primary}0d` }}>
+                <FileDown className="h-4 w-4" style={{ color: themeColors.primary }} />
                 <div className="text-sm">
-                  <p className="font-medium text-blue-900">Besoin d'un modèle ?</p>
+                  <p className="font-medium" style={{ color: `${themeColors.primary}dd` }}>Besoin d'un modèle ?</p>
                   <Button
                     variant="link"
-                    className="p-0 h-auto text-blue-600"
+                    className="p-0 h-auto"
+                    style={{ color: themeColors.primary }}
                     onClick={handleDownloadTemplate}
                   >
                     Télécharger le template CSV

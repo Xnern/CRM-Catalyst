@@ -29,6 +29,7 @@ import { ExternalLink, Loader2, Notebook, Video } from 'lucide-react';
 
 import { format, isValid, parseISO, subDays } from 'date-fns';
 import { Calendar as CalendarIcon, Clock, Link, BookOpen, Edit, Trash, PlusCircle, MoreVertical, LogOut, RefreshCcw, MapPin } from 'lucide-react';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 // FullCalendar Imports
 import FullCalendar from '@fullcalendar/react';
@@ -139,6 +140,7 @@ const mapLocalEventsToFullCalendar = (localEvents: LocalCalendarEvent[]): FullCa
 };
 
 const CalendarPage: React.FC<PageProps> = ({ auth }) => {
+    const themeColors = useThemeColors();
     // Hooks Google Calendar
     const { data: authUrlResponse, isLoading: authUrlLoading, isError: authUrlError } = useGetGoogleAuthUrlQuery();
     const {
@@ -551,7 +553,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                     <Button onClick={refetchGoogleEvents} variant="outline" size="icon" className="hover:bg-gray-100">
                         <RefreshCcw className="h-4 w-4" />
                     </Button>
-                    <Button onClick={handleOpenCreateModal} className="bg-blue-600 hover:bg-blue-700 text-black">
+                    <Button 
+                        onClick={handleOpenCreateModal} 
+                        className="text-black"
+                        style={{ backgroundColor: themeColors.primary, borderColor: themeColors.primary }}
+                        onMouseEnter={(e) => {
+                            const target = e.target as HTMLElement;
+                            target.style.backgroundColor = `${themeColors.primary}dd`;
+                        }}
+                        onMouseLeave={(e) => {
+                            const target = e.target as HTMLElement;
+                            target.style.backgroundColor = themeColors.primary;
+                        }}
+                    >
                         <PlusCircle className="mr-2 h-4 w-4" /> Créer un événement
                     </Button>
                     <DropdownMenu>
@@ -652,7 +666,7 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                 <DialogContent className="sm:max-w-[500px] rounded-lg !top-1/2 !left-1/2 !-translate-x-1/2 !-translate-y-1/2">
                     <DialogHeader className="border-b pb-4">
                     <DialogTitle className="text-xl font-semibold flex items-center gap-2">
-                        <PlusCircle className="h-5 w-5 text-blue-600" />
+                        <PlusCircle className="h-5 w-5" style={{ color: themeColors.primary }} />
                         Créer un Nouvel Événement
                     </DialogTitle>
                     <DialogDescription className="mt-1">
@@ -669,7 +683,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                         </Label>
                         <Input
                             id="create-summary"
-                            className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                            className="border-gray-300 rounded-md"
+                            style={{ 
+                                '--tw-ring-color': `${themeColors.primary}50`,
+                                borderColor: 'rgb(209, 213, 219)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = themeColors.primary;
+                                e.target.style.boxShadow = `0 0 0 3px ${themeColors.primary}20`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'rgb(209, 213, 219)';
+                                e.target.style.boxShadow = 'none';
+                            }}
                             value={createForm.summary}
                             onChange={(e) => setCreateForm({ ...createForm, summary: e.target.value })}
                             placeholder="Ex: Réunion avec client X"
@@ -686,7 +712,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                             <Input
                             id="create-start_datetime"
                             type="datetime-local"
-                            className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                            className="border-gray-300 rounded-md"
+                            style={{ 
+                                '--tw-ring-color': `${themeColors.primary}50`,
+                                borderColor: 'rgb(209, 213, 219)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = themeColors.primary;
+                                e.target.style.boxShadow = `0 0 0 3px ${themeColors.primary}20`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'rgb(209, 213, 219)';
+                                e.target.style.boxShadow = 'none';
+                            }}
                             value={createForm.start_datetime}
                             onChange={(e) => setCreateForm({ ...createForm, start_datetime: e.target.value })}
                             required
@@ -701,7 +739,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                             <Input
                             id="create-end_datetime"
                             type="datetime-local"
-                            className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                            className="border-gray-300 rounded-md"
+                            style={{ 
+                                '--tw-ring-color': `${themeColors.primary}50`,
+                                borderColor: 'rgb(209, 213, 219)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = themeColors.primary;
+                                e.target.style.boxShadow = `0 0 0 3px ${themeColors.primary}20`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'rgb(209, 213, 219)';
+                                e.target.style.boxShadow = 'none';
+                            }}
                             value={createForm.end_datetime}
                             onChange={(e) => setCreateForm({ ...createForm, end_datetime: e.target.value })}
                             required
@@ -716,7 +766,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                         <textarea
                             id="create-description"
                             rows={3}
-                            className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full border border-gray-300 rounded-md p-2"
+                            style={{ 
+                                '--tw-ring-color': `${themeColors.primary}50`,
+                                borderColor: 'rgb(209, 213, 219)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = themeColors.primary;
+                                e.target.style.boxShadow = `0 0 0 3px ${themeColors.primary}20`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'rgb(209, 213, 219)';
+                                e.target.style.boxShadow = 'none';
+                            }}
                             value={createForm.description || ''}
                             onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
                             placeholder="Détails de l'événement..."
@@ -730,7 +792,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                             </Label>
                             <Input
                             id="create-location"
-                            className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                            className="border-gray-300 rounded-md"
+                            style={{ 
+                                '--tw-ring-color': `${themeColors.primary}50`,
+                                borderColor: 'rgb(209, 213, 219)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = themeColors.primary;
+                                e.target.style.boxShadow = `0 0 0 3px ${themeColors.primary}20`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'rgb(209, 213, 219)';
+                                e.target.style.boxShadow = 'none';
+                            }}
                             value={createForm.location || ''}
                             onChange={(e) => setCreateForm({ ...createForm, location: e.target.value })}
                             placeholder="Ex: Bureau, Visio, Adresse..."
@@ -750,7 +824,16 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                         </Button>
                         <Button
                         type="submit"
-                        className="bg-blue-600 hover:bg-blue-700 shadow-sm"
+                        className="shadow-sm"
+                        style={{ backgroundColor: themeColors.primary, borderColor: themeColors.primary }}
+                        onMouseEnter={(e) => {
+                            const target = e.target as HTMLElement;
+                            target.style.backgroundColor = `${themeColors.primary}dd`;
+                        }}
+                        onMouseLeave={(e) => {
+                            const target = e.target as HTMLElement;
+                            target.style.backgroundColor = themeColors.primary;
+                        }}
                         disabled={isCreatingGoogleEvent || isCreatingLocalEvent}
                         >
                         {(isCreatingGoogleEvent || isCreatingLocalEvent) ? (
@@ -793,7 +876,7 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                             onClick={handleEditButtonClick}
                             className="cursor-pointer hover:bg-gray-50 px-3 py-2"
                             >
-                            <Edit className="mr-2 h-4 w-4 text-blue-500" /> Modifier
+                            <Edit className="mr-2 h-4 w-4" style={{ color: themeColors.primary }} /> Modifier
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="my-1" />
                             <DropdownMenuItem
@@ -816,7 +899,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                             </Label>
                             <Input
                             id="edit-summary"
-                            className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                            className="border-gray-300 rounded-md"
+                            style={{ 
+                                '--tw-ring-color': `${themeColors.primary}50`,
+                                borderColor: 'rgb(209, 213, 219)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = themeColors.primary;
+                                e.target.style.boxShadow = `0 0 0 3px ${themeColors.primary}20`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'rgb(209, 213, 219)';
+                                e.target.style.boxShadow = 'none';
+                            }}
                             value={editForm.summary}
                             onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })}
                             placeholder="Ex: Réunion avec client X"
@@ -832,7 +927,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                             <Input
                                 id="edit-start_datetime"
                                 type="datetime-local"
-                                className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                                className="border-gray-300 rounded-md"
+                            style={{ 
+                                '--tw-ring-color': `${themeColors.primary}50`,
+                                borderColor: 'rgb(209, 213, 219)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = themeColors.primary;
+                                e.target.style.boxShadow = `0 0 0 3px ${themeColors.primary}20`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'rgb(209, 213, 219)';
+                                e.target.style.boxShadow = 'none';
+                            }}
                                 value={editForm.start_datetime}
                                 onChange={(e) => setEditForm({ ...editForm, start_datetime: e.target.value })}
                                 required
@@ -845,7 +952,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                             <Input
                                 id="edit-end_datetime"
                                 type="datetime-local"
-                                className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                                className="border-gray-300 rounded-md"
+                            style={{ 
+                                '--tw-ring-color': `${themeColors.primary}50`,
+                                borderColor: 'rgb(209, 213, 219)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = themeColors.primary;
+                                e.target.style.boxShadow = `0 0 0 3px ${themeColors.primary}20`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'rgb(209, 213, 219)';
+                                e.target.style.boxShadow = 'none';
+                            }}
                                 value={editForm.end_datetime}
                                 onChange={(e) => setEditForm({ ...editForm, end_datetime: e.target.value })}
                                 required
@@ -860,7 +979,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                             <textarea
                             id="edit-description"
                             rows={3}
-                            className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full border border-gray-300 rounded-md p-2"
+                            style={{ 
+                                '--tw-ring-color': `${themeColors.primary}50`,
+                                borderColor: 'rgb(209, 213, 219)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = themeColors.primary;
+                                e.target.style.boxShadow = `0 0 0 3px ${themeColors.primary}20`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'rgb(209, 213, 219)';
+                                e.target.style.boxShadow = 'none';
+                            }}
                             value={editForm.description || ''}
                             onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                             placeholder="Détails de l'événement..."
@@ -874,7 +1005,19 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                             </Label>
                             <Input
                                 id="edit-location"
-                                className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md"
+                                className="border-gray-300 rounded-md"
+                            style={{ 
+                                '--tw-ring-color': `${themeColors.primary}50`,
+                                borderColor: 'rgb(209, 213, 219)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = themeColors.primary;
+                                e.target.style.boxShadow = `0 0 0 3px ${themeColors.primary}20`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'rgb(209, 213, 219)';
+                                e.target.style.boxShadow = 'none';
+                            }}
                                 value={editForm.location || ''}
                                 onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
                                 placeholder="Ex: Bureau, Visio, Adresse..."
@@ -894,7 +1037,16 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                         </Button>
                         <Button
                             type="submit"
-                            className="bg-blue-600 hover:bg-blue-700 shadow-sm"
+                            className="shadow-sm"
+                        style={{ backgroundColor: themeColors.primary, borderColor: themeColors.primary }}
+                        onMouseEnter={(e) => {
+                            const target = e.target as HTMLElement;
+                            target.style.backgroundColor = `${themeColors.primary}dd`;
+                        }}
+                        onMouseLeave={(e) => {
+                            const target = e.target as HTMLElement;
+                            target.style.backgroundColor = themeColors.primary;
+                        }}
                             disabled={isUpdatingGoogleEvent || isUpdatingLocalEvent}
                         >
                             {(isUpdatingGoogleEvent || isUpdatingLocalEvent) ? (
@@ -950,7 +1102,20 @@ const CalendarPage: React.FC<PageProps> = ({ auth }) => {
                                 href={selectedEvent.hangoutLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm px-3 py-1.5 border border-blue-200 rounded-md bg-blue-50"
+                                className="inline-flex items-center text-sm px-3 py-1.5 border rounded-md"
+                                style={{
+                                    color: themeColors.primary,
+                                    borderColor: `${themeColors.primary}33`,
+                                    backgroundColor: `${themeColors.primary}0d`
+                                }}
+                                onMouseEnter={(e) => {
+                                    const target = e.target as HTMLElement;
+                                    target.style.color = `${themeColors.primary}dd`;
+                                }}
+                                onMouseLeave={(e) => {
+                                    const target = e.target as HTMLElement;
+                                    target.style.color = themeColors.primary;
+                                }}
                             >
                                 <Video className="mr-2 h-4 w-4" /> Rejoindre la réunion
                             </a>

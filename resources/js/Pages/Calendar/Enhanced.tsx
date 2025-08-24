@@ -27,20 +27,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/Components/ui/checkbox';
 import { Textarea } from '@/Components/ui/textarea';
 import { toast } from 'sonner';
-import { 
-  ExternalLink, 
-  Loader2, 
-  Video, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  Edit, 
-  Trash, 
-  PlusCircle, 
-  MoreVertical, 
-  LogOut, 
-  RefreshCcw, 
-  MapPin, 
-  Users, 
+import {
+  ExternalLink,
+  Loader2,
+  Video,
+  Calendar as CalendarIcon,
+  Clock,
+  Edit,
+  Trash,
+  PlusCircle,
+  MoreVertical,
+  LogOut,
+  RefreshCcw,
+  MapPin,
+  Users,
   Link,
   Filter,
   Settings,
@@ -116,10 +116,10 @@ const mapLocalEventsToFullCalendar = (localEvents: LocalCalendarEvent[]): Enhanc
     if (!Array.isArray(localEvents)) {
         return [];
     }
-    
+
     return localEvents.map(event => {
         const baseColor = event.color || '#3b82f6';
-        
+
         return {
             id: event.id.toString(),
             title: event.title || 'Événement',
@@ -148,7 +148,7 @@ const mapLocalEventsToFullCalendar = (localEvents: LocalCalendarEvent[]): Enhanc
 // Enhanced map for Google events with type detection
 const mapGoogleEventsToFullCalendar = (googleEvents: GoogleCalendarEvent[]): EnhancedFullCalendarEvent[] => {
     if (!Array.isArray(googleEvents)) return [];
-    
+
     return googleEvents.map(event => {
         let start: string | Date;
         let end: string | Date;
@@ -181,10 +181,10 @@ const mapGoogleEventsToFullCalendar = (googleEvents: GoogleCalendarEvent[]): Enh
         if (title.includes('call') || title.includes('appel')) detectedType = 'call';
         else if (title.includes('deadline') || title.includes('échéance')) detectedType = 'deadline';
         else if (title.includes('task') || title.includes('tâche')) detectedType = 'task';
-        
+
         const typeColors = {
             'meeting': '#3b82f6',
-            'call': '#10b981', 
+            'call': '#10b981',
             'deadline': '#ef4444',
             'task': '#f59e0b',
             'other': '#6b7280'
@@ -218,7 +218,7 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
     const [miniCalendarDate, setMiniCalendarDate] = useState(new Date());
     const [eventTypes, setEventTypes] = useState<EventTypes>({});
     const [priorityLevels, setPriorityLevels] = useState<PriorityLevels>({});
-    
+
     // Enhanced form state
     const initialCreateFormState = (): LocalEventPayload => {
         const now = new Date();
@@ -284,13 +284,13 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                     fetch('/api/local-calendar-events/types'),
                     fetch('/api/local-calendar-events/priorities')
                 ]);
-                
+
                 if (typesRes.ok) {
                     const types = await typesRes.json();
                     setEventTypes(types);
                     setSelectedTypes(Object.keys(types));
                 }
-                
+
                 if (prioritiesRes.ok) {
                     const priorities = await prioritiesRes.json();
                     setPriorityLevels(priorities);
@@ -300,11 +300,31 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                 console.error('Failed to load event configuration:', error);
             }
         };
-        
+
         loadEventConfig();
     }, []);
 
     // Filter events based on selected filters
+    // Google Calendar logout handler
+    const handleGoogleLogout = async () => {
+        try {
+            await logoutGoogleCalendar().unwrap();
+            toast.success('Déconnexion de Google Calendar réussie');
+            window.location.reload(); // Refresh to update connection status
+        } catch (error) {
+            toast.error('Erreur lors de la déconnexion');
+        }
+    };
+
+    // Google Calendar connection handler
+    const handleGoogleConnect = useCallback(() => {
+        if (authUrlResponse?.auth_url) {
+            window.location.href = authUrlResponse.auth_url;
+        } else {
+            toast.error("URL d'authentification Google non disponible. Veuillez réessayer.");
+        }
+    }, [authUrlResponse]);
+
     const filterEvents = useCallback((events: EnhancedFullCalendarEvent[]) => {
         return events.filter(event => {
             const eventType = event.extendedProps?.type || 'other';
@@ -312,22 +332,22 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
             const hasContact = event.extendedProps?.contact;
             const hasCompany = event.extendedProps?.company;
             const hasOpportunity = event.extendedProps?.opportunity;
-            
+
             // Type filter
             if (selectedTypes.length > 0 && !selectedTypes.includes(eventType)) {
                 return false;
             }
-            
+
             // Priority filter
             if (selectedPriorities.length > 0 && !selectedPriorities.includes(eventPriority)) {
                 return false;
             }
-            
+
             // CRM filter
             if (!showCRMEvents && (hasContact || hasCompany || hasOpportunity)) {
                 return false;
             }
-            
+
             return true;
         });
     }, [selectedTypes, selectedPriorities, showCRMEvents]);
@@ -335,13 +355,13 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
     // Get filtered events for display
     const eventsToDisplay: EnhancedFullCalendarEvent[] = React.useMemo(() => {
         let allEvents: EnhancedFullCalendarEvent[] = [];
-        
+
         if (isGoogleConnected) {
             allEvents = mapGoogleEventsToFullCalendar(googleEvents || []);
         } else {
             allEvents = mapLocalEventsToFullCalendar(localEvents || []);
         }
-        
+
         return filterEvents(allEvents);
     }, [isGoogleConnected, googleEvents, localEvents, filterEvents]);
 
@@ -349,7 +369,7 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
     const handleEventClick = (clickInfo: any) => {
         const event = clickInfo.event.extendedProps.originalEvent;
         if (!event) return;
-        
+
         setSelectedEvent(event);
         setIsDetailModalOpen(true);
     };
@@ -357,12 +377,12 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
     // Handle creating enhanced events
     const handleCreateEvent = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (!createForm.title.trim()) {
             toast.error("Le titre de l'événement est obligatoire.");
             return;
         }
-        
+
         if (new Date(createForm.start_datetime).getTime() >= new Date(createForm.end_datetime).getTime()) {
             toast.error("La date de fin doit être postérieure à la date de début.");
             return;
@@ -379,7 +399,7 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                     location: createForm.location,
                     attendees: createForm.attendees || [],
                 };
-                
+
                 await createGoogleEvent(googlePayload).unwrap();
                 toast.success('Événement créé avec succès sur Google Calendar !');
                 refetchGoogleEvents();
@@ -388,7 +408,7 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                 toast.success('Événement local créé avec succès !');
                 refetchLocalEvents();
             }
-            
+
             setCreateForm(initialCreateFormState());
             setIsCreateModalOpen(false);
         } catch (error) {
@@ -407,7 +427,7 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
             <div className="py-6 h-full flex flex-col">
                 <div className="flex-grow h-full">
                     <div className="bg-white overflow-hidden sm:rounded-lg px-6 h-full flex flex-col space-y-6">
-                        
+
                         {/* Enhanced Header with Filters */}
                         <Card className="flex-shrink-0 shadow-none border-0">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 mb-4">
@@ -417,12 +437,12 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                                         Calendrier Amélioré
                                     </CardTitle>
                                     <CardDescription className="mt-2">
-                                        {isGoogleConnected 
-                                            ? "Synchronisé avec Google Calendar • Fonctionnalités CRM intégrées" 
+                                        {isGoogleConnected
+                                            ? "Synchronisé avec Google Calendar • Fonctionnalités CRM intégrées"
                                             : "Calendrier local avec intégration CRM"}
                                     </CardDescription>
                                 </div>
-                                
+
                                 <div className="flex gap-2 items-center">
                                     {/* Filters Dropdown */}
                                     <DropdownMenu>
@@ -447,15 +467,15 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                                                     }}
                                                 >
                                                     <div className="flex items-center gap-2">
-                                                        <div 
-                                                            className="w-3 h-3 rounded" 
+                                                        <div
+                                                            className="w-3 h-3 rounded"
                                                             style={{ backgroundColor: type.color }}
                                                         />
                                                         {type.label}
                                                     </div>
                                                 </DropdownMenuCheckboxItem>
                                             ))}
-                                            
+
                                             <DropdownMenuSeparator />
                                             <DropdownMenuLabel>Priorités</DropdownMenuLabel>
                                             {Object.entries(priorityLevels).map(([key, priority]) => (
@@ -471,15 +491,15 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                                                     }}
                                                 >
                                                     <div className="flex items-center gap-2">
-                                                        <div 
-                                                            className="w-3 h-3 rounded" 
+                                                        <div
+                                                            className="w-3 h-3 rounded"
                                                             style={{ backgroundColor: priority.color }}
                                                         />
                                                         {priority.label}
                                                     </div>
                                                 </DropdownMenuCheckboxItem>
                                             ))}
-                                            
+
                                             <DropdownMenuSeparator />
                                             <DropdownMenuCheckboxItem
                                                 checked={showCRMEvents}
@@ -490,24 +510,49 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                                             </DropdownMenuCheckboxItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
-                                    
+
                                     {/* Refresh Button */}
-                                    <Button 
-                                        onClick={isGoogleConnected ? refetchGoogleEvents : refetchLocalEvents} 
-                                        variant="outline" 
+                                    <Button
+                                        onClick={isGoogleConnected ? refetchGoogleEvents : refetchLocalEvents}
+                                        variant="outline"
                                         size="sm"
                                     >
                                         <RefreshCcw className="h-4 w-4" />
                                     </Button>
-                                    
+
                                     {/* Create Event Button */}
-                                    <Button 
+                                    <Button
                                         onClick={() => setIsCreateModalOpen(true)}
-                                        className="bg-blue-600 hover:bg-blue-700"
+                                        className="bg-teal-600 hover:bg-teal-700"
                                     >
                                         <PlusCircle className="mr-2 h-4 w-4" />
                                         Nouvel événement
                                     </Button>
+
+                                    {/* Google Calendar Connection */}
+                                    {isGoogleConnected ? (
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="outline" className="flex items-center">
+                                                    <img src="https://www.google.com/favicon.ico" alt="Google Icon" className="h-4 w-4 mr-2" />
+                                                    Connecté
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Google Calendar</DropdownMenuLabel>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem onClick={handleGoogleLogout}>
+                                                    <LogOut className="mr-2 h-4 w-4" />
+                                                    Se déconnecter
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    ) : (
+                                        <Button variant="outline" onClick={handleGoogleConnect}>
+                                            <img src="https://www.google.com/favicon.ico" alt="Google Icon" className="h-4 w-4 mr-2" />
+                                            Se connecter à Google
+                                        </Button>
+                                    )}
                                 </div>
                             </CardHeader>
 
@@ -517,8 +562,8 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                                     <div className="flex flex-wrap gap-4">
                                         {Object.entries(eventTypes).map(([key, type]) => (
                                             <div key={key} className="flex items-center gap-2">
-                                                <div 
-                                                    className="w-3 h-3 rounded" 
+                                                <div
+                                                    className="w-3 h-3 rounded"
                                                     style={{ backgroundColor: type.color }}
                                                 />
                                                 <span className="text-sm text-gray-600">{type.label}</span>
@@ -526,7 +571,7 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                                         ))}
                                     </div>
                                 </div>
-                                
+
                                 {/* Calendar Container */}
                                 <div className="full-calendar-container relative" style={{ height: '600px', width: '100%' }}>
                                     <FullCalendar
@@ -545,7 +590,7 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                                         height="100%"
                                         eventDisplay="block"
                                     />
-                                    
+
                                     {(isLocalEventsLoading || isGoogleEventsLoading) && (
                                         <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-10">
                                             <div className="flex items-center text-gray-600">
@@ -566,7 +611,7 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                 <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <PlusCircle className="h-5 w-5 text-blue-600" />
+                            <PlusCircle className="h-5 w-5 text-teal-600" />
                             Créer un Nouvel Événement
                         </DialogTitle>
                         <DialogDescription>
@@ -590,8 +635,8 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
 
                             <div>
                                 <Label htmlFor="type">Type d'événement</Label>
-                                <Select 
-                                    value={createForm.type} 
+                                <Select
+                                    value={createForm.type}
                                     onValueChange={(value) => setCreateForm({ ...createForm, type: value })}
                                 >
                                     <SelectTrigger>
@@ -601,8 +646,8 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                                         {Object.entries(eventTypes).map(([key, type]) => (
                                             <SelectItem key={key} value={key}>
                                                 <div className="flex items-center gap-2">
-                                                    <div 
-                                                        className="w-3 h-3 rounded" 
+                                                    <div
+                                                        className="w-3 h-3 rounded"
                                                         style={{ backgroundColor: type.color }}
                                                     />
                                                     {type.label}
@@ -615,8 +660,8 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
 
                             <div>
                                 <Label htmlFor="priority">Priorité</Label>
-                                <Select 
-                                    value={createForm.priority} 
+                                <Select
+                                    value={createForm.priority}
                                     onValueChange={(value) => setCreateForm({ ...createForm, priority: value })}
                                 >
                                     <SelectTrigger>
@@ -626,8 +671,8 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                                         {Object.entries(priorityLevels).map(([key, priority]) => (
                                             <SelectItem key={key} value={key}>
                                                 <div className="flex items-center gap-2">
-                                                    <div 
-                                                        className="w-3 h-3 rounded" 
+                                                    <div
+                                                        className="w-3 h-3 rounded"
                                                         style={{ backgroundColor: priority.color }}
                                                     />
                                                     {priority.label}
@@ -665,7 +710,7 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
 
                         {/* All Day Option */}
                         <div className="flex items-center space-x-2">
-                            <Checkbox 
+                            <Checkbox
                                 id="all_day"
                                 checked={createForm.all_day}
                                 onCheckedChange={(checked) => setCreateForm({ ...createForm, all_day: checked as boolean })}
@@ -746,7 +791,7 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                             </Button>
                             <Button
                                 type="submit"
-                                className="bg-blue-600 hover:bg-blue-700"
+                                className="bg-teal-600 hover:bg-teal-700"
                                 disabled={isCreatingGoogleEvent || isCreatingLocalEvent}
                             >
                                 {(isCreatingGoogleEvent || isCreatingLocalEvent) ? (
@@ -763,7 +808,160 @@ const EnhancedCalendarPage: React.FC<PageProps> = ({ auth }) => {
                 </DialogContent>
             </Dialog>
 
-            {/* Enhanced Event Details Modal would go here */}
+            {/* Event Details Modal */}
+            <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <CalendarIcon className="h-5 w-5 text-teal-600" />
+                            Détails de l'événement
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {selectedEvent && (
+                        <div className="space-y-6">
+                            {/* Basic Info */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="md:col-span-2">
+                                    <h3 className="text-xl font-semibold">{selectedEvent.title || selectedEvent.summary}</h3>
+                                    {selectedEvent.description && (
+                                        <p className="text-gray-600 mt-2">{selectedEvent.description}</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Date & Time */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <Label className="font-medium">Date de début</Label>
+                                    <p className="text-sm text-gray-600">
+                                        {selectedEvent.start_time || selectedEvent.start?.dateTime 
+                                            ? new Date(selectedEvent.start_time || selectedEvent.start.dateTime).toLocaleString('fr-FR')
+                                            : 'Non spécifiée'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <Label className="font-medium">Date de fin</Label>
+                                    <p className="text-sm text-gray-600">
+                                        {selectedEvent.end_time || selectedEvent.end?.dateTime 
+                                            ? new Date(selectedEvent.end_time || selectedEvent.end.dateTime).toLocaleString('fr-FR')
+                                            : 'Non spécifiée'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Event Details for Local Events */}
+                            {'type' in selectedEvent && (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {selectedEvent.type && (
+                                            <div>
+                                                <Label className="font-medium">Type</Label>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span 
+                                                        className="w-3 h-3 rounded-full"
+                                                        style={{ backgroundColor: eventTypes[selectedEvent.type]?.color || '#gray' }}
+                                                    ></span>
+                                                    <span className="text-sm">{eventTypes[selectedEvent.type]?.label || selectedEvent.type}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {selectedEvent.priority && (
+                                            <div>
+                                                <Label className="font-medium">Priorité</Label>
+                                                <Badge 
+                                                    variant="outline" 
+                                                    className="mt-1"
+                                                    style={{ 
+                                                        backgroundColor: priorityLevels[selectedEvent.priority]?.color + '20',
+                                                        borderColor: priorityLevels[selectedEvent.priority]?.color,
+                                                        color: priorityLevels[selectedEvent.priority]?.color
+                                                    }}
+                                                >
+                                                    {priorityLevels[selectedEvent.priority]?.label || selectedEvent.priority}
+                                                </Badge>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Location */}
+                            {(selectedEvent.location || ('location' in selectedEvent && selectedEvent.location)) && (
+                                <div>
+                                    <Label className="font-medium">Lieu</Label>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <MapPin className="h-4 w-4 text-gray-400" />
+                                        <span className="text-sm text-gray-600">
+                                            {selectedEvent.location || ('location' in selectedEvent ? selectedEvent.location : '')}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* CRM Integration */}
+                            {'contact_id' in selectedEvent && (selectedEvent.contact || selectedEvent.company || selectedEvent.opportunity) && (
+                                <div>
+                                    <Label className="font-medium">Données CRM</Label>
+                                    <div className="space-y-2 mt-2">
+                                        {selectedEvent.contact && (
+                                            <div className="flex items-center gap-2">
+                                                <Users className="h-4 w-4 text-blue-500" />
+                                                <span className="text-sm">Contact: {selectedEvent.contact.name}</span>
+                                            </div>
+                                        )}
+                                        {selectedEvent.company && (
+                                            <div className="flex items-center gap-2">
+                                                <Building className="h-4 w-4 text-green-500" />
+                                                <span className="text-sm">Entreprise: {selectedEvent.company.name}</span>
+                                            </div>
+                                        )}
+                                        {selectedEvent.opportunity && (
+                                            <div className="flex items-center gap-2">
+                                                <Target className="h-4 w-4 text-purple-500" />
+                                                <span className="text-sm">Opportunité: {selectedEvent.opportunity.name}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Meeting Link */}
+                            {'meeting_link' in selectedEvent && selectedEvent.meeting_link && (
+                                <div>
+                                    <Label className="font-medium">Lien de réunion</Label>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <Video className="h-4 w-4 text-blue-500" />
+                                        <a 
+                                            href={selectedEvent.meeting_link} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-blue-600 hover:text-blue-800 text-sm"
+                                        >
+                                            Rejoindre la réunion
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Notes */}
+                            {'notes' in selectedEvent && selectedEvent.notes && (
+                                <div>
+                                    <Label className="font-medium">Notes</Label>
+                                    <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{selectedEvent.notes}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <DialogFooter className="border-t pt-4">
+                        <Button variant="outline" onClick={() => setIsDetailModalOpen(false)}>
+                            Fermer
+                        </Button>
+                        {/* Add Edit/Delete buttons here if needed */}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     );
 };

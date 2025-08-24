@@ -35,6 +35,7 @@ import {
   ChevronsUpDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface Contact {
   id: number;
@@ -88,6 +89,7 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
   onOpportunityChange,
   onReminderChange,
 }) => {
+  const themeColors = useThemeColors();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -115,11 +117,15 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
     try {
       const response = await fetch(`/api/contacts/search?q=${encodeURIComponent(search)}&limit=20`);
       if (response.ok) {
-        const data = await response.json();
-        setContacts(data);
+        const result = await response.json();
+        const data = result.data || result;
+        setContacts(Array.isArray(data) ? data : []);
+      } else {
+        setContacts([]);
       }
     } catch (error) {
       console.error('Failed to load contacts:', error);
+      setContacts([]);
     }
   };
 
@@ -127,23 +133,31 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
     try {
       const response = await fetch(`/api/companies/search?q=${encodeURIComponent(search)}&limit=20`);
       if (response.ok) {
-        const data = await response.json();
-        setCompanies(data);
+        const result = await response.json();
+        const data = result.data || result;
+        setCompanies(Array.isArray(data) ? data : []);
+      } else {
+        setCompanies([]);
       }
     } catch (error) {
       console.error('Failed to load companies:', error);
+      setCompanies([]);
     }
   };
 
   const loadOpportunities = async (search = '') => {
     try {
-      const response = await fetch(`/api/opportunities/search?q=${encodeURIComponent(search)}&limit=20`);
+      const response = await fetch(`/api/opportunites/search?q=${encodeURIComponent(search)}&limit=20`);
       if (response.ok) {
-        const data = await response.json();
-        setOpportunities(data);
+        const result = await response.json();
+        const data = result.data || result;
+        setOpportunities(Array.isArray(data) ? data : []);
+      } else {
+        setOpportunities([]);
       }
     } catch (error) {
       console.error('Failed to load opportunities:', error);
+      setOpportunities([]);
     }
   };
 
@@ -151,11 +165,15 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
     try {
       const response = await fetch(`/api/rappels/search?q=${encodeURIComponent(search)}&limit=20`);
       if (response.ok) {
-        const data = await response.json();
-        setReminders(data);
+        const result = await response.json();
+        const data = result.data || result;
+        setReminders(Array.isArray(data) ? data : []);
+      } else {
+        setReminders([]);
       }
     } catch (error) {
       console.error('Failed to load reminders:', error);
+      setReminders([]);
     }
   };
 
@@ -188,16 +206,16 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
     }
   }, [reminderSearch]);
 
-  const selectedContact = contacts.find(c => c.id === selectedContactId);
-  const selectedCompany = companies.find(c => c.id === selectedCompanyId);
-  const selectedOpportunity = opportunities.find(o => o.id === selectedOpportunityId);
-  const selectedReminder = reminders.find(r => r.id === selectedReminderId);
+  const selectedContact = Array.isArray(contacts) ? contacts.find(c => c.id === selectedContactId) : undefined;
+  const selectedCompany = Array.isArray(companies) ? companies.find(c => c.id === selectedCompanyId) : undefined;
+  const selectedOpportunity = Array.isArray(opportunities) ? opportunities.find(o => o.id === selectedOpportunityId) : undefined;
+  const selectedReminder = Array.isArray(reminders) ? reminders.find(r => r.id === selectedReminderId) : undefined;
 
   return (
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
-          <Target className="h-5 w-5 text-blue-600" />
+          <Target className="h-5 w-5" {...themeColors.getPrimaryClasses('text')} />
           Intégration CRM
         </CardTitle>
         <p className="text-sm text-muted-foreground">
@@ -252,6 +270,10 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
                           onContactChange(undefined);
                           setContactSearchOpen(false);
                         }}
+                        onClick={() => {
+                          onContactChange(undefined);
+                          setContactSearchOpen(false);
+                        }}
                       >
                         <X className="mr-2 h-4 w-4" />
                         Supprimer la sélection
@@ -262,6 +284,10 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
                         key={contact.id}
                         value={contact.name}
                         onSelect={() => {
+                          onContactChange(contact.id);
+                          setContactSearchOpen(false);
+                        }}
+                        onClick={() => {
                           onContactChange(contact.id);
                           setContactSearchOpen(false);
                         }}
@@ -325,6 +351,10 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
                           onCompanyChange(undefined);
                           setCompanySearchOpen(false);
                         }}
+                        onClick={() => {
+                          onCompanyChange(undefined);
+                          setCompanySearchOpen(false);
+                        }}
                       >
                         <X className="mr-2 h-4 w-4" />
                         Supprimer la sélection
@@ -335,6 +365,10 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
                         key={company.id}
                         value={company.name}
                         onSelect={() => {
+                          onCompanyChange(company.id);
+                          setCompanySearchOpen(false);
+                        }}
+                        onClick={() => {
                           onCompanyChange(company.id);
                           setCompanySearchOpen(false);
                         }}
@@ -399,6 +433,10 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
                           onOpportunityChange(undefined);
                           setOpportunitySearchOpen(false);
                         }}
+                        onClick={() => {
+                          onOpportunityChange(undefined);
+                          setOpportunitySearchOpen(false);
+                        }}
                       >
                         <X className="mr-2 h-4 w-4" />
                         Supprimer la sélection
@@ -409,6 +447,10 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
                         key={opportunity.id}
                         value={opportunity.name}
                         onSelect={() => {
+                          onOpportunityChange(opportunity.id);
+                          setOpportunitySearchOpen(false);
+                        }}
+                        onClick={() => {
                           onOpportunityChange(opportunity.id);
                           setOpportunitySearchOpen(false);
                         }}
@@ -486,6 +528,10 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
                           onReminderChange(undefined);
                           setReminderSearchOpen(false);
                         }}
+                        onClick={() => {
+                          onReminderChange(undefined);
+                          setReminderSearchOpen(false);
+                        }}
                       >
                         <X className="mr-2 h-4 w-4" />
                         Supprimer la sélection
@@ -496,6 +542,10 @@ const CRMEventSelector: React.FC<CRMEventSelectorProps> = ({
                         key={reminder.id}
                         value={reminder.title}
                         onSelect={() => {
+                          onReminderChange(reminder.id);
+                          setReminderSearchOpen(false);
+                        }}
+                        onClick={() => {
                           onReminderChange(reminder.id);
                           setReminderSearchOpen(false);
                         }}

@@ -314,6 +314,10 @@ export default function Authenticated({
 
                 {/* Bottom Section: User Profil */}
                 <div className="p-4 border-t border-border space-y-3">
+                    {/* Notifications */}
+                    <div className="flex justify-center">
+                        <RemindersNotification />
+                    </div>
                     {/* User Profil Dropdown */}
                     <Dropdown>
                         <Dropdown.Trigger>
@@ -494,7 +498,6 @@ export default function Authenticated({
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <RemindersNotification />
                                 <Dropdown>
                                     <Dropdown.Trigger>
                                         {({ isOpen }) => (
@@ -555,7 +558,12 @@ export default function Authenticated({
                 <main className="flex-1 p-4 sm:p-6">{children}</main>
             </div>
         </div>
-        
+
+        {/* Fixed Notifications - positioned above user info */}
+        <div className="fixed top-4 right-4 z-50">
+            <RemindersNotification />
+        </div>
+
         {/* Scroll to top button - Outside main layout structure */}
         {showScrollTop && (
             <button

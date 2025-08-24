@@ -279,7 +279,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /**
      * Opportunities (Sales)
+     * IMPORTANT: Declare "search" BEFORE any parameterized routes to avoid collisions.
      */
+    Route::get('/opportunites/search', [App\Http\Controllers\OpportunityController::class, 'search']);
+    
     Route::get('/opportunites', [App\Http\Controllers\OpportunityController::class, 'index'])
         ->name('opportunities.index');
     Route::post('/opportunites', [App\Http\Controllers\OpportunityController::class, 'store'])
@@ -312,7 +315,10 @@ Route::middleware('auth:sanctum')->group(function () {
     
     /**
      * Reminders
+     * IMPORTANT: Declare "search" BEFORE any parameterized routes to avoid collisions.
      */
+    Route::get('/rappels/search', [ReminderController::class, 'search']);
+    
     Route::get('/rappels/upcoming', [ReminderController::class, 'apiUpcoming'])
         ->name('reminders.upcoming');
     Route::get('/rappels/count', [ReminderController::class, 'apiCount'])
