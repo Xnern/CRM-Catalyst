@@ -312,9 +312,9 @@ export default function Authenticated({
                     </ul>
                 </nav>
 
-                {/* Bottom Section: User Profile */}
+                {/* Bottom Section: User Profil */}
                 <div className="p-4 border-t border-border space-y-3">
-                    {/* User Profile Dropdown */}
+                    {/* User Profil Dropdown */}
                     <Dropdown>
                         <Dropdown.Trigger>
                             {({ isOpen }) => (
@@ -358,14 +358,14 @@ export default function Authenticated({
                         {/* Dropdown Content - styled to open UPWARDS */}
                         <Dropdown.Content>
                             <Dropdown.Link href={route('profile.edit')} className='w-full top-0'>
-                                Profile
+                                Profil
                             </Dropdown.Link>
                             <Dropdown.Link
                                 href={route('logout')}
                                 method="post"
                                 as="button"
                             >
-                                Log Out
+                                Déconnexion
                             </Dropdown.Link>
                         </Dropdown.Content>
                     </Dropdown>
@@ -433,7 +433,7 @@ export default function Authenticated({
                         </ul>
                     </nav>
 
-                    {/* Mobile User Profile Dropdown */}
+                    {/* Mobile User Profil Dropdown */}
                     <div className="p-4 border-t border-border">
                         <Dropdown>
                             <Dropdown.Trigger>
@@ -456,14 +456,14 @@ export default function Authenticated({
                             {/* Dropdown Content for Mobile - styled to open UPWARDS */}
                             <Dropdown.Content className="bottom-full mb-2 origin-bottom-right right-0 w-48">
                                 <Dropdown.Link href={route('profile.edit')}>
-                                    Profile
+                                    Profil
                                 </Dropdown.Link>
                                 <Dropdown.Link
                                     href={route('logout')}
                                     method="post"
                                     as="button"
                                 >
-                                    Log Out
+                                    Déconnexion
                                 </Dropdown.Link>
                             </Dropdown.Content>
                         </Dropdown>
@@ -528,14 +528,14 @@ export default function Authenticated({
                                         <Dropdown.Link
                                             href={route('profile.edit')}
                                         >
-                                            Profile
+                                            Profil
                                         </Dropdown.Link>
                                         <Dropdown.Link
                                             href={route('logout')}
                                             method="post"
                                             as="button"
                                         >
-                                            Log Out
+                                            Déconnexion
                                         </Dropdown.Link>
                                     </Dropdown.Content>
                                 </Dropdown>

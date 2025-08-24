@@ -134,7 +134,7 @@ class ReminderController extends Controller
     // API endpoints for AJAX
     public function apiUpcoming()
     {
-        // On récupère tous les rappels pending, pas seulement upcoming
+        // Get all pending reminders, not just upcoming ones
         $reminders = Reminder::with(['opportunity', 'contact'])
             ->where('user_id', auth()->id())
             ->pending()

@@ -47,14 +47,14 @@ class ForecastController extends Controller
             default => $now->copy()->endOfQuarter(),
         };
 
-        // Facteurs de probabilité selon le scénario
+        // Probability factors based on scenario
         $probabilityFactors = match ($scenario) {
             'pessimistic' => ['min' => 0.6, 'max' => 0.8],
             'optimistic' => ['min' => 1.1, 'max' => 1.3],
             default => ['min' => 0.9, 'max' => 1.0], // realistic
         };
 
-        // Opportunités par mois
+        // Opportunities by month
         $monthlyForecasts = [];
         $currentMonth = $now->copy()->startOfMonth();
         
@@ -62,15 +62,15 @@ class ForecastController extends Controller
             $monthStart = $currentMonth->copy()->startOfMonth();
             $monthEnd = $currentMonth->copy()->endOfMonth();
 
-            // Opportunités qui devraient se fermer ce mois
+            // Opportunities that should close this month
             $opportunities = Opportunity::query()
                 ->whereNotIn('stage', ['converti', 'perdu'])
                 ->whereBetween('expected_close_date', [$monthStart, $monthEnd])
                 ->get();
 
-            $committed = 0; // > 75% probabilité
-            $bestCase = 0;  // 50-75% probabilité
-            $pipeline = 0;   // < 50% probabilité
+            $committed = 0; // > 75% probability
+            $bestCase = 0;  // 50-75% probability
+            $pipeline = 0;   // < 50% probability
             $weighted = 0;
 
             foreach ($opportunities as $opp) {
@@ -156,7 +156,7 @@ class ForecastController extends Controller
                 ];
             });
 
-        // Si pas de données historiques, générer des données d'exemple basées sur les opportunités actuelles
+        // If no historical data, generate sample data based on current opportunities
         if ($historicalData->isEmpty()) {
             $baseAmount = Opportunity::avg('amount') ?: 50000;
             $historicalData = collect();
@@ -233,11 +233,11 @@ class ForecastController extends Controller
     {
         $threeMonthsAgo = Carbon::now()->subMonths(3)->startOfMonth();
         
-        // Taux de conversion par étape basé sur les données actuelles
+        // Conversion rates by stage based on current data
         $stages = ['nouveau', 'qualification', 'proposition_envoyee', 'negociation', 'converti'];
         $rates = [];
 
-        // Calculer les taux de conversion théoriques basés sur les probabilités
+        // Calculate theoretical conversion rates based on probabilities
         $stageConfig = [
             'nouveau' => ['next' => 'qualification', 'probability' => 10],
             'qualification' => ['next' => 'proposition_envoyee', 'probability' => 25],
@@ -248,23 +248,23 @@ class ForecastController extends Controller
         foreach ($stageConfig as $stage => $config) {
             $nextStage = $config['next'];
             
-            // Compte des opportunités dans chaque étape
+            // Count of opportunities in each stage
             $currentStageCount = Opportunity::where('stage', $stage)
                 ->where('created_at', '>=', $threeMonthsAgo)
                 ->count();
             
-            // Compte des opportunités dans les étapes suivantes ou converties
+            // Count of opportunities in subsequent stages or converted
             $nextStagesCount = Opportunity::whereIn('stage', array_slice($stages, array_search($nextStage, $stages)))
                 ->where('created_at', '>=', $threeMonthsAgo)
                 ->count();
             
-            // Pour simuler des données réalistes basées sur les probabilités
+            // To simulate realistic data based on probabilities
             $total = $currentStageCount + $nextStagesCount;
             $progressed = $nextStagesCount;
             
-            // Si pas de données, utiliser des valeurs théoriques
+            // If no data, use theoretical values
             if ($total == 0) {
-                $total = 10; // Valeur théorique
+                $total = 10; // Theoretical value
                 $progressed = round(10 * (100 - $config['probability']) / 100);
             }
 

@@ -364,7 +364,7 @@ export default function DocumentsIndex({ auth }: Props) {
     if (!deleteTarget?.id) return;
     try {
       await deleteDocument({ id: deleteTarget.id }).unwrap();
-      toast.success('Document deleted.');
+      toast.success('Document supprimé.');
 
       // Clean cache
       documentCache.current.delete(deleteTarget.id);
@@ -376,7 +376,7 @@ export default function DocumentsIndex({ auth }: Props) {
       setDeleteTarget(null);
       refetch();
     } catch {
-      toast.error('Deletion failed.');
+      toast.error('Échec de la suppression.');
     }
   };
 
@@ -429,11 +429,11 @@ export default function DocumentsIndex({ auth }: Props) {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <FileText className="h-5 w-5 text-gray-600" />
-                  <div className="text-lg font-semibold">Document Management</div>
+                  <div className="text-lg font-semibold">Gestion des documents</div>
                 </div>
                 <Button onClick={openUploadModal} className="gap-2 shrink-0">
                   <Plus className="h-4 w-4" />
-                  New Document
+                  Nouveau document
                 </Button>
               </div>
               <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -442,7 +442,7 @@ export default function DocumentsIndex({ auth }: Props) {
                   <Search className="h-4 w-4 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
                   <Input
                     className="pl-8 w-[260px] sm:w-[300px]"
-                    placeholder="Search (name, file, description)"
+                    placeholder="Rechercher (nom, fichier, description)"
                     value={search}
                     onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                   />
@@ -451,7 +451,7 @@ export default function DocumentsIndex({ auth }: Props) {
                 <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1); }}>
                   <SelectTrigger className="w-[160px]"><SelectValue placeholder="Type" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All types</SelectItem>
+                    <SelectItem value="all">Tous les types</SelectItem>
                     <SelectItem value="pdf">PDF</SelectItem>
                     <SelectItem value="docx">DOCX</SelectItem>
                     <SelectItem value="xlsx">XLSX</SelectItem>
@@ -463,7 +463,7 @@ export default function DocumentsIndex({ auth }: Props) {
                   <TagIcon className="h-4 w-4 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
                   <Input
                     className="pl-8 w-[160px]"
-                    placeholder="Tag"
+                    placeholder="Étiquette"
                     value={tag}
                     onChange={(e) => { setTag(e.target.value); setPage(1); }}
                   />
@@ -472,11 +472,11 @@ export default function DocumentsIndex({ auth }: Props) {
                 <Select value={sort} onValueChange={(v) => { setSort(v); setPage(1); }}>
                   <SelectTrigger className="w-[180px]"><SelectValue placeholder="Sort" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="-created_at">Most recent</SelectItem>
-                    <SelectItem value="created_at">Oldest</SelectItem>
-                    <SelectItem value="name">Name A→Z</SelectItem>
-                    <SelectItem value="-name">Name Z→A</SelectItem>
-                    <SelectItem value="-size_bytes">Largest</SelectItem>
+                    <SelectItem value="-created_at">Plus récents</SelectItem>
+                    <SelectItem value="created_at">Plus anciens</SelectItem>
+                    <SelectItem value="name">Nom A→Z</SelectItem>
+                    <SelectItem value="-name">Nom Z→A</SelectItem>
+                    <SelectItem value="-size_bytes">Plus volumineux</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -491,12 +491,12 @@ export default function DocumentsIndex({ auth }: Props) {
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr className="text-left">
-                    <th className="px-4 py-2">Name</th>
+                    <th className="px-4 py-2">Nom</th>
                     <th className="px-4 py-2">Type</th>
-                    <th className="px-4 py-2">Size</th>
-                    <th className="px-4 py-2">Visibility</th>
-                    <th className="px-4 py-2">Author</th>
-                    <th className="px-4 py-2">Created</th>
+                    <th className="px-4 py-2">Taille</th>
+                    <th className="px-4 py-2">Visibilité</th>
+                    <th className="px-4 py-2">Auteur</th>
+                    <th className="px-4 py-2">Créé le</th>
                     <th className="px-4 py-2 w-[160px]">Actions</th>
                   </tr>
                 </thead>
@@ -506,7 +506,7 @@ export default function DocumentsIndex({ auth }: Props) {
                       <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                         <div className="inline-flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Loading...
+                          Chargement...
                         </div>
                       </td>
                     </tr>
@@ -514,7 +514,7 @@ export default function DocumentsIndex({ auth }: Props) {
                   {!isDataLoading && items.length === 0 && (
                     <tr>
                       <td colSpan={7} className="px-4 py-10 text-center text-gray-400">
-                        No documents. Upload a new one.
+                        Aucun document. Téléversez-en un nouveau.
                       </td>
                     </tr>
                   )}
@@ -523,7 +523,7 @@ export default function DocumentsIndex({ auth }: Props) {
                       key={d.id}
                       className="border-t hover:bg-gray-50/60 transition-colors cursor-pointer"
                       onClick={() => openDetails(d)}
-                      title="Click to view details"
+                      title="Cliquer pour voir les détails"
                     >
                       <td className="px-4 py-2 font-medium text-gray-900 flex items-center gap-2">
                         {iconForExtension(d.extension)}
@@ -542,7 +542,7 @@ export default function DocumentsIndex({ auth }: Props) {
                       <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5">
                           <Button
-                            title="Download"
+                            title="Télécharger"
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 opacity-80 hover:opacity-100 transition-opacity"
@@ -551,7 +551,7 @@ export default function DocumentsIndex({ auth }: Props) {
                             <Download className="h-4 w-4" />
                           </Button>
                           <Button
-                            title="Details"
+                            title="Détails"
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 opacity-80 hover:opacity-100 transition-opacity"
@@ -561,7 +561,7 @@ export default function DocumentsIndex({ auth }: Props) {
                           </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button title="More actions" variant="ghost" size="icon" className="h-8 w-8 opacity-80 hover:opacity-100 transition-opacity">
+                              <Button title="Plus d'actions" variant="ghost" size="icon" className="h-8 w-8 opacity-80 hover:opacity-100 transition-opacity">
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -569,16 +569,16 @@ export default function DocumentsIndex({ auth }: Props) {
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => download(d)} className="gap-2">
-                                <Download className="h-4 w-4" /> Download
+                                <Download className="h-4 w-4" /> Télécharger
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => openDetails(d)} className="gap-2">
-                                <Eye className="h-4 w-4" /> Details
+                                <Eye className="h-4 w-4" /> Détails
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => requestDeletion(d)}
                                 className="text-red-600 gap-2"
                               >
-                                <Trash2 className="h-4 w-4" /> Delete
+                                <Trash2 className="h-4 w-4" /> Supprimer
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -591,7 +591,7 @@ export default function DocumentsIndex({ auth }: Props) {
             </div>
             {/* Pagination */}
             <div className="flex items-center justify-between p-4">
-              <div className="text-sm text-gray-600">Results: {total}</div>
+              <div className="text-sm text-gray-600">Résultats : {total}</div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -599,7 +599,7 @@ export default function DocumentsIndex({ auth }: Props) {
                   disabled={currentPage <= 1 || isDataLoading}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
-                  Previous
+                  Précédent
                 </Button>
                 <div className="px-2 py-1 text-sm">Page {currentPage} / {lastPage}</div>
                 <Button
@@ -608,7 +608,7 @@ export default function DocumentsIndex({ auth }: Props) {
                   disabled={currentPage >= lastPage || isDataLoading}
                   onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
                 >
-                  Next
+                  Suivant
                 </Button>
               </div>
             </div>
@@ -644,15 +644,15 @@ export default function DocumentsIndex({ auth }: Props) {
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete document?</AlertDialogTitle>
+              <AlertDialogTitle>Supprimer le document ?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action will permanently delete "{deleteTarget?.name}". This action is irreversible.
+                Cette action supprimera définitivement "{deleteTarget?.name}". Cette action est irréversible.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
               <AlertDialogAction onClick={confirmDeletion} className="bg-red-600 hover:bg-red-700">
-                Delete permanently
+                Supprimer définitivement
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
