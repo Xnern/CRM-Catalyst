@@ -64,6 +64,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/modeles-email/{template}', [App\Http\Controllers\EmailTemplateController::class, 'destroy'])->name('email-templates.destroy');
     Route::post('/modeles-email/{template}/dupliquer', [App\Http\Controllers\EmailTemplateController::class, 'duplicate'])->name('email-templates.duplicate');
     Route::get('/calendrier', [GoogleController::class, 'indexInertia'])->name('calendar.indexInertia');
+    Route::get('/calendrier-ameliore', function () {
+        return inertia('Calendar/Enhanced');
+    })->name('calendar.enhanced');
 
     Route::get('/entreprises', [CompanyController::class, 'indexInertia'])->name('companies.indexInertia');
     Route::get('/entreprises/{id}', [CompanyController::class, 'showInertia'])->name('companies.showInertia');

@@ -246,7 +246,7 @@ export default function Authenticated({
         { id: 'forecast', label: 'Prévisions', icon: <BarChart3 size={20} />, route: 'forecast.index', permission: 'view opportunities' },
         { id: 'reminders', label: 'Rappels', icon: <Bell size={20} />, route: 'reminders.index' },
         { id: 'email-templates', label: 'Templates Email', icon: <Mail size={20} />, route: 'email-templates.index' },
-        { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'calendar.indexInertia', permission: 'view calendar' },
+        { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, route: 'calendar.enhanced', permission: 'view calendar' },
         { id: 'documents', label: 'Documents', icon: <FileText size={20} />, route: 'documents.indexInertia', permission: 'view documents' },
         { id: 'users', label: 'Utilisateurs', icon: <Users size={20} />, route: 'users.index', permission: 'view users' },
         { id: 'profile', label: 'Profil', icon: <User size={20} />, route: 'profile.edit' },
